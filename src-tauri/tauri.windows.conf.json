@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "PaperNest",
+        "width": 920,
+        "height": 680,
+        "minWidth": 480,
+        "minHeight": 360,
+        "resizable": true,
+        "decorations": false,
+        "visible": false,
+        "dragDropEnabled": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "papernest",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",
+    "release:linux": "node scripts/build-release-unix.mjs linux",
+    "release:macos": "node scripts/build-release-unix.mjs macos"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.0",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/language-data": "6.5.2",
+    "@codemirror/state": "6.7.1",
+    "@codemirror/view": "6.43.9",
+    "@lezer/highlight": "1.2.3",
+    "@milkdown/crepe": "7.22.1",
+    "@milkdown/kit": "7.22.1",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  }
+}

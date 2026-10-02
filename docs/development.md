@@ -84,6 +84,7 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 - 最终 MSI 补测：中文向导显示安装成功并启动应用。候选 MSI SHA-256 为 `aa87a3cecb79d6ee4520666c5344ce5611d3dc0a0af3b056f102da5125c74274`；已安装 EXE 与该 MSI 内嵌文件均为 `7cf0411a5879569e0481c9568670ff8c5d939b3fb4880d3509123f6f7fdc952b`。便携 EXE 的包类型标记不同，按自己的校验和与更新签名核对。
 - 最小化/恢复原生补测：用应用最小化按钮最小化，工具确认窗口为 minimized；在独立回归目录新增 `00-minimize-restore-check.md`，恢复后文件树立即显示它，活动长文仍位于末尾。隐藏期间零目录读取由上面的组件计数验证，未将桌面截图解释为原生系统调用计数。
 - 无权限删除原生补测：在本次安装目录选择 `Uninstall PaperNest.lnk`，确认目标为 1 个文件后尝试移入回收站。应用内显示操作失败、没有回退永久删除，错误码为 `0x80270021`（Windows SDK `sherrors.h` 中的 `COPYENGINE_E_ACCESS_DENIED_SRC`）。文件保留，删除前后 SHA-256 均为 `d447ad92d0e0292a63bc40788f2be3352e58e83666e5704a873b87fb27596f93`；未修改目录权限。
+- 发行草稿准备：候选源码提交 `7e23e1d` 已上传到独立分支 `codex/windows-release-0.1.0`，远端默认分支未改动。六个 Windows 发行文件上传到 GitHub 草稿后，逐项比对 GitHub 资产 digest、size 与 uploaded 状态，均与本地验签产物一致；图片预览手势反馈仍待确认，未公开发布。私钥未进入源码或发行文件。
 
 ## UI 与弹窗回归
 

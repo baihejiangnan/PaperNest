@@ -175,11 +175,13 @@ pub fn rename_workspace_entry(path: String, name: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub fn delete_workspace_entry(path: String) -> Result<(), String> {
-    let target = Path::new(&path);
-    if target.is_file() { fs::remove_file(target).map_err(|e| e.to_string()) }
-    else if target.is_dir() { fs::remove_dir_all(target).map_err(|e| e.to_string()) }
-    else { Err("File or folder does not exist.".into()) }
+pub async fn delete_workspace_entry(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // Use a fresh thread for the Shell's STA, independent of WebView2 and
+        // the runtime pool's COM apartment. Do not block the UI during recycling.
+        std::thread::spawn(move || crate::recycle::move_to_trash(Path::new(&path)))
+            .join().map_err(|_| "Could not move the item to the recycle bin.".to_owned())?
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[cfg(target_os = "windows")]
@@ -241,8 +243,10 @@ pub async fn open_workspace_location(path: String) -> Result<(), String> {
     if !target.exists() { return Err("File or folder does not exist.".into()); }
     #[cfg(target_os = "windows")]
     {
-        std::thread::spawn(move || open_in_explorer(Path::new(&path)))
-            .join().map_err(|_| "Could not open File Explorer.".to_string())?
+        tauri::async_runtime::spawn_blocking(move || {
+            std::thread::spawn(move || open_in_explorer(Path::new(&path)))
+                .join().map_err(|_| "Could not open File Explorer.".to_string())?
+        }).await.map_err(|e| e.to_string())?
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -262,13 +266,19 @@ pub async fn open_workspace_window(app: AppHandle, path: String) -> Result<(), S
         serde_json::to_string(&path).map_err(|e| e.to_string())?,
     );
     let label = format!("workspace-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos());
-    let data_dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?
-        .join("workspace-webviews").join(&label);
-    // The main WebView has already started with the portable/installed profile
-    // selected in lib.rs. WebView2's process-wide override would otherwise
-    // ignore this window's unique data directory and can leave it blank.
+    // Keep secondary WebViews alongside the main profile, including portable
+    // mode. Never mutate the process environment while windows are starting.
     #[cfg(target_os = "windows")]
-    std::env::remove_var("WEBVIEW2_USER_DATA_FOLDER");
+    let data_base = app.config().app.windows.iter().find(|w| w.label == "main")
+        .and_then(|w| w.data_directory.as_ref())
+        .and_then(|dir| dir.parent()).map(Path::to_path_buf);
+    #[cfg(not(target_os = "windows"))]
+    let data_base: Option<PathBuf> = None;
+    let data_base = match data_base {
+        Some(base) => base,
+        None => app.path().app_local_data_dir().map_err(|e| e.to_string())?,
+    };
+    let data_dir = data_base.join("workspace-webviews").join(&label);
     WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html".into()))
         .data_directory(data_dir)
         .initialization_script(script)

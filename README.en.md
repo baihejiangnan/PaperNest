@@ -16,22 +16,22 @@ A lightweight desktop app for local documents. Open Markdown to read or edit it,
 | Inspect other files | JSON, YAML, TOML, source code, logs, and plain text open in Code mode with find, replace, and light editing. Images open in their own tabs. |
 | Navigate local documents | Multiple tabs, a file tree, heading outline, folder search, back/forward navigation, drag and drop, and session restore. |
 | Work with files | Save, Save As, rename, create, duplicate, and delete. File tree actions can reveal files and folders in the system file manager. |
-| Export and customize | Export HTML or print to PDF; adjust fonts, accent color, shortcuts, and window behavior. |
+| Export and customize | Export HTML or print to PDF; adjust fonts, accent color, light/dark/system theme, shortcuts, and window behavior. |
 
-The file tree loads directories on demand. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text.
+The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text.
 
-Opening a file in a new window now uses a single-document window in the same app process. This and some file tree actions still need manual checks in the [regression checklist](TODO.md). New cross-platform behavior has mainly been developed on Windows; Linux and macOS need on-device verification.
+Opening a file in a new window uses a single-document window in the same app process. Multiple windows and Explorer location actions passed Windows development-build checks; see [development notes](docs/development.md). Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux and macOS releases and on-device checks are deferred.
 
 ## Get started
 
-Build from source for now. You need Node.js 20+, pnpm, and stable Rust. Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
+Build from source for now. You need Node.js 20+, pnpm, and stable Rust (1.85 or newer). Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-Check the frontend build with `pnpm build`. You can package locally with `pnpm tauri build`. The release workflow builds Windows, Linux, and macOS artifacts for a `vX.Y.Z` tag, but signed releases also require `TAURI_SIGNING_PRIVATE_KEY` in this new repository. Until this project's own artifacts appear on its Releases page, do not treat upstream downloads as this version. Automatic update checks are off by default until signed releases are available.
+Check the frontend build with `pnpm build`. Package locally with `pnpm tauri build`, or run `pnpm release:windows` for the Windows x64 portable EXE, MSI, updater signatures, `latest.json` and `SHA256SUMS.txt`. The release workflow builds Windows artifacts for a `vX.Y.Z` tag and requires `TAURI_SIGNING_PRIVATE_KEY`; Linux/macOS releases are deferred. Updater signatures are verified by the app; Windows Authenticode certificate signing is not configured. Until this project's own artifacts appear on its Releases page, do not treat upstream downloads as this version. Automatic update checks are off by default until signed releases are available.
 
 ## Common shortcuts
 
@@ -46,7 +46,7 @@ Check the frontend build with `pnpm build`. You can package locally with `pnpm t
 | Find / Replace | `Ctrl/Cmd+F` / `Ctrl/Cmd+H` |
 | Settings | `Ctrl/Cmd+,` |
 
-App shortcuts can be rebound in Settings. The file tree menu offers create, copy path, rename, and delete actions. **Deletion is currently permanent** and asks for confirmation first.
+App shortcuts can be rebound in Settings. The file tree menu offers create, copy path, rename, and delete actions. **Deletion moves files and folders to the system recycle bin** and asks for confirmation by default. Recycling errors never fall back to permanent deletion.
 
 ## Files and data
 
@@ -76,3 +76,5 @@ The stack includes Tauri v2, Rust, TypeScript, Milkdown/Crepe, CodeMirror, and K
 ## Upstream acknowledgments
 
 Thanks to [zakee039's MDmeow](https://github.com/zakee039/MDmeow), the direct foundation for this project, and to the earlier [Ali Naderi / Mowl](https://github.com/naderi/mowl). PaperNest builds on their work with local file reading, a file tree, image previews, and interface changes. The original copyright and MIT license notice remain in [LICENSE.md](LICENSE.md).
+
+The default theme uses Obsidian-style neutral surfaces and a purple accent. Confirmations and messages are in-app dialogs. Delete confirmation shows file counts and saved Markdown references; “Do not ask again” can be reset in General settings. Deleted files and folders can be restored from the system recycle bin. See the [global UI specification](docs/design.md).

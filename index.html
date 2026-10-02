@@ -32,15 +32,6 @@
           <span id="update-dot" aria-hidden="true" hidden></span>
         </button>
       </aside>
-      <header id="titlebar" data-tauri-drag-region>
-        <nav id="tabs" aria-label="Open documents" data-tauri-drag-region hidden></nav>
-        <span id="titlebar-grip" data-tauri-drag-region aria-hidden="true"></span>
-        <div id="window-controls">
-          <button id="window-minimize" type="button" data-i18n-title="toolbar.minimize" data-i18n-aria="toolbar.minimize" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14"/></svg></button>
-          <button id="window-maximize" type="button" data-i18n-title="toolbar.maximize" data-i18n-aria="toolbar.maximize" title="Maximize" aria-label="Maximize"><svg class="maximize-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="14" height="14"/></svg><svg class="restore-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 5h11v11H8zM5 8H4v12h12v-1"/></svg></button>
-          <button id="window-close" type="button" data-i18n-title="toolbar.closeWindow" data-i18n-aria="toolbar.closeWindow" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 6 18 18M18 6 6 18"/></svg></button>
-        </div>
-      </header>
       <div id="workspace-layout">
         <aside id="workspace-sidebar" aria-label="Workspace" hidden>
           <div class="workspace-switcher">
@@ -61,6 +52,19 @@
           <div id="workspace-outline-view" hidden></div>
         </aside>
         <div id="document-pane">
+          <header id="titlebar" data-tauri-drag-region>
+            <nav id="tabs" aria-label="Open documents" data-tauri-drag-region hidden></nav>
+            <div id="tab-toolbar">
+              <button id="new-tab-button" type="button" data-i18n-title="tab.new" data-i18n-aria="tab.new" title="New tab" aria-label="New tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button id="tab-list-button" type="button" data-i18n-title="tab.list" data-i18n-aria="tab.list" title="All tabs" aria-label="All tabs" aria-haspopup="menu" aria-controls="tab-list-menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+            </div>
+            <span id="titlebar-grip" data-tauri-drag-region aria-hidden="true"></span>
+            <div id="window-controls">
+              <button id="window-minimize" type="button" data-i18n-title="toolbar.minimize" data-i18n-aria="toolbar.minimize" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14"/></svg></button>
+              <button id="window-maximize" type="button" data-i18n-title="toolbar.maximize" data-i18n-aria="toolbar.maximize" title="Maximize" aria-label="Maximize"><svg class="maximize-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="14" height="14"/></svg><svg class="restore-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 5h11v11H8zM5 8H4v12h12v-1"/></svg></button>
+              <button id="window-close" type="button" data-i18n-title="toolbar.closeWindow" data-i18n-aria="toolbar.closeWindow" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 6 18 18M18 6 6 18"/></svg></button>
+            </div>
+          </header>
           <div id="document-nav">
             <div class="document-nav-history">
               <button id="nav-back" type="button" data-i18n-title="toolbar.back" data-i18n-aria="toolbar.back" title="Back" aria-label="Back" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m14 5-7 7 7 7"/></svg></button>
@@ -83,14 +87,23 @@
           </button>
             </div>
           </div>
+          <div id="new-tab-page" hidden>
+            <div class="new-tab-actions">
+              <button id="start-create" type="button" data-i18n="start.create">Create new file</button>
+              <button id="start-open" type="button" data-i18n="start.open">Open file</button>
+              <button id="start-close" type="button" data-i18n="start.close">Close tab</button>
+            </div>
+          </div>
           <main id="editor"></main>
           <div id="image-document" hidden><img id="image-document-content" alt="" draggable="false" /></div>
           <div id="source-shell" hidden><div id="source"></div></div>
         </div>
       </div>
+      <div id="tab-tooltip" role="tooltip" hidden></div>
+      <div id="tab-list-menu" role="menu" hidden></div>
       <div id="workspace-menu" role="menu" hidden></div>
       <div id="workspace-prompt" hidden>
-        <div class="workspace-prompt-card" role="dialog" aria-modal="true">
+        <div class="workspace-prompt-card" role="dialog" aria-modal="true" aria-labelledby="workspace-prompt-label">
           <label id="workspace-prompt-label" for="workspace-prompt-input"></label>
           <input id="workspace-prompt-input" type="text" />
           <div class="workspace-prompt-actions">

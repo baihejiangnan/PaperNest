@@ -7,7 +7,8 @@ import {
   primaryMonitor,
 } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
-import { open, save, ask, message } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { ask, message } from "./dialogs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Editor } from "./editor";
@@ -20,6 +21,7 @@ import { installMikuCreamRendering } from "./miku-cream";
 import { FindBar, type FindTarget } from "./find-bar";
 import { EmojiPicker } from "./emoji";
 import { SettingsPanel, type SettingKey } from "./settings-panel";
+import { activateModal, deactivateModal, hasActiveModal } from "./modal";
 import { isListMarker, type ListMarker } from "./markdown-serializer";
 import type { BlockActionId } from "./block-menu";
 import { countTextUnits } from "./text-stats";
@@ -71,6 +73,8 @@ interface Settings {
   remember_window_position: boolean;
   file_associations: string[];
   accent: string;
+  color_scheme: string;
+  confirm_delete: boolean;
   proxy_enabled: boolean;
   proxy_url: string;
   auto_check_updates: boolean;
@@ -198,17 +202,20 @@ function shouldUseCodeView(tab: Tab | undefined = tabBar.active): boolean {
 
 function setViewVisibility(tab: Tab | undefined = tabBar.active): void {
   const image = Boolean(tab?.imageUrl);
+  const startPage = Boolean(tab?.startPage);
   codeViewVisible = shouldUseCodeView(tab);
-  editorHost.hidden = image || codeViewVisible;
-  sourceShell.hidden = image || !codeViewVisible;
-  imageDocument.hidden = !image;
+  editorHost.hidden = startPage || image || codeViewVisible;
+  sourceShell.hidden = startPage || image || !codeViewVisible;
+  imageDocument.hidden = startPage || !image;
+  (document.getElementById("new-tab-page") as HTMLElement).hidden = !startPage;
+  document.getElementById("document-pane")?.classList.toggle("start-page-active", startPage);
   imageElement.src = tab?.imageUrl ?? "";
   imageElement.alt = image ? baseName(tab?.path ?? null) : "";
 }
 
 /** Current document text, from whichever view is active. */
 function readView(): string {
-  if (tabBar.active?.imageUrl) return "";
+  if (tabBar.active?.imageUrl || tabBar.active?.startPage) return "";
   return codeViewVisible ? codeEditor.getText() : editor.getMarkdown();
 }
 
@@ -226,7 +233,7 @@ function statsSelectionText(): string {
 
 function updateTextStats(): void {
   textStatsFrame = null;
-  if (!tabBar.active || tabBar.active.imageUrl) {
+  if (!tabBar.active || tabBar.active.imageUrl || tabBar.active.startPage) {
     textStatsEl.hidden = true;
     return;
   }
@@ -252,9 +259,13 @@ function scheduleTextStats(recount = false): void {
   textStatsFrame = requestAnimationFrame(updateTextStats);
 }
 
+let viewWriteGeneration = 0;
+
 /** Load `md` into the active view (and restore a scroll offset). */
 function writeView(md: string, scrollTop = 0): void {
+  const generation = ++viewWriteGeneration;
   if (codeViewVisible) {
+    switching = false;
     void codeEditor.setDocument(md, tabBar.active?.path ?? null, scrollTop);
     scheduleTextStats(true);
     return;
@@ -263,6 +274,7 @@ function writeView(md: string, scrollTop = 0): void {
   editor.setContent(md);
   scheduleTextStats(true);
   requestAnimationFrame(() => {
+    if (generation !== viewWriteGeneration) return;
     editorHost.scrollTop = scrollTop;
     switching = false;
   });
@@ -284,11 +296,14 @@ function viewScrollFraction(): number {
   return Math.min(1, Math.max(0, scrollTop / range));
 }
 
-/** Scroll the visible view to `frac` (0..1) of its range. The editor's height
- *  only settles after layout, so defer a frame there; the textarea is ready
- *  synchronously but must be set after `.focus()` (which scrolls its caret). */
+/** Restore the fraction after document layout and focus have both settled.
+ * A later document write invalidates this restoration. */
 function applyScrollFraction(frac: number): void {
+  const generation = viewWriteGeneration;
+  const tab = tabBar.active;
+  const code = codeViewVisible;
   const run = () => {
+    if (generation !== viewWriteGeneration || tab !== tabBar.active || code !== codeViewVisible) return;
     if (codeViewVisible) {
       const range = codeEditor.scrollHeight - codeEditor.clientHeight;
       codeEditor.scrollTop = range > 0 ? Math.round(frac * range) : 0;
@@ -297,11 +312,14 @@ function applyScrollFraction(frac: number): void {
       editorHost.scrollTop = range > 0 ? Math.round(frac * range) : 0;
     }
   };
-  requestAnimationFrame(run);
+  requestAnimationFrame(() => requestAnimationFrame(run));
 }
 
 /** Push the appearance-related settings into CSS custom properties. */
 function applyAppearance(): void {
+  const scheme = settings.color_scheme;
+  document.documentElement.dataset.theme = scheme === "light" || scheme === "dark" ? scheme
+    : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   const s = document.documentElement.style;
   const setOrClear = (name: string, value: string) => {
     const v = (value ?? "").trim();
@@ -313,8 +331,15 @@ function applyAppearance(): void {
   setOrClear("--editor-font", settings.editor_font);
   setOrClear("--source-font", settings.source_font);
   setOrClear("--accent", settings.accent);
-  setOrClear("--code-alt-row-color", settings.code_alternate_row_color || "#FAFFFF");
+  setOrClear("--code-alt-row-color", settings.code_alternate_row_color);
 }
+
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (settings && settings.color_scheme !== "light" && settings.color_scheme !== "dark") {
+    applyAppearance();
+    if (settingsPanel.isOpen) settingsPanel.refresh();
+  }
+});
 
 /** Switch the UI language and refresh every visible string. */
 function applyLanguage(pref: LangPref): void {
@@ -329,6 +354,7 @@ onLangChange(() => {
   emojiPicker.retranslate();
   settingsPanel.retranslate();
   tabBar.render();
+  if (!tabMenuEl.hidden) renderTabMenu();
   workspace.retranslate();
   updateSourceButton();
   updateShortcutTitles();
@@ -345,7 +371,7 @@ function stem(path: string | null): string {
 function updateTitle(): void {
   const tab = tabBar.active;
   const mark = tab?.dirty ? "• " : "";
-  const name = baseName(tab?.path ?? null);
+  const name = tab?.startPage ? t("tab.new") : baseName(tab?.path ?? null);
   const imageFolder = tab?.imageUrl && tab.path ? parentOfWorkspacePath(tab.path).split(/[\\/]/).filter(Boolean).pop() : null;
   const shown = settings?.show_path && tab?.path ? tab.path : imageFolder ? `${imageFolder} / ${stem(tab?.path ?? null)}` : name;
   titleEl.textContent = mark + shown;
@@ -538,38 +564,39 @@ function adoptNormalized(tab: Tab): void {
   if (!tab.dirty) tab.saved = md;
 }
 
-function markDirtyFromView(): void {
-  const tab = tabBar.active;
-  if (!tab || tab.imageUrl) return;
-  tab.content = readView();
+function updateTabContent(tab: Tab, content: string): void {
+  tab.content = content;
   tab.dirty = tab.content !== tab.saved;
-  tabBar.refreshDirty();
-  updateTitle();
+  if (tab === tabBar.active) {
+    tabBar.refreshDirty();
+    updateTitle();
+  }
   // No persist here: editing text changes nothing in settings.toml.
 }
 
-async function fileReadable(path: string): Promise<boolean> {
-  try {
-    if (isImagePath(path)) await invoke<string>("read_image_data_url", { docPath: null, src: path });
-    else await invoke<string>("read_document", { path });
-    return true;
-  } catch {
-    return false;
-  }
+function markDirtyFromView(): void {
+  const tab = tabBar.active;
+  if (tab && !tab.imageUrl) updateTabContent(tab, readView());
 }
 
 // --- tab wiring -------------------------------------------------------------
 
-tabBar.onStructureChange = () => persistSoon();
+tabBar.onStructureChange = () => {
+  persistSoon();
+  if (!tabMenuEl.hidden) renderTabMenu();
+};
 
 tabBar.onActivate = (next: Tab, prev: Tab | null) => {
+  hideTabTooltip();
   if (prev) {
-    prev.content = prev.imageUrl ? "" : codeViewVisible ? codeEditor.getText() : editor.getMarkdown();
+    if (!prev.imageUrl && !prev.startPage) updateTabContent(prev, codeViewVisible ? codeEditor.getText() : editor.getMarkdown());
     prev.scrollTop = prev.imageUrl ? imageDocument.scrollTop : codeViewVisible ? codeEditor.scrollTop : editorHost.scrollTop;
   }
   editor.setDocPath(next.path);
   setViewVisibility(next);
-  if (next.imageUrl) {
+  if (next.startPage) {
+    // A start page has no document content to mount in the editor.
+  } else if (next.imageUrl) {
     imageDocument.scrollTop = next.scrollTop;
   } else {
     writeView(next.content, next.scrollTop);
@@ -580,13 +607,16 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
   updateTitle();
   updateSourceButton();
   scheduleTextStats(true);
-  if (!next.imageUrl) (codeViewVisible ? codeEditor : editor).focus();
+  if (!next.imageUrl && !next.startPage) (codeViewVisible ? codeEditor : editor).focus();
   persistSoon();
   void workspace.setDocument(next.path, next.imageUrl ? "" : next.content);
   rememberNavigation(next.path);
 };
 
-workspace.onOpen = openPath;
+workspace.onOpen = openPreviewPath;
+workspace.onOpenInNewTab = (path) => openPath(path, true);
+workspace.getConfirmDelete = () => settings.confirm_delete !== false;
+workspace.onConfirmDeleteChange = (value) => { settings.confirm_delete = value; settingsPanel.refresh(); persistSoon(); };
 editor.onLinkClick = (href) => {
   void (async () => {
     try {
@@ -635,9 +665,10 @@ workspace.onRename = (oldPath, newPath) => {
   tabBar.render(); updateSourceButton(); updateTitle(); persistSoon();
 };
 workspace.onBeforeDelete = async (path) => {
+  markDirtyFromView();
   const dirty = tabBar.tabs.filter((tab) => tab.dirty && tab.path && (tab.path.toLowerCase() === path.toLowerCase() || tab.path.toLowerCase().startsWith(`${path.toLowerCase()}\\`)));
   if (!dirty.length) return true;
-  return ask(t("dialog.discardChanges", { name: dirty.map((tab) => baseName(tab.path)).join(", ") }), { title: "PaperNest", kind: "warning" });
+  return ask(t("dialog.discardChanges", { name: dirty.map((tab) => baseName(tab.path)).join(", ") }), { title: t("dialog.discardTitle"), kind: "warning", confirmLabel: t("dialog.discard"), danger: true });
 };
 workspace.onDelete = (path) => {
   const removed = tabBar.tabs.filter((tab) => tab.path && (tab.path.toLowerCase() === path.toLowerCase() || tab.path.toLowerCase().startsWith(`${path.toLowerCase()}\\`)));
@@ -647,21 +678,28 @@ workspace.onDelete = (path) => {
 };
 
 tabBar.onCloseRequest = async (tab: Tab) => {
+  if (tab.startPage && tabBar.tabs.length === 1) {
+    await quitApp();
+    return true;
+  }
+  if (tab === tabBar.active) markDirtyFromView();
   if (tab.dirty) {
     const discard = await ask(
       t("dialog.discardChanges", { name: baseName(tab.path) }),
-      { title: "PaperNest", kind: "warning" },
+      { title: t("dialog.discardTitle"), kind: "warning", confirmLabel: t("dialog.discard"), danger: true },
     );
-    if (!discard) return;
+    if (!discard) return false;
   }
   tabBar.remove(tab.id);
   persistSoon();
+  return true;
 };
 
-editor.onChange = () => {
-  if (switching || codeViewVisible) return;
-  markDirtyFromView();
-  workspace.setContent(readView());
+editor.onChange = (markdown) => {
+  const tab = tabBar.active;
+  if (switching || codeViewVisible || !tab || tab.imageUrl) return;
+  updateTabContent(tab, markdown);
+  workspace.setContent(markdown);
   scheduleTextStats(true);
 };
 editor.onSelectionChange = () => {
@@ -670,8 +708,11 @@ editor.onSelectionChange = () => {
 
 codeEditor.onChange = () => {
   if (!codeViewVisible) return;
-  markDirtyFromView();
-  workspace.setContent(readView());
+  const text = codeEditor.getText();
+  const tab = tabBar.active;
+  if (!tab || tab.imageUrl) return;
+  updateTabContent(tab, text);
+  workspace.setContent(text);
   scheduleTextStats(true);
 };
 codeEditor.onSelectionChange = () => {
@@ -733,6 +774,7 @@ settingsPanel.onChange = (key: SettingKey, value) => {
     case "source_font":
     case "source_font_size":
     case "accent":
+    case "color_scheme":
     case "code_alternate_row_color":
       applyAppearance();
       break;
@@ -783,35 +825,103 @@ settingsPanel.onClose = () => (codeViewVisible ? codeEditor : editor).focus();
 // --- file operations -------------------------------------------------------
 
 function newTab(): void {
-  tabBar.add(null, "");
+  tabBar.add(null, "", true, null, true);
 }
 
-async function openPath(path: string): Promise<void> {
+function createDocumentFromStartPage(): void {
+  const tab = tabBar.active;
+  if (!tab?.startPage) return;
+  tab.startPage = false;
+  setViewVisibility(tab);
+  writeView("");
+  tabBar.render();
+  updateTitle();
+  updateSourceButton();
+  editor.focus();
+}
+
+let previewOpenSequence = 0;
+
+async function readPath(path: string): Promise<{ content: string; imageUrl: string | null } | null> {
+  try {
+    if (isImagePath(path)) {
+      return { content: "", imageUrl: await invoke<string>("read_image_data_url", { docPath: null, src: path }) };
+    }
+    return { content: await invoke<string>("read_document", { path }), imageUrl: null };
+  } catch (error) {
+    await message(String(error), { title: "PaperNest", kind: "error" });
+    return null;
+  }
+}
+
+async function openPreviewPath(path: string): Promise<void> {
+  const request = ++previewOpenSequence;
   const existing = tabBar.findByPath(path);
   if (existing) {
+    tabBar.activate(existing.id);
+    return;
+  }
+
+  const slot = tabBar.tabs.find((tab) => tab.preview)
+    ?? (tabBar.active && !tabBar.active.pinned ? tabBar.active : undefined);
+  const loaded = await readPath(path);
+  if (!loaded || request !== previewOpenSequence) return;
+
+  if (slot && tabBar.tabs.includes(slot)) {
+    if (slot === tabBar.active) markDirtyFromView();
+    if (slot.dirty) {
+      const discard = await ask(
+        t("dialog.discardChanges", { name: baseName(slot.path) }),
+        { title: t("dialog.discardTitle"), kind: "warning", confirmLabel: t("dialog.discard"), danger: true },
+      );
+      if (!discard || request !== previewOpenSequence) return;
+    }
+    // Force onActivate to mount the newly loaded document even when the
+    // preview slot is already the selected tab.
+    if (slot === tabBar.active) tabBar.activeId = "";
+    slot.path = path;
+    slot.saved = loaded.content;
+    slot.content = loaded.content;
+    slot.dirty = false;
+    slot.scrollTop = 0;
+    slot.imageUrl = loaded.imageUrl;
+    slot.startPage = false;
+    slot.preview = true;
+    tabBar.activate(slot.id);
+  } else {
+    const tab = tabBar.add(path, loaded.content, true, loaded.imageUrl);
+    tab.preview = true;
+  }
+}
+
+async function openPath(path: string, inNewTab = false): Promise<void> {
+  ++previewOpenSequence;
+  const existing = tabBar.findByPath(path);
+  if (existing) {
+    if (inNewTab) {
+      existing.preview = false;
+      existing.pinned = true;
+      tabBar.render();
+    }
     tabBar.activate(existing.id);
     void workspace.setDocument(existing.path, existing.content);
     return;
   }
 
-  const image = isImagePath(path);
-  let text = "";
-  let imageUrl: string | null = null;
-  try {
-    if (image) imageUrl = await invoke<string>("read_image_data_url", { docPath: null, src: path });
-    else text = await invoke<string>("read_document", { path });
-  } catch (e) {
-    await message(String(e), { title: "PaperNest", kind: "error" });
-    return;
-  }
+  const loaded = await readPath(path);
+  if (!loaded) return;
+  const { content: text, imageUrl } = loaded;
+  const image = imageUrl !== null;
 
   const cur = tabBar.active;
-  if (cur && !cur.path && !cur.dirty && cur.content === "") {
+  if (!inNewTab && cur && !cur.path && !cur.dirty && cur.content === "") {
+    cur.startPage = false;
     cur.path = path;
     cur.saved = text;
     cur.content = text;
     cur.dirty = false;
     cur.imageUrl = imageUrl;
+    cur.preview = false;
     editor.setDocPath(path);
     setViewVisibility(cur);
     if (!image) {
@@ -826,7 +936,8 @@ async function openPath(path: string): Promise<void> {
     void workspace.setDocument(path, text);
     rememberNavigation(path);
   } else {
-    tabBar.add(path, text, true, imageUrl); // triggers onActivate
+    const tab = tabBar.add(path, text, true, imageUrl); // triggers onActivate
+    tab.pinned = inNewTab;
   }
 
   persistSoon();
@@ -869,38 +980,38 @@ async function wireFileDrop(): Promise<void> {
   });
 }
 
-async function saveDoc(): Promise<boolean> {
-  const tab = tabBar.active;
+async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
   if (!tab || tab.imageUrl) return false;
-  if (!tab.path) return saveAs();
+  if (!tab.path) return tab === tabBar.active ? saveAs() : false;
 
-  const md = readView();
+  const path = tab.path;
+  const md = tab === tabBar.active ? readView() : tab.content;
   let written: string;
   try {
     // The backend beautifies GFM tables and returns the text it wrote.
     written = await invoke<string>("write_document", {
-      path: tab.path,
+      path,
       contents: md,
     });
   } catch (e) {
     await message(String(e), { title: "PaperNest", kind: "error" });
     return false;
   }
-  if (codeViewVisible) {
-    // Code mode shows raw text, so reflect backend formatting back when needed.
-    if (written !== md) writeView(written, viewScrollTop());
-    tab.saved = written;
+  if (!tabBar.tabs.includes(tab) || tab.path !== path) return true;
+  const active = tab === tabBar.active;
+  const latest = active ? readView() : tab.content;
+  const preview = active && !codeViewVisible;
+  // In preview, keep Crepe's serialization as the baseline: table formatting
+  // changes only the Markdown source and replacing the view would erase undo.
+  tab.saved = preview ? md : written;
+  if (latest === md && written !== md && !preview) {
+    if (active) writeView(written, viewScrollTop());
     tab.content = written;
   } else {
-    // Preview mode: re-loading the document into Crepe (`replaceAll`) would
-    // wipe the undo history, and the backend's table beautification is
-    // invisible in the rendered view anyway. Leave the editor untouched and
-    // take its own serialization as the new clean baseline — the file on disk
-    // holds `written`, which round-trips to the same rendered document.
-    tab.saved = md;
-    tab.content = md;
+    tab.content = latest;
   }
-  tab.dirty = false;
+  // Edits made while the write was in flight stay in the view and remain dirty.
+  tab.dirty = tab.content !== tab.saved;
   tabBar.refreshDirty();
   updateTitle();
   persistSoon();
@@ -916,6 +1027,7 @@ async function saveAs(): Promise<boolean> {
     filters: [{ name: "Documents / Code", extensions: knownExtensions() }],
   });
   if (!dest) return false;
+  if (tabBar.active !== tab || !tabBar.tabs.includes(tab)) return false;
 
   const content = readView();
   const scrollTop = viewScrollTop();
@@ -925,20 +1037,20 @@ async function saveAs(): Promise<boolean> {
   setViewVisibility(tab);
   if (wasCodeView !== codeViewVisible) {
     if (codeViewVisible) {
-      await codeEditor.setDocument(content, dest, scrollTop);
+      void codeEditor.setDocument(content, dest, scrollTop);
     } else {
       writeView(content, scrollTop);
     }
   } else if (codeViewVisible) {
     void codeEditor.setLanguageForPath(dest);
   }
-  const ok = await saveDoc();
+  const ok = await saveDoc(tab);
   if (ok) {
     tabBar.render();
     updateSourceButton();
     updateTitle();
     persistSoon();
-    void workspace.setDocument(dest, content);
+    if (tab === tabBar.active) void workspace.setDocument(dest, tab.content);
     void workspace.refresh();
   }
   return ok;
@@ -947,6 +1059,199 @@ async function saveAs(): Promise<boolean> {
 async function closeActiveTab(): Promise<void> {
   const tab = tabBar.active;
   if (tab) await tabBar.onCloseRequest(tab);
+}
+
+// The tab menu stays available even when the tab strip is hidden or overflows.
+const tabMenuEl = document.getElementById("tab-list-menu") as HTMLElement;
+const tabListButton = document.getElementById("tab-list-button") as HTMLButtonElement;
+const tabTooltip = document.getElementById("tab-tooltip") as HTMLElement;
+const BOOKMARKED_TABS_KEY = "papernest.bookmarkedTabGroups";
+
+interface BookmarkedTabs { id: number; paths: string[] }
+
+function readBookmarkedTabs(): BookmarkedTabs[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(BOOKMARKED_TABS_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((group): group is BookmarkedTabs =>
+      typeof group?.id === "number" && Array.isArray(group.paths) &&
+      group.paths.every((path: unknown) => typeof path === "string"),
+    ).slice(0, 20);
+  } catch { return []; }
+}
+
+function writeBookmarkedTabs(groups: BookmarkedTabs[]): void {
+  localStorage.setItem(BOOKMARKED_TABS_KEY, JSON.stringify(groups.slice(0, 20)));
+}
+
+function hideTabTooltip(): void { tabTooltip.hidden = true; }
+
+function closeTabMenu(): void {
+  tabMenuEl.hidden = true;
+  tabListButton.setAttribute("aria-expanded", "false");
+}
+
+function menuDivider(): void {
+  const divider = document.createElement("div");
+  divider.className = "tab-menu-divider";
+  divider.setAttribute("role", "separator");
+  tabMenuEl.append(divider);
+}
+
+function menuItem(label: string, icon: string, action: () => void, disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "tab-menu-item";
+  button.setAttribute("role", "menuitem");
+  button.disabled = disabled;
+  const glyph = document.createElement("span");
+  glyph.className = "tab-menu-icon";
+  glyph.setAttribute("aria-hidden", "true");
+  glyph.textContent = icon;
+  const name = document.createElement("span");
+  name.className = "tab-menu-name";
+  name.textContent = label;
+  button.append(glyph, name);
+  button.addEventListener("click", action);
+  return button;
+}
+
+function renderTabMenu(): void {
+  tabMenuEl.replaceChildren();
+  tabMenuEl.append(menuItem(t(tabBar.isStacked ? "tab.unstack" : "tab.stack"), "▤", () => {
+    tabBar.setStacked(!tabBar.isStacked);
+    renderTabMenu();
+    tabMenuEl.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }));
+  const paths = tabBar.tabs.flatMap((tab) => tab.path ? [tab.path] : []);
+  tabMenuEl.append(menuItem(t("tab.bookmarkAll", { count: String(paths.length) }), "☆", () => {
+    try {
+      writeBookmarkedTabs([{ id: Date.now(), paths }, ...readBookmarkedTabs()]);
+      renderTabMenu();
+      tabMenuEl.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    } catch (error) {
+      void message(String(error), { title: "PaperNest", kind: "error" });
+    }
+  }, paths.length === 0));
+  menuDivider();
+  tabMenuEl.append(menuItem(t("tab.closeAll"), "×", () => {
+    closeTabMenu();
+    void (async () => {
+      for (const tab of [...tabBar.tabs]) {
+        if (!await tabBar.onCloseRequest(tab)) break;
+      }
+    })();
+  }));
+  menuDivider();
+  for (const tab of tabBar.tabs) {
+    const label = tab.startPage ? t("tab.new") : baseName(tab.path);
+    const item = menuItem(label, tab.imageUrl ? "▧" : "▯", () => {
+      tabBar.activate(tab.id);
+      closeTabMenu();
+    });
+    item.title = tab.path ?? label;
+    if (tab.dirty) item.querySelector(".tab-menu-name")?.prepend("• ");
+    if (tab.id === tabBar.activeId) {
+      const check = document.createElement("span");
+      check.className = "tab-menu-check";
+      check.textContent = "✓";
+      item.append(check);
+    }
+    tabMenuEl.append(item);
+  }
+  const saved = readBookmarkedTabs();
+  if (!saved.length) return;
+  menuDivider();
+  const heading = document.createElement("div");
+  heading.className = "tab-menu-heading";
+  heading.textContent = t("tab.bookmarked");
+  tabMenuEl.append(heading);
+  for (const group of saved) {
+    const row = document.createElement("div");
+    row.className = "tab-menu-group";
+    const restore = menuItem(`${t("tab.restoreGroup", { count: String(group.paths.length) })} · ${new Date(group.id).toLocaleString()}`, "▣", () => {
+      closeTabMenu();
+      void (async () => { for (const path of group.paths) await openPath(path); })();
+    });
+    restore.title = group.paths.map(baseName).join("\n");
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "tab-menu-remove";
+    remove.setAttribute("role", "menuitem");
+    remove.title = t("tab.removeBookmark");
+    remove.setAttribute("aria-label", t("tab.removeBookmark"));
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      writeBookmarkedTabs(readBookmarkedTabs().filter((item) => item.id !== group.id));
+      renderTabMenu();
+    });
+    row.append(restore, remove);
+    tabMenuEl.append(row);
+  }
+}
+
+function wireTabChrome(): void {
+  if (secondaryWindow) return;
+  document.getElementById("new-tab-button")?.addEventListener("click", newTab);
+  tabListButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!tabMenuEl.hidden) { closeTabMenu(); return; }
+    hideTabTooltip();
+    renderTabMenu();
+    const bounds = tabListButton.getBoundingClientRect();
+    tabMenuEl.style.right = `${Math.max(6, Math.round(window.innerWidth - bounds.right))}px`;
+    tabMenuEl.style.top = `${Math.round(bounds.bottom + 4)}px`;
+    tabMenuEl.hidden = false;
+    tabListButton.setAttribute("aria-expanded", "true");
+    tabMenuEl.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  });
+  tabMenuEl.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+    const items = Array.from(tabMenuEl.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+    if (!items.length) return;
+    event.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target as Node;
+    if (!tabMenuEl.hidden && !tabMenuEl.contains(target) && !tabListButton.contains(target)) closeTabMenu();
+  });
+  window.addEventListener("resize", closeTabMenu);
+  const tabs = document.getElementById("tabs") as HTMLElement;
+  const showTooltip = (item: HTMLElement) => {
+    const tab = tabBar.tabs.find((entry) => entry.id === item.dataset.tab);
+    if (!tab) return;
+    tabTooltip.textContent = tab.startPage ? t("tab.new") : baseName(tab.path);
+    tabTooltip.hidden = false;
+    const bounds = item.getBoundingClientRect();
+    const left = bounds.left + bounds.width / 2 - tabTooltip.offsetWidth / 2;
+    tabTooltip.style.left = `${Math.round(Math.max(8, Math.min(left, window.innerWidth - tabTooltip.offsetWidth - 8)))}px`;
+    tabTooltip.style.top = `${Math.round(bounds.bottom + 7)}px`;
+  };
+  tabs.addEventListener("pointerover", (event) => {
+    const item = (event.target as HTMLElement).closest<HTMLElement>(".tab");
+    if (item) showTooltip(item);
+  });
+  tabs.addEventListener("pointerout", (event) => {
+    const next = event.relatedTarget as Node | null;
+    if (!next || !tabs.contains(next)) hideTabTooltip();
+    else {
+      const item = (next as HTMLElement).closest<HTMLElement>(".tab");
+      if (item) showTooltip(item);
+    }
+  });
+  tabs.addEventListener("focusin", (event) => {
+    const item = (event.target as HTMLElement).closest<HTMLElement>(".tab");
+    if (item) showTooltip(item);
+  });
+  tabs.addEventListener("focusout", hideTabTooltip);
+  tabs.addEventListener("scroll", hideTabTooltip);
+  document.getElementById("start-create")?.addEventListener("click", createDocumentFromStartPage);
+  document.getElementById("start-open")?.addEventListener("click", () => void openDialog());
+  document.getElementById("start-close")?.addEventListener("click", () => void closeActiveTab());
 }
 
 // --- export ---------------------------------------------------------------
@@ -987,9 +1292,9 @@ async function exportPdf(): Promise<void> {
   frame.srcdoc = html;
   frame.onload = () => {
     window.setTimeout(() => {
+      frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true });
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
-      window.setTimeout(() => frame.remove(), 1500);
     }, 350);
   };
   document.body.appendChild(frame);
@@ -1026,6 +1331,12 @@ function updateSourceButton(): void {
 
 function updateShortcutTitles(): void {
   if (!settings?.shortcuts) return;
+  const newTabButton = document.getElementById("new-tab-button");
+  if (newTabButton) newTabButton.title = `${t("tab.new")} (${formatShortcut(settings.shortcuts.new_tab)})`;
+  const createButton = document.getElementById("start-create");
+  if (createButton) createButton.textContent = `${t("start.create")} (${formatShortcut(settings.shortcuts.new_tab)})`;
+  const openButton = document.getElementById("start-open");
+  if (openButton) openButton.textContent = `${t("start.open")} (${formatShortcut(settings.shortcuts.open)})`;
   const saveBtn = document.getElementById("btn-save");
   if (saveBtn) {
     saveBtn.title = `${t("toolbar.save.aria")} (${formatShortcut(settings.shortcuts.save)})`;
@@ -1066,7 +1377,8 @@ function toggleSource(): void {
   updateSourceButton();
   updateTitle();
   scheduleTextStats(true);
-  (codeViewVisible ? codeEditor : editor).focus();
+  if (codeViewVisible) codeEditor.focus();
+  else editor.focus(true);
   applyScrollFraction(frac);
 }
 
@@ -1146,18 +1458,22 @@ function openAbout(): void {
   findBar.close();
   renderVersionInfo();
   aboutEl.hidden = false;
+  activateModal(aboutEl, closeAbout);
 }
 
 function closeAbout(): void {
   aboutEl.hidden = true;
+  deactivateModal(aboutEl);
 }
 
 function openMikuEaster(): void {
   mikuEasterEl.hidden = false;
+  activateModal(mikuEasterEl, closeMikuEaster);
 }
 
 function closeMikuEaster(): void {
   mikuEasterEl.hidden = true;
+  deactivateModal(mikuEasterEl);
 }
 
 function setUpdateActions(
@@ -1297,6 +1613,7 @@ async function checkVersion(silent: boolean): Promise<void> {
 
 async function usePreparedVersion(): Promise<void> {
   if (!preparedVersion) return;
+  markDirtyFromView();
   if (tabBar.tabs.some((tab) => tab.dirty)) {
     const proceed = await ask(t("update.unsavedInstall"), {
       title: "PaperNest",
@@ -1449,9 +1766,11 @@ function toggleExportMenu(): void {
     return;
   }
   const r = btn.getBoundingClientRect();
-  exportMenuEl.style.left = `${Math.round(r.left)}px`;
-  exportMenuEl.style.top = `${Math.round(r.bottom + 4)}px`;
   exportMenuEl.hidden = false;
+  const menuWidth = exportMenuEl.offsetWidth;
+  const menuHeight = exportMenuEl.offsetHeight;
+  exportMenuEl.style.left = `${Math.round(Math.max(8, Math.min(r.right - menuWidth, window.innerWidth - menuWidth - 8)))}px`;
+  exportMenuEl.style.top = `${Math.round(Math.max(8, Math.min(r.bottom + 4, window.innerHeight - menuHeight - 8)))}px`;
   btn.setAttribute("aria-expanded", "true");
 }
 
@@ -1486,6 +1805,7 @@ function wireShortcuts(): void {
       // Let the focused shortcut control capture the key before app shortcuts
       // (this listener runs in capture phase on window).
       if (settingsPanel.isCapturingShortcut) return;
+      if (hasActiveModal()) return;
       if (!(document.getElementById("workspace-prompt") as HTMLElement).hidden) return;
       if (secondaryWindow && [settings.shortcuts.open, settings.shortcuts.new_tab, settings.shortcuts.close_tab]
         .some((shortcut) => matchesShortcut(e, shortcut))) {
@@ -1497,6 +1817,13 @@ function wireShortcuts(): void {
         e.preventDefault();
         e.stopPropagation();
         closeExportMenu();
+        return;
+      }
+      if (e.key === "Escape" && !tabMenuEl.hidden) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTabMenu();
+        tabListButton.focus();
         return;
       }
 
@@ -1549,7 +1876,8 @@ function wireShortcuts(): void {
         void openDialog();
       } else if (matchesShortcut(e, settings.shortcuts.new_tab)) {
         e.preventDefault();
-        newTab();
+        if (tabBar.active?.startPage) createDocumentFromStartPage();
+        else newTab();
       } else if (matchesShortcut(e, settings.shortcuts.close_tab)) {
         e.preventDefault();
         void closeActiveTab();
@@ -1704,6 +2032,7 @@ function wireWindowControls(): void {
 async function quitApp(): Promise<void> {
   if (closing) return;
   closing = true;
+  markDirtyFromView();
   if (tabBar.tabs.some((tab) => tab.dirty)) {
     const quit = await ask(t("dialog.unsavedQuit"), {
       title: "PaperNest",
@@ -1917,34 +2246,31 @@ async function restoreWindow(): Promise<void> {
 async function restoreTabs(): Promise<void> {
   if (secondaryWindow) { tabBar.add(null, ""); return; }
   if (settings.open_last_session === false) {
-    tabBar.add(null, "");
+    tabBar.add(null, "", true, null, true);
     return;
   }
 
   const files = settings.open_files ?? [];
-  const readable: string[] = [];
-  for (const path of files) {
-    if (path && (await fileReadable(path))) {
-      readable.push(path);
+  // Capture the saved index before add() persists a partially restored session.
+  const savedActiveIndex = settings.active_tab ?? 0;
+  const restored: Array<{ sourceIndex: number; tabId: string }> = [];
+  for (const [sourceIndex, path] of files.entries()) {
+    if (!path) continue;
+    try {
+      const tab = isImagePath(path)
+        ? tabBar.add(path, "", false, await invoke<string>("read_image_data_url", { docPath: null, src: path }))
+        : tabBar.add(path, await invoke<string>("read_document", { path }), false);
+      restored.push({ sourceIndex, tabId: tab.id });
+    } catch {
+      // An unreadable file should not prevent the other session tabs opening.
     }
   }
-
-  if (readable.length === 0) {
-    tabBar.add(null, "");
+  if (!restored.length) {
+    tabBar.add(null, "", true, null, true);
     return;
   }
-
-  for (const path of readable) {
-    if (isImagePath(path)) {
-      const imageUrl = await invoke<string>("read_image_data_url", { docPath: null, src: path });
-      tabBar.add(path, "", false, imageUrl);
-    } else {
-      const text = await invoke<string>("read_document", { path });
-      tabBar.add(path, text, false);
-    }
-  }
-  const idx = Math.min(Math.max(settings.active_tab ?? 0, 0), readable.length - 1);
-  tabBar.activate(tabBar.tabs[idx].id);
+  const active = restored.find((item) => item.sourceIndex === savedActiveIndex) ?? restored[0];
+  tabBar.activate(active.tabId);
 }
 
 async function bootstrap(): Promise<void> {
@@ -1983,6 +2309,8 @@ async function bootstrap(): Promise<void> {
     settings.remember_window_position = ext.remember_window_position;
     settings.file_associations = ext.file_associations;
     settings.accent = ext.accent;
+    settings.color_scheme = ext.color_scheme;
+    settings.confirm_delete = ext.confirm_delete;
     settings.proxy_enabled = ext.proxy_enabled;
     settings.proxy_url = ext.proxy_url;
     settings.auto_check_updates = ext.auto_check_updates;
@@ -2049,6 +2377,7 @@ async function bootstrap(): Promise<void> {
   });
 
   wireButtons();
+  wireTabChrome();
   wireWindowControls();
   wireAbout();
   void listen<VersionTransferProgress>("update-download-progress", (event) => {

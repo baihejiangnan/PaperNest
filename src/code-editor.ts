@@ -12,6 +12,7 @@ import {
   StateEffect,
   StateField,
   type Extension,
+  type Text,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -27,6 +28,7 @@ import {
 
 import { mikuCreamCodeMirrorTheme } from "./miku-cream";
 import type { FindStatus } from "./find-bar";
+import { serializeCodeText } from "./code-text";
 
 const setAlternateRows = StateEffect.define<boolean>();
 
@@ -92,7 +94,7 @@ const codeDocumentTheme = EditorView.theme({
   ".cm-content": {
     minWidth: "max-content",
     padding: "10px 0 48px",
-    caretColor: "#147a74",
+    caretColor: "var(--accent)",
   },
   ".cm-line": {
     minHeight: "1.6em",
@@ -100,27 +102,27 @@ const codeDocumentTheme = EditorView.theme({
     backgroundColor: "var(--bg)",
   },
   ".cm-line.mdmeow-code-line-alt": {
-    backgroundColor: "var(--code-alt-row-color, #faffff)",
+    backgroundColor: "var(--code-alt-row-color, var(--bar-bg))",
   },
   ".cm-gutters": {
-    backgroundColor: "#f1f4f3",
-    color: "#98a19e",
-    borderRight: "1px solid #dce4e2",
+    backgroundColor: "var(--bar-bg)",
+    color: "var(--muted)",
+    borderRight: "1px solid var(--border)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     minWidth: "54px",
     padding: "0 12px 0 8px",
   },
   ".cm-activeLineGutter": {
-    backgroundColor: "#cfede9",
-    color: "#5f7773",
+    backgroundColor: "var(--accent-soft)",
+    color: "var(--fg)",
     fontWeight: "600",
   },
   ".cm-line.cm-activeLine": {
     backgroundColor: "var(--bg)",
   },
   ".cm-line.cm-activeLine.mdmeow-code-line-alt": {
-    backgroundColor: "var(--code-alt-row-color, #faffff)",
+    backgroundColor: "var(--code-alt-row-color, var(--bar-bg))",
   },
   "&.cm-focused": {
     outline: "none",
@@ -137,6 +139,8 @@ export class CodeEditor {
   #languageLoadToken = 0;
   #alternateRows = true;
   #suppressChange = false;
+  #loadedDoc: Text | null = null;
+  #loadedText = "";
 
   #query = "";
   #caseSensitive = false;
@@ -180,7 +184,10 @@ export class CodeEditor {
       codeDocumentTheme,
       this.#language.of([]),
     ];
-    return EditorState.create({ doc: text, extensions });
+    const state = EditorState.create({ doc: text, extensions });
+    this.#loadedDoc = state.doc;
+    this.#loadedText = text;
+    return state;
   }
 
   async setDocument(
@@ -194,14 +201,19 @@ export class CodeEditor {
     this.#suppressChange = true;
     this.#view.setState(this.#createState(text));
     this.#suppressChange = false;
-    await this.setLanguageForPath(path);
+    const loadedDoc = this.#view.state.doc;
     requestAnimationFrame(() => {
-      if (this.#view) this.#view.scrollDOM.scrollTop = scrollTop;
+      // Restore once when the document is mounted, before the caller's reading
+      // position adjustment. Lazy syntax loading must not later reset scrolling,
+      // and a replaced document must not receive this document's offset.
+      if (this.#view?.state.doc === loadedDoc) this.#view.scrollDOM.scrollTop = scrollTop;
     });
+    await this.setLanguageForPath(path);
   }
 
   getText(): string {
-    return this.#view?.state.doc.toString() ?? "";
+    const doc = this.#view?.state.doc;
+    return doc && this.#loadedDoc ? serializeCodeText(doc, this.#loadedDoc, this.#loadedText) : "";
   }
 
   setText(text: string): void {
@@ -210,7 +222,7 @@ export class CodeEditor {
     if (current === text) return;
     this.#suppressChange = true;
     this.#view.dispatch({
-      changes: { from: 0, to: current.length, insert: text },
+      changes: { from: 0, to: this.#view.state.doc.length, insert: text },
       selection: EditorSelection.cursor(0),
     });
     this.#suppressChange = false;
@@ -291,7 +303,7 @@ export class CodeEditor {
   #recomputeMatches(): void {
     this.#matches = [];
     if (!this.#query) return;
-    const text = this.getText();
+    const text = this.#view?.state.doc.toString() ?? "";
     const haystack = this.#caseSensitive ? text : text.toLowerCase();
     const needle = this.#caseSensitive ? this.#query : this.#query.toLowerCase();
     const stride = Math.max(1, needle.length);
@@ -343,7 +355,7 @@ export class CodeEditor {
   findReplace(replacement: string): FindStatus {
     if (!this.#matches.length || !this.#query) return this.#findStatus();
     const from = this.#matches[this.#activeMatch] ?? this.#matches[0];
-    const current = this.getText().slice(from, from + this.#query.length);
+    const current = this.#view?.state.doc.sliceString(from, from + this.#query.length) ?? "";
     const hit = this.#caseSensitive
       ? current === this.#query
       : current.toLowerCase() === this.#query.toLowerCase();
@@ -357,7 +369,7 @@ export class CodeEditor {
     if (!this.#query) return this.#findStatus();
     const escaped = this.#query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped, this.#caseSensitive ? "g" : "gi");
-    const current = this.getText();
+    const current = this.#view?.state.doc.toString() ?? "";
     const next = current.replace(re, () => replacement);
     if (next !== current) this.#replaceRange(next, 0, current.length);
     this.#activeMatch = 0;

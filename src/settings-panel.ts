@@ -5,6 +5,7 @@
 // debounced save. App-managed keys (window geometry, open files) are not shown.
 
 import { t, type I18nKey } from "./i18n";
+import { activateModal, deactivateModal } from "./modal";
 import {
   formatShortcut,
   shortcutFromEvent,
@@ -36,6 +37,8 @@ export interface PanelSettings {
   remember_window_position: boolean;
   file_associations: string[];
   accent: string;
+  color_scheme: string;
+  confirm_delete: boolean;
   proxy_enabled: boolean;
   proxy_url: string;
   auto_check_updates: boolean;
@@ -96,7 +99,17 @@ const SECTIONS: Section[] = [
         key: "accent",
         kind: "color",
         label: "settings.accent",
-        defaultColor: "#39C5BB",
+        defaultColor: "#8A5CF5",
+      },
+      {
+        key: "color_scheme",
+        kind: "select",
+        label: "settings.colorScheme",
+        options: [
+          { value: "system", label: "settings.language.system" },
+          { value: "light", label: "settings.colorScheme.light" },
+          { value: "dark", label: "settings.colorScheme.dark" },
+        ],
       },
     ],
   },
@@ -104,6 +117,7 @@ const SECTIONS: Section[] = [
     tab: "general",
     title: "settings.section.behavior",
     fields: [
+      { key: "confirm_delete", kind: "checkbox", label: "settings.confirmDelete" },
       { key: "quit_on_escape", kind: "checkbox", label: "settings.quitOnEscape" },
       {
         key: "always_show_tabbar",
@@ -148,7 +162,7 @@ const SECTIONS: Section[] = [
         colorKey: "code_alternate_row_color",
         kind: "checkboxColor",
         label: "settings.codeAlternateRows",
-        defaultColor: "#FAFFFF",
+        defaultColor: "#F6F6F6",
       },
     ],
   },
@@ -258,6 +272,9 @@ export class SettingsPanel {
     this.#el.id = "settings-panel";
     this.#el.hidden = true;
     document.body.appendChild(this.#el);
+    this.#el.addEventListener("click", event => {
+      if (event.target === this.#el) this.close();
+    });
     this.#build();
   }
 
@@ -325,14 +342,16 @@ export class SettingsPanel {
   }
 
   open(): void {
+    if (this.#open) return;
+    this.#open = true;
     this.#el.hidden = false;
     this.refresh();
+    activateModal(this.#el, () => this.close(), this.#el.querySelector<HTMLElement>(".settings-tab.active") ?? undefined);
     // next frame so the transition runs from the hidden state
     requestAnimationFrame(() => {
+      if (!this.#open) return;
       document.getElementById("app")?.classList.add("settings-open");
       this.#el.classList.add("open");
-      this.#open = true;
-      this.#el.querySelector<HTMLElement>("select, input, button")?.focus();
     });
   }
 
@@ -342,13 +361,9 @@ export class SettingsPanel {
     this.#open = false;
     this.#el.classList.remove("open");
     document.getElementById("app")?.classList.remove("settings-open");
-    const done = () => {
-      if (!this.#open) this.#el.hidden = true;
-      this.#el.removeEventListener("transitionend", done);
-    };
-    this.#el.addEventListener("transitionend", done);
-    window.setTimeout(done, 180); // fallback if transitionend is missed
+    this.#el.hidden = true;
     this.onClose();
+    deactivateModal(this.#el);
   }
 
   /** Rewrite every control from the current settings. */
@@ -387,7 +402,7 @@ export class SettingsPanel {
           this.#refreshColorControl(
             row.querySelector<HTMLElement>(`[data-color-key="${f.colorKey}"]`),
             s[f.colorKey],
-            f.defaultColor,
+            getComputedStyle(document.documentElement).getPropertyValue("--surface-secondary").trim() || f.defaultColor,
           );
           continue;
         }
@@ -397,7 +412,7 @@ export class SettingsPanel {
         if (f.kind === "checkbox") {
           (ctl as HTMLInputElement).checked = Boolean(raw);
         } else if (f.kind === "color") {
-          this.#refreshColorControl(ctl, raw, f.defaultColor ?? "#39C5BB");
+          this.#refreshColorControl(ctl, raw, f.defaultColor ?? "#8A5CF5");
         } else {
           (ctl as HTMLInputElement | HTMLSelectElement).value = String(raw ?? "");
         }
@@ -451,8 +466,10 @@ export class SettingsPanel {
 
     const color = document.createElement("input");
     color.type = "color";
+    color.setAttribute("aria-label", t(key === "accent" ? "settings.accent" : "settings.codeAlternateRows"));
     const text = document.createElement("input");
     text.type = "text";
+    text.setAttribute("aria-label", t(key === "accent" ? "settings.accent" : "settings.codeAlternateRows"));
     text.placeholder = defaultColor;
     text.spellcheck = false;
 
@@ -477,7 +494,10 @@ export class SettingsPanel {
       reset.type = "button";
       reset.className = "settings-color-clear";
       reset.textContent = t("settings.accent.clear");
-      reset.addEventListener("click", () => commit(defaultColor, true));
+      reset.addEventListener("click", () => {
+        if (key === "code_alternate_row_color") { this.#emit(key, ""); this.refresh(); }
+        else commit(defaultColor, true);
+      });
       wrap.appendChild(reset);
     }
     return wrap;
@@ -488,11 +508,30 @@ export class SettingsPanel {
 
     const card = document.createElement("div");
     card.className = "settings-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+    card.setAttribute("aria-labelledby", "settings-title");
+
+    const title = document.createElement("h2");
+    title.id = "settings-title";
+    title.textContent = t("settings.title");
+    card.appendChild(title);
 
     const head = document.createElement("div");
     head.className = "settings-head";
     const tabs = document.createElement("nav");
     tabs.className = "settings-tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", t("settings.title"));
+    tabs.addEventListener("keydown", event => {
+      const buttons = [...tabs.querySelectorAll<HTMLButtonElement>("button")];
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+        : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next].click();
+    });
     const tabDefs: Array<[SettingsTab, I18nKey]> = [
       ["general", "settings.tab.general"],
       ["editor", "settings.tab.editor"],
@@ -504,13 +543,19 @@ export class SettingsPanel {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "settings-tab";
+      button.id = `settings-tab-${id}`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", "settings-tab-content");
+      button.setAttribute("aria-selected", String(id === this.#activeTab));
+      button.tabIndex = id === this.#activeTab ? 0 : -1;
       button.classList.toggle("active", id === this.#activeTab);
       button.textContent = t(label);
       button.addEventListener("click", () => {
-        if (this.#activeTab === id) return;
+        if (this.#activeTab === id) { button.focus(); return; }
         this.#activeTab = id;
         this.#build();
         this.refresh();
+        this.#el.querySelector<HTMLElement>(".settings-tab.active")?.focus();
       });
       tabs.appendChild(button);
     }
@@ -524,6 +569,9 @@ export class SettingsPanel {
 
     const content = document.createElement("div");
     content.className = "settings-content";
+    content.id = "settings-tab-content";
+    content.setAttribute("role", "tabpanel");
+    content.setAttribute("aria-labelledby", `settings-tab-${this.#activeTab}`);
     card.appendChild(content);
     this.#el.appendChild(card);
     this.#renderActiveTab();
@@ -877,7 +925,7 @@ export class SettingsPanel {
       cb.dataset.key = f.key;
       cb.addEventListener("change", () => this.#emit(f.key, cb.checked));
       left.append(cb, labelText);
-      const color = this.#colorControl(f.colorKey, f.defaultColor, false);
+      const color = this.#colorControl(f.colorKey, f.defaultColor, true);
       row.append(left, color);
       return row;
     }
@@ -1000,7 +1048,7 @@ export class SettingsPanel {
       });
       control = inp;
     } else if (f.kind === "color") {
-      control = this.#colorControl(f.key, f.defaultColor ?? "#39C5BB", true);
+      control = this.#colorControl(f.key, f.defaultColor ?? "#8A5CF5", true);
     } else {
       const inp = document.createElement("input");
       inp.type = "text";

@@ -1,9 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ask, message } from "@tauri-apps/plugin-dialog";
+import { confirmDialog, message } from "./dialogs";
 import { isImagePath, isMarkdownPath } from "./file-types";
+import { activateModal, deactivateModal } from "./modal";
+import { t } from "./i18n";
 
 interface Entry { name: string; path: string; is_dir: boolean }
 interface Directory { path: string; parent: string | null; entries: Entry[] }
+interface DeleteInfo {
+  is_dir: boolean; file_count: number; file_count_complete: boolean;
+  backlink_count: number; backlink_file_count: number;
+  backlinks: Array<{ path: string; name: string; count: number }>;
+  scan_complete: boolean;
+}
 type Label = keyof typeof EN;
 
 const EN = {
@@ -13,7 +21,6 @@ const EN = {
   copyAbsolute: "Copy absolute path", location: "Open in File Explorer",
   rename: "Rename", delete: "Delete", cancel: "Cancel", ok: "OK",
   fileName: "New file name", folderName: "New folder name", renameTo: "New name",
-  deleteConfirm: "Permanently delete “{name}”? This cannot be undone.",
   empty: "This folder is empty", noHeadings: "No headings in the current Markdown file",
   noResults: "No matching files", searchPlaceholder: "Search this folder and subfolders",
   error: "File operation failed: {error}",
@@ -25,7 +32,6 @@ const ZH: typeof EN = {
   copyAbsolute: "复制绝对路径", location: "在资源管理器中打开",
   rename: "重命名", delete: "删除", cancel: "取消", ok: "确定",
   fileName: "新文件名", folderName: "新文件夹名", renameTo: "新名称",
-  deleteConfirm: "永久删除“{name}”？此操作无法撤销。",
   empty: "此文件夹为空", noHeadings: "当前 Markdown 文件没有标题",
   noResults: "没有匹配的文件", searchPlaceholder: "搜索当前目录及子目录",
   error: "文件操作失败：{error}",
@@ -37,7 +43,6 @@ const DE: typeof EN = {
   copyAbsolute: "Absoluten Pfad kopieren", location: "Im Explorer öffnen",
   rename: "Umbenennen", delete: "Löschen", cancel: "Abbrechen", ok: "OK",
   fileName: "Neuer Dateiname", folderName: "Neuer Ordnername", renameTo: "Neuer Name",
-  deleteConfirm: "„{name}“ dauerhaft löschen? Dies kann nicht rückgängig gemacht werden.",
   empty: "Dieser Ordner ist leer", noHeadings: "Keine Überschriften in der Markdown-Datei",
   noResults: "Keine passenden Dateien", searchPlaceholder: "Ordner und Unterordner durchsuchen",
   error: "Dateioperation fehlgeschlagen: {error}",
@@ -49,7 +54,6 @@ const JA: typeof EN = {
   copyAbsolute: "絶対パスをコピー", location: "エクスプローラーで開く",
   rename: "名前を変更", delete: "削除", cancel: "キャンセル", ok: "OK",
   fileName: "新しいファイル名", folderName: "新しいフォルダー名", renameTo: "新しい名前",
-  deleteConfirm: "「{name}」を完全に削除しますか？元に戻せません。",
   empty: "このフォルダーは空です", noHeadings: "見出しがありません",
   noResults: "一致するファイルがありません", searchPlaceholder: "フォルダー内を検索",
   error: "ファイル操作に失敗しました: {error}",
@@ -75,14 +79,24 @@ function within(path: string, root: string): boolean {
   return a === b || a.startsWith(`${b}/`);
 }
 
+function sameDirectory(a: Directory | undefined, b: Directory): boolean {
+  return Boolean(a && a.parent === b.parent && a.entries.length === b.entries.length
+    && a.entries.every((entry, index) => entry.name === b.entries[index].name
+      && entry.path === b.entries[index].path && entry.is_dir === b.entries[index].is_dir));
+}
+
 export class WorkspaceSidebar {
   onOpen: (path: string) => Promise<void> = async () => {};
+  onOpenInNewTab: (path: string) => Promise<void> = async () => {};
   onRename: (oldPath: string, newPath: string) => void = () => {};
   onBeforeDelete: (path: string) => Promise<boolean> = async () => true;
+  getConfirmDelete: () => boolean = () => true;
+  onConfirmDeleteChange: (value: boolean) => void = () => {};
   onDelete: (path: string) => void = () => {};
   onHeading: (index: number) => void = () => {};
 
   private root: Directory | null = null;
+  private deleteBusy = false;
   private cache = new Map<string, Directory>();
   private expanded = new Set<string>();
   private currentPath: string | null = null;
@@ -92,12 +106,17 @@ export class WorkspaceSidebar {
   private loadToken = 0;
   private searchTimer = 0;
   private searchToken = 0;
+  private treeSyncTimer = 0;
+  private treeSyncBusy = false;
+  private nextDirectoryRead = 0;
+  private directoryReads = new Map<string, number>();
   private readonly aside = document.getElementById("workspace-sidebar") as HTMLElement;
   private readonly tree = document.getElementById("workspace-tree") as HTMLElement;
   private readonly outline = document.getElementById("workspace-outline-view") as HTMLElement;
   private readonly menu = document.getElementById("workspace-menu") as HTMLElement;
   private readonly searchInput = document.getElementById("workspace-search") as HTMLInputElement;
   private readonly searchResults = document.getElementById("workspace-search-results") as HTMLElement;
+  private rootLoading = false;
 
   constructor() {
     document.getElementById("btn-sidebar")?.addEventListener("click", () => this.show(!this.visible));
@@ -111,14 +130,24 @@ export class WorkspaceSidebar {
     });
     document.getElementById("workspace-search-toggle")?.addEventListener("click", () => this.toggleSearch());
     this.searchInput.addEventListener("input", () => {
-      window.clearTimeout(this.searchTimer);
-      this.searchTimer = window.setTimeout(() => void this.search(), 180);
+      this.queueSearch();
     });
     this.aside.addEventListener("contextmenu", (event) => this.contextMenu(event));
     document.addEventListener("pointerdown", (event) => {
       if (!this.menu.contains(event.target as Node)) this.hideMenu();
     });
     window.addEventListener("resize", () => this.hideMenu());
+    window.addEventListener("focus", () => {
+      this.syncTreeNow();
+      if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) window.clearTimeout(this.treeSyncTimer);
+      else {
+        this.syncTreeNow();
+        if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
+      }
+    });
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !this.menu.hidden) { event.preventDefault(); this.hideMenu(); }
     });
@@ -142,12 +171,17 @@ export class WorkspaceSidebar {
   }
 
   show(value: boolean): void {
+    const wasVisible = this.visible;
     this.visible = value;
     this.aside.hidden = !value;
     const button = document.getElementById("btn-sidebar") as HTMLButtonElement;
     button.classList.toggle("active", value);
     button.setAttribute("aria-expanded", String(value));
     this.syncRail();
+    if (!value) this.invalidateSearch();
+    else if (!wasVisible && !this.searchInput.hidden && this.searchInput.value) this.queueSearch();
+    if (!value) window.clearTimeout(this.treeSyncTimer);
+    else if (!wasVisible) this.syncTreeNow();
   }
 
   openSearch(): void {
@@ -172,6 +206,8 @@ export class WorkspaceSidebar {
     }
     if (mode === "outline") this.renderOutline();
     this.syncRail();
+    if (mode === "files") this.syncTreeNow();
+    else window.clearTimeout(this.treeSyncTimer);
   }
 
   private syncRail(): void {
@@ -202,30 +238,100 @@ export class WorkspaceSidebar {
   }
 
   async setRoot(path: string): Promise<void> {
+    this.invalidateSearch();
+    this.rootLoading = true;
+    window.clearTimeout(this.treeSyncTimer);
+    this.tree.hidden = false;
+    this.searchResults.hidden = true;
     const token = ++this.loadToken;
     try {
       const dir = await invoke<Directory>("list_workspace_dir", { path });
       if (token !== this.loadToken) return;
       this.root = dir;
       this.cache.clear();
+      this.directoryReads.clear();
       this.expanded.clear();
       this.cache.set(dir.path, dir);
       if (this.currentPath && within(this.currentPath, dir.path)) await this.revealPath(this.currentPath);
+      if (token !== this.loadToken) return;
+      this.rootLoading = false;
       this.renderTree();
-      if (!this.searchInput.hidden && this.searchInput.value) void this.search();
       this.show(true);
-    } catch (error) { await this.report(error); }
+      if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
+      this.scheduleTreeSync();
+    } catch (error) {
+      if (token === this.loadToken) {
+        this.rootLoading = false;
+        this.scheduleTreeSync();
+        await this.report(error);
+      }
+    }
   }
 
   async refresh(path?: string): Promise<void> {
     if (!this.root) return;
     const dirPath = path ?? this.root.path;
     try {
-      const dir = await invoke<Directory>("list_workspace_dir", { path: dirPath });
-      this.cache.set(dir.path, dir);
-      if (pathKey(dir.path) === pathKey(this.root.path)) this.root = dir;
-      this.renderTree();
+      if (await this.readDirectory(dirPath)) this.renderTree();
     } catch (error) { await this.report(error); }
+  }
+
+  private async readDirectory(path: string): Promise<boolean> {
+    const rootPath = this.root?.path;
+    if (!rootPath || !within(path, rootPath)) return false;
+    const key = pathKey(path);
+    const readId = ++this.nextDirectoryRead;
+    this.directoryReads.set(key, readId);
+    const dir = await invoke<Directory>("list_workspace_dir", { path });
+    if (this.root?.path !== rootPath || this.directoryReads.get(key) !== readId) return false;
+    const changed = !sameDirectory(this.cache.get(path), dir);
+    this.cache.set(dir.path, dir);
+    if (key === pathKey(rootPath)) this.root = dir;
+    return changed;
+  }
+
+  private treeSyncEnabled(): boolean {
+    return this.visible && this.mode === "files" && !document.hidden && !this.rootLoading && Boolean(this.root);
+  }
+
+  private scheduleTreeSync(): void {
+    window.clearTimeout(this.treeSyncTimer);
+    if (this.treeSyncEnabled()) this.treeSyncTimer = window.setTimeout(() => this.syncTreeNow(), 2500);
+  }
+
+  private syncTreeNow(): void {
+    if (!this.treeSyncEnabled() || this.treeSyncBusy) return;
+    window.clearTimeout(this.treeSyncTimer);
+    void this.syncVisibleDirectories();
+  }
+
+  private async syncVisibleDirectories(): Promise<void> {
+    this.treeSyncBusy = true;
+    const rootPath = this.root!.path;
+    let changed = false;
+    try {
+      changed = await this.readDirectory(rootPath);
+      const visit = async (dir: Directory): Promise<void> => {
+        for (const entry of dir.entries) {
+          if (this.root?.path !== rootPath || !this.treeSyncEnabled()) return;
+          if (!entry.is_dir || !this.expanded.has(entry.path)) continue;
+          try { changed = (await this.readDirectory(entry.path)) || changed; }
+          catch { if (this.cache.delete(entry.path)) changed = true; continue; }
+          const child = this.cache.get(entry.path);
+          if (child) await visit(child);
+        }
+      };
+      if (this.root?.path === rootPath && this.treeSyncEnabled()) await visit(this.root!);
+      if (changed && this.root?.path === rootPath && this.treeSyncEnabled()) {
+        this.renderTree();
+        if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
+      }
+    } catch {
+      // The directory may be temporarily unavailable. Retry on the next tick.
+    } finally {
+      this.treeSyncBusy = false;
+      this.scheduleTreeSync();
+    }
   }
 
   private async revealPath(path: string): Promise<void> {
@@ -235,7 +341,11 @@ export class WorkspaceSidebar {
     const relative = pathKey(parent).slice(pathKey(this.root.path).length).replace(/^\//, "");
     let cursor = this.root.path;
     for (const segment of relative.split("/").filter(Boolean)) {
-      const child = this.cache.get(cursor)?.entries.find((entry) => entry.is_dir && entry.name.toLowerCase() === segment);
+      let child = this.cache.get(cursor)?.entries.find((entry) => entry.is_dir && entry.name.toLowerCase() === segment);
+      if (!child) {
+        await this.readDirectory(cursor);
+        child = this.cache.get(cursor)?.entries.find((entry) => entry.is_dir && entry.name.toLowerCase() === segment);
+      }
       if (!child) return;
       cursor = child.path;
       this.expanded.add(cursor);
@@ -245,11 +355,15 @@ export class WorkspaceSidebar {
 
   private async loadDir(path: string): Promise<void> {
     if (this.cache.has(path)) return;
-    const dir = await invoke<Directory>("list_workspace_dir", { path });
-    this.cache.set(path, dir);
+    await this.readDirectory(path);
   }
 
   private renderTree(): void {
+    const scrollHost = document.getElementById("workspace-files-view") as HTMLElement;
+    const scrollTop = scrollHost.scrollTop;
+    const focused = this.tree.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement).closest<HTMLElement>(".workspace-row[data-path]")?.dataset.path
+      : undefined;
     this.tree.replaceChildren();
     const rootName = document.getElementById("workspace-root-name") as HTMLElement;
     rootName.textContent = this.root ? nameOf(this.root.path) : "";
@@ -260,6 +374,12 @@ export class WorkspaceSidebar {
       const empty = document.createElement("div"); empty.className = "workspace-empty"; empty.textContent = label("empty"); this.tree.append(empty);
     }
     this.renderEntries(this.root.entries, this.tree);
+    scrollHost.scrollTop = scrollTop;
+    if (focused) {
+      const row = Array.from(this.tree.querySelectorAll<HTMLElement>(".workspace-row[data-path]"))
+        .find((candidate) => candidate.dataset.path === focused);
+      row?.focus({ preventScroll: true });
+    }
   }
 
   private renderEntries(entries: Entry[], container: HTMLElement): void {
@@ -300,7 +420,7 @@ export class WorkspaceSidebar {
     if (this.expanded.has(path)) this.expanded.delete(path);
     else {
       this.expanded.add(path);
-      try { await this.loadDir(path); } catch (error) { this.expanded.delete(path); await this.report(error); }
+      try { await this.readDirectory(path); } catch (error) { this.expanded.delete(path); await this.report(error); }
     }
     this.renderTree();
   }
@@ -327,32 +447,54 @@ export class WorkspaceSidebar {
 
   private toggleSearch(): void {
     const open = this.searchInput.hidden;
+    this.invalidateSearch();
     this.searchInput.hidden = !open;
     this.tree.hidden = open && Boolean(this.searchInput.value);
     this.searchResults.hidden = !open || !this.searchInput.value;
-    if (open) this.searchInput.focus();
+    if (open) { this.searchInput.focus(); if (this.searchInput.value) this.queueSearch(); }
     else { this.searchInput.value = ""; this.tree.hidden = false; this.searchResults.hidden = true; }
   }
 
-  private async search(): Promise<void> {
+  private invalidateSearch(): void {
+    window.clearTimeout(this.searchTimer);
+    this.searchTimer = 0;
+    this.searchToken++;
+  }
+
+  private queueSearch(): void {
+    this.invalidateSearch();
     const query = this.searchInput.value.trim();
-    const token = ++this.searchToken;
-    if (!query || !this.root) { this.tree.hidden = false; this.searchResults.hidden = true; return; }
+    this.tree.hidden = false;
+    this.searchResults.hidden = true;
+    if (!query || !this.root || this.rootLoading || !this.visible || this.searchInput.hidden) return;
+    const token = this.searchToken;
+    const rootPath = this.root.path;
+    this.searchTimer = window.setTimeout(() => void this.search(token, rootPath, query), 180);
+  }
+
+  private searchIsCurrent(token: number, rootPath: string): boolean {
+    return token === this.searchToken && !this.rootLoading && this.visible && !this.searchInput.hidden && this.root?.path === rootPath;
+  }
+
+  private async search(token: number, rootPath: string, query: string): Promise<void> {
+    if (!this.searchIsCurrent(token, rootPath)) return;
     try {
-      const results = await invoke<Entry[]>("search_workspace", { root: this.root.path, query });
-      if (token !== this.searchToken) return;
+      const results = await invoke<Entry[]>("search_workspace", { root: rootPath, query });
+      if (!this.searchIsCurrent(token, rootPath)) return;
       this.tree.hidden = true;
       this.searchResults.hidden = false;
       this.searchResults.replaceChildren();
       for (const entry of results) {
         const row = document.createElement("button"); row.type = "button"; row.className = "workspace-row"; row.title = entry.path;
+        row.dataset.path = entry.path;
+        row.dataset.directory = String(entry.is_dir);
         row.textContent = `${entry.is_dir ? "📁" : "▤"}  ${entry.name}`;
         row.addEventListener("click", () => entry.is_dir ? void this.setRoot(entry.path) : void this.openEntry(entry.path));
-        const subtitle = document.createElement("span"); subtitle.className = "workspace-result-path"; subtitle.textContent = parentOf(entry.path).slice(this.root!.path.length) || ".";
+        const subtitle = document.createElement("span"); subtitle.className = "workspace-result-path"; subtitle.textContent = parentOf(entry.path).slice(rootPath.length) || ".";
         this.searchResults.append(row, subtitle);
       }
       if (!results.length) { const empty = document.createElement("div"); empty.className = "workspace-empty"; empty.textContent = label("noResults"); this.searchResults.append(empty); }
-    } catch (error) { await this.report(error); }
+    } catch (error) { if (this.searchIsCurrent(token, rootPath)) await this.report(error); }
   }
 
   private contextMenu(event: MouseEvent): void {
@@ -369,7 +511,7 @@ export class WorkspaceSidebar {
     };
     const divider = () => this.menu.append(document.createElement("hr"));
     if ((!isDir && !isImagePath(path)) || (isDir && this.currentPath)) item("newWindow", () => void this.run("open_workspace_window", { path: isDir ? this.currentPath : path }));
-    if (!blank && !isDir) item("newTab", () => void this.openEntry(path));
+    if (!blank && !isDir) item("newTab", () => void this.onOpenInNewTab(path));
     if (blank || isDir) {
       item("newFile", () => void this.create(path, false));
       item("newFolder", () => void this.create(path, true));
@@ -383,7 +525,7 @@ export class WorkspaceSidebar {
     if (!blank) {
       divider();
       item("rename", () => void this.rename(path));
-      item("delete", () => void this.delete(path), true);
+      item("delete", () => void this.delete(path, isDir), true);
     }
     this.menu.hidden = false;
     const rect = this.menu.getBoundingClientRect();
@@ -401,18 +543,20 @@ export class WorkspaceSidebar {
     (document.getElementById("workspace-prompt-ok") as HTMLElement).textContent = label("ok");
     input.value = initial;
     dialog.hidden = false;
-    input.focus();
+    activateModal(dialog, () => document.getElementById("workspace-prompt-cancel")?.click(), input);
     const dot = initial.lastIndexOf("."); input.setSelectionRange(0, dot > 0 ? dot : initial.length);
     return new Promise((resolve) => {
-      const finish = (value: string | null) => { dialog.hidden = true; cleanup(); resolve(value); };
-      const ok = () => finish(input.value.trim() || null);
+      const finish = (value: string | null) => { dialog.hidden = true; cleanup(); deactivateModal(dialog); resolve(value); };
+      const ok = () => { if (input.value.trim()) finish(input.value.trim()); };
       const cancel = () => finish(null);
-      const key = (event: KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); ok(); } else if (event.key === "Escape") { event.preventDefault(); cancel(); } };
+      const key = (event: KeyboardEvent) => { if (event.isComposing) return; if (event.key === "Enter") { event.preventDefault(); ok(); } else if (event.key === "Escape") { event.preventDefault(); cancel(); } };
       const backdrop = (event: MouseEvent) => { if (event.target === dialog) cancel(); };
-      const okButton = document.getElementById("workspace-prompt-ok")!;
+      const okButton = document.getElementById("workspace-prompt-ok") as HTMLButtonElement;
+      const validate = () => { okButton.disabled = !input.value.trim(); };
+      validate();
       const cancelButton = document.getElementById("workspace-prompt-cancel")!;
-      const cleanup = () => { okButton.removeEventListener("click", ok); cancelButton.removeEventListener("click", cancel); input.removeEventListener("keydown", key); dialog.removeEventListener("click", backdrop); };
-      okButton.addEventListener("click", ok); cancelButton.addEventListener("click", cancel); input.addEventListener("keydown", key); dialog.addEventListener("click", backdrop);
+      const cleanup = () => { okButton.removeEventListener("click", ok); cancelButton.removeEventListener("click", cancel); input.removeEventListener("keydown", key); input.removeEventListener("input", validate); dialog.removeEventListener("click", backdrop); };
+      okButton.addEventListener("click", ok); cancelButton.addEventListener("click", cancel); input.addEventListener("keydown", key); input.addEventListener("input", validate); dialog.addEventListener("click", backdrop);
     });
   }
 
@@ -440,14 +584,65 @@ export class WorkspaceSidebar {
     await this.refresh(parentOf(path));
   }
 
-  private async delete(path: string): Promise<void> {
-    if (!(await this.onBeforeDelete(path))) return;
-    const confirmed = await ask(label("deleteConfirm", { name: nameOf(path) }), { title: "PaperNest", kind: "warning" });
-    if (!confirmed) return;
-    const done = await this.run<void>("delete_workspace_entry", { path });
-    if (done === null) return;
-    this.onDelete(path);
-    await this.refresh(parentOf(path));
+  private async delete(path: string, directory = false): Promise<void> {
+    if (this.deleteBusy) return;
+    this.deleteBusy = true;
+    try {
+      let remember = false;
+      if (this.getConfirmDelete()) {
+        const details = document.createElement("div");
+        details.className = "app-dialog-details";
+        details.setAttribute("aria-live", "polite");
+        details.textContent = t("dialog.deleteLoading");
+        const ready = invoke<DeleteInfo>("get_workspace_delete_info", { root: this.root?.path ?? parentOf(path), path })
+          .then(info => {
+            const summary = document.createElement("p");
+            summary.className = "app-dialog-file-summary";
+            summary.textContent = t(info.file_count_complete ? "dialog.deleteFiles" : "dialog.deleteFilesPartial", { count: info.file_count });
+            const references = document.createElement("p");
+            references.className = "app-dialog-reference-summary";
+            references.textContent = t(info.is_dir ? "dialog.deleteFolderReferences" : "dialog.deleteReferences", { count: info.backlink_count, files: info.backlink_file_count });
+            details.replaceChildren(summary, references);
+            if (info.backlinks.length) {
+              const list = document.createElement("ul");
+              list.className = "app-dialog-backlinks";
+              for (const link of info.backlinks) {
+                const row = document.createElement("li");
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = t("dialog.deleteReferenceFile", { name: link.name, count: link.count });
+                button.title = link.path;
+                button.addEventListener("click", () => {
+                  details.dispatchEvent(new Event("dialog-dismiss", { bubbles: true }));
+                  void this.onOpenInNewTab(link.path);
+                });
+                row.appendChild(button); list.appendChild(row);
+              }
+              details.appendChild(list);
+            }
+            const scope = document.createElement("p");
+            scope.className = "app-dialog-scope";
+            scope.textContent = t(info.scan_complete ? "dialog.deleteScanScope" : "dialog.deleteScanPartial");
+            if (info.backlink_file_count > info.backlinks.length) scope.textContent += ` ${t("dialog.deleteListPartial")}`;
+            details.appendChild(scope);
+          }).catch(error => {
+            details.textContent = t("dialog.deleteScanFailed", { error: String(error) });
+            throw error; // Keep Delete disabled when the target cannot be inspected.
+          });
+        const result = await confirmDialog(t("dialog.deleteBody", { name: nameOf(path) }), {
+          title: t(directory ? "dialog.deleteFolderTitle" : "dialog.deleteTitle"), confirmLabel: t("dialog.delete"), danger: true,
+          rememberLabel: t("dialog.dontAskAgain"), details, ready,
+        });
+        if (!result.confirmed) return;
+        remember = result.remember;
+      }
+      if (!(await this.onBeforeDelete(path))) return;
+      const done = await this.run<void>("delete_workspace_entry", { path });
+      if (done === null) return;
+      if (remember) this.onConfirmDeleteChange(false);
+      this.onDelete(path);
+      await this.refresh(parentOf(path));
+    } finally { this.deleteBusy = false; }
   }
 
   private async copyPath(path: string, relative: boolean): Promise<void> {

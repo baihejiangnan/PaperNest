@@ -1,5 +1,5 @@
 import { $prose } from "@milkdown/kit/utils";
-import { NodeSelection, Plugin } from "@milkdown/kit/prose/state";
+import { NodeSelection, Plugin, type EditorState } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 
 import {
@@ -45,7 +45,7 @@ function normalizeAlign(value: unknown): Align {
   return align === "left" || align === "right" ? align : "center";
 }
 
-function syncImageAlignDom(view: EditorView): void {
+function syncImageAlignDom(view: EditorView, onImageLoad: () => void): void {
   view.state.doc.descendants((node, pos) => {
     if (node.type.name !== "image-block") return;
     const dom = view.nodeDOM(pos);
@@ -54,18 +54,20 @@ function syncImageAlignDom(view: EditorView): void {
         ? dom.closest<HTMLElement>(".milkdown-image-block") ?? dom
         : null;
     if (!block) return;
-    block.dataset.mdmeowImageAlign = normalizeAlign(node.attrs.align);
+    const align = normalizeAlign(node.attrs.align);
+    if (block.dataset.mdmeowImageAlign !== align) block.dataset.mdmeowImageAlign = align;
     const image = block.querySelector<HTMLImageElement>('img[data-type="image-block"]');
     if (!image) return;
     const title = String(node.attrs.title ?? "");
-    if (title) image.title = title;
-    else image.removeAttribute("title");
+    if (title) {
+      if (image.title !== title) image.title = title;
+    } else if (image.hasAttribute("title")) image.removeAttribute("title");
     if (!image.naturalWidth) {
       if (image.dataset.mdmeowScalePending !== "true") {
         image.dataset.mdmeowScalePending = "true";
         image.addEventListener("load", () => {
           delete image.dataset.mdmeowScalePending;
-          if (view.dom.isConnected) syncImageAlignDom(view);
+          if (view.dom.isConnected) onImageLoad();
         }, { once: true });
       }
       return;
@@ -163,6 +165,7 @@ class ImageToolbarView {
   private openScale = false;
   private openTitle = false;
   private scrollHost: HTMLElement | null = null;
+  private imageSyncFrame: number | null = null;
 
   constructor(view: EditorView) {
     this.view = view;
@@ -453,9 +456,19 @@ class ImageToolbarView {
     this.toolbar.appendChild(button);
   }
 
-  update = (view: EditorView): void => {
+  private scheduleImageSync = (): void => {
+    if (this.imageSyncFrame !== null) return;
+    this.imageSyncFrame = requestAnimationFrame(() => {
+      this.imageSyncFrame = null;
+      if (this.view.dom.isConnected) syncImageAlignDom(this.view, this.scheduleImageSync);
+    });
+  };
+
+  update = (view: EditorView, previousState?: EditorState): void => {
     this.view = view;
-    syncImageAlignDom(view);
+    if (!previousState || previousState.doc !== view.state.doc) {
+      syncImageAlignDom(view, this.scheduleImageSync);
+    }
     const selection = view.state.selection;
     if (!(selection instanceof NodeSelection)) {
       this.hide();
@@ -829,6 +842,7 @@ class ImageToolbarView {
   };
 
   destroy(): void {
+    if (this.imageSyncFrame !== null) cancelAnimationFrame(this.imageSyncFrame);
     this.view.dom.removeEventListener(
       "pointerdown",
       this.handleImagePointerDown,
@@ -848,7 +862,7 @@ export const imageToolbarPlugin = $prose(
       view: (view) => {
         const toolbar = new ImageToolbarView(view);
         return {
-          update: (nextView) => toolbar.update(nextView),
+          update: (nextView, previousState) => toolbar.update(nextView, previousState),
           destroy: () => toolbar.destroy(),
         };
       },

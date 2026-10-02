@@ -13,7 +13,12 @@ node_modules
 dist
 dist-ssr
 /release/
+/release.__staging/
+/.playwright-cli/
+/.build-tmp/
 coverage/
+output/playwright/
+output/tmp/
 *.local
 
 # Local git backups

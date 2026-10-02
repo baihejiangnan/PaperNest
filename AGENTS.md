@@ -7,7 +7,7 @@ PaperNest 是以快速阅读为优先的 Tauri v2 桌面文档应用。Markdown 
 - [README.md](README.md)：产品定位、用户功能、安装与简短构建说明。
 - [ARCHITECTURE.md](ARCHITECTURE.md)：前后端边界、状态归属、文件和窗口数据流。
 - [docs/development.md](docs/development.md)：本地命令、调试与回归清单。
-- [docs/design.md](docs/design.md)：Miku Cream 视觉与交互约束。
+- [docs/design.md](docs/design.md)：全局 UI 规范、Obsidian 配色与 HeroUI 语义约定。
 - [TODO.md](TODO.md)：当前待验证和待完成事项；以实际代码与用户反馈更新状态。
 - [CODE_MODE_REFACTOR_PLAN.md](CODE_MODE_REFACTOR_PLAN.md)：历史设计材料。它不是当前实现的权威说明，尤其“没有项目树”等早期设想已变化。
 

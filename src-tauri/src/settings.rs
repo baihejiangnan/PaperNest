@@ -110,8 +110,12 @@ pub struct Settings {
     pub remember_window_position: bool,
     /// File extensions the user wants PaperNest registered to open on Windows.
     pub file_associations: Vec<String>,
-    /// Accent colour. PaperNest defaults to Miku teal (#39C5BB).
+    /// Accent colour. PaperNest defaults to Obsidian purple (#8A5CF5).
     pub accent: String,
+    /// Base colour scheme: system, light or dark.
+    pub color_scheme: String,
+    /// Ask before deleting entries; does not suppress unsaved-change warnings.
+    pub confirm_delete: bool,
     /// Route remote assets through a user-specified HTTP/HTTPS/SOCKS5 proxy.
     pub proxy_enabled: bool,
     /// Proxy endpoint, e.g. http://127.0.0.1:7897 or socks5://127.0.0.1:7893.
@@ -148,14 +152,16 @@ impl Default for Settings {
             source_font: String::new(),
             source_font_size: 15,
             code_alternate_rows: true,
-            code_alternate_row_color: "#FAFFFF".to_string(),
+            code_alternate_row_color: String::new(),
             remember_window_position: false,
             file_associations: vec![
                 ".md".to_string(),
                 ".markdown".to_string(),
                 ".mdx".to_string(),
             ],
-            accent: "#39C5BB".to_string(),
+            accent: "#8A5CF5".to_string(),
+            color_scheme: "system".to_string(),
+            confirm_delete: true,
             proxy_enabled: false,
             proxy_url: String::new(),
             auto_check_updates: false,
@@ -206,7 +212,7 @@ impl Store {
     pub fn load(&self) -> Settings {
         std::fs::read_to_string(&self.path)
             .ok()
-            .and_then(|raw| toml::from_str(&raw).ok())
+            .and_then(|raw| parse_settings(&raw).ok())
             .unwrap_or_default()
     }
 
@@ -281,9 +287,62 @@ pub fn watch(path: PathBuf, last_write: LastWrite, app: AppHandle) {
             continue; // this was our own save
         }
         if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(settings) = toml::from_str::<Settings>(&raw) {
+            if let Ok(settings) = parse_settings(&raw) {
                 let _ = app.emit(SETTINGS_CHANGED_EVENT, settings);
             }
         }
+    }
+}
+
+/// Migrate the previous built-in colours once, leaving custom colours intact.
+/// New files contain color_scheme, so choosing teal explicitly remains possible.
+fn parse_settings(raw: &str) -> Result<Settings, toml::de::Error> {
+    let mut settings: Settings = toml::from_str(raw)?;
+    let values: toml::Value = toml::from_str(raw)?;
+    if values.get("color_scheme").is_none() {
+        if settings.accent.eq_ignore_ascii_case("#39C5BB") {
+            settings.accent = "#8A5CF5".to_string();
+        }
+        if settings.code_alternate_row_color.eq_ignore_ascii_case("#FAFFFF") {
+            settings.code_alternate_row_color.clear();
+        }
+    }
+    Ok(settings)
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+
+    #[test]
+    fn old_builtin_colours_migrate() {
+        let settings = parse_settings("accent = '#39c5bb'\ncode_alternate_row_color = '#FAFFFF'").unwrap();
+        assert_eq!(settings.accent, "#8A5CF5");
+        assert!(settings.code_alternate_row_color.is_empty());
+        assert_eq!(settings.color_scheme, "system");
+        assert!(settings.confirm_delete);
+    }
+
+    #[test]
+    fn custom_and_new_colours_survive_roundtrip() {
+        for raw in [
+            "accent = '#123456'\ncode_alternate_row_color = '#444444'",
+            "accent = '#39C5BB'\ncolor_scheme = 'dark'\ncode_alternate_row_color = '#FAFFFF'",
+        ] {
+            let settings = parse_settings(raw).unwrap();
+            let roundtrip = parse_settings(&toml::to_string(&settings).unwrap()).unwrap();
+            assert_eq!(roundtrip.accent, settings.accent);
+            assert_eq!(roundtrip.color_scheme, settings.color_scheme);
+            assert_eq!(roundtrip.code_alternate_row_color, settings.code_alternate_row_color);
+            assert!(raw.contains(&format!("'{}'", settings.accent)));
+        }
+    }
+
+    #[test]
+    fn absent_settings_use_new_defaults() {
+        let settings = parse_settings("").unwrap();
+        assert_eq!(settings.accent, "#8A5CF5");
+        assert_eq!(settings.color_scheme, "system");
+        assert!(settings.code_alternate_row_color.is_empty());
     }
 }

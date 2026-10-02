@@ -3,8 +3,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Crepe } from "@milkdown/crepe";
 import "@milkdown/crepe/theme/common/style.css";
-import { replaceAll } from "@milkdown/kit/utils";
+import { $prose, replaceAll } from "@milkdown/kit/utils";
 import { editorViewCtx } from "@milkdown/kit/core";
+import { Plugin } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 
 import { linkFromClipboard } from "./link-clipboard";
@@ -57,13 +58,15 @@ export class Editor {
   private listMarker: ListMarker = "*";
   /** Path of the document in the active tab — the base for relative images. */
   private docPath: string | null = null;
+  /** Changes when the host replaces the document or destroys its editor. */
+  private documentGeneration = 0;
   private proxyEnabled = false;
   private proxyUrl = "";
   /** Resolved `data:` URLs, keyed by `docPath \0 src`. */
   private readonly imageCache = new Map<string, string>();
 
-  /** Fires on every content change. */
-  onChange: () => void = () => {};
+  /** Fires with Milkdown's already serialized Markdown after a content change. */
+  onChange: (markdown: string) => void = () => {};
   /** Fires whenever the ProseMirror selection changes. */
   onSelectionChange: () => void = () => {};
   /** Opens a rendered Markdown link through the host application's routing. */
@@ -341,16 +344,32 @@ export class Editor {
       },
     });
     const marker = this.listMarker;
+    const generations = new WeakMap<object, number>();
+    const documentOwnership = $prose(() => new Plugin({
+      state: {
+        init: (_, state) => { generations.set(state.doc, this.documentGeneration); },
+        apply: (tr) => { generations.set(tr.doc, this.documentGeneration); },
+      },
+    }));
     crepe.editor
       .config((ctx) => configureMarkdownSerializer(ctx, marker))
       .use(linkFromClipboard)
       .use(findPlugin)
       .use(imageToolbarPlugin)
       .use(safeHtmlPresentationPlugin)
-      .use(emojiInputRule);
+      .use(emojiInputRule)
+      .use(documentOwnership);
+    let updatedDoc: object | null = null;
     crepe.on((listener) => {
-      listener.markdownUpdated(() => {
-        this.onChange();
+      listener.updated((_, doc) => { updatedDoc = doc; });
+      listener.markdownUpdated((ctx, markdown) => {
+        // Heading IDs are updated by a non-history appended transaction. That
+        // produces a different doc object within the same host document, so
+        // object identity would drop valid edits to headings. Track ownership
+        // across host replacements instead, without serializing a second time.
+        if (this.crepe !== crepe || !updatedDoc
+          || generations.get(updatedDoc) !== this.documentGeneration) return;
+        this.onChange(markdown);
         this.scheduleExternalCodeLineNumbers();
         resolveRawHtmlImages(this.host, this.resolveImageSrc);
         refreshSafeRawHtml(this.host);
@@ -376,6 +395,7 @@ export class Editor {
 
   /** Replace the whole document without tearing the instance down. */
   setContent(markdown: string): void {
+    this.documentGeneration++;
     this.crepe?.editor.action(replaceAll(markdown, true));
     resolveRawHtmlImages(this.host, this.resolveImageSrc);
     refreshSafeRawHtml(this.host);
@@ -392,8 +412,8 @@ export class Editor {
       ?.setAttribute("spellcheck", String(on));
   }
 
-  focus(): void {
-    (this.host.querySelector(".ProseMirror") as HTMLElement | null)?.focus();
+  focus(preventScroll = false): void {
+    (this.host.querySelector(".ProseMirror") as HTMLElement | null)?.focus({ preventScroll });
   }
 
   /** Turn the block(s) touched by the selection into `id`'s type — the same
@@ -522,6 +542,7 @@ export class Editor {
   }
 
   async destroy(): Promise<void> {
+    this.documentGeneration++;
     this.imagePreview.close();
     if (this.lineNumberFrame !== null) {
       window.cancelAnimationFrame(this.lineNumberFrame);

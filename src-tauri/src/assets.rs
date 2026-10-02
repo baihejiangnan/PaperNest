@@ -4,6 +4,7 @@
 //! filesystem path, so both routes (the `read_image_data_url` command and the
 //! HTML export) resolve the path here, read the bytes and inline them.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Largest image we will inline as a data URL.
@@ -36,7 +37,23 @@ pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> 
         base.join(target)
     };
 
-    let bytes = std::fs::read(&resolved)
+    let file = std::fs::File::open(&resolved)
+        .map_err(|e| format!("cannot read image {}: {e}", resolved.display()))?;
+    let size = file
+        .metadata()
+        .map_err(|e| format!("cannot read image {}: {e}", resolved.display()))?
+        .len();
+    if size > MAX_IMAGE_BYTES as u64 {
+        return Err(format!(
+            "image {} is too large ({} MiB)",
+            resolved.display(),
+            size / (1024 * 1024)
+        ));
+    }
+    // The file may grow after the metadata check. Bound the read as well.
+    let mut bytes = Vec::with_capacity(size as usize);
+    file.take(MAX_IMAGE_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(|e| format!("cannot read image {}: {e}", resolved.display()))?;
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(format!(
@@ -130,7 +147,9 @@ pub fn base64_encode(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64_encode, image_mime, is_external, percent_decode};
+    use super::{
+        base64_encode, image_mime, is_external, percent_decode, to_data_url, MAX_IMAGE_BYTES,
+    };
     use std::path::Path;
 
     #[test]
@@ -164,5 +183,23 @@ mod tests {
         assert!(is_external(""));
         assert!(!is_external("pic.png"));
         assert!(!is_external("../assets/pic.png"));
+    }
+
+    #[test]
+    fn oversized_image_is_rejected_before_encoding() {
+        let path = std::env::temp_dir().join(format!(
+            "papernest-image-limit-{}-{}.png",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(MAX_IMAGE_BYTES as u64 + 1).unwrap();
+        drop(file);
+        let result = to_data_url(None, path.to_str().unwrap());
+        std::fs::remove_file(path).unwrap();
+        assert!(result.unwrap_err().contains("too large"));
     }
 }

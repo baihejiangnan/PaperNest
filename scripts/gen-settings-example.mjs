@@ -36,7 +36,11 @@ editor_font = ""            # WYSIWYG font family ("" = built-in default)
 editor_font_size = 16       # base editor size in px (headings scale from this)
 source_font = ""            # Markdown source-view font ("" = built-in monospace)
 source_font_size = 15       # source-view size in px
-accent = "#39C5BB"         # accent colour; reset/default is Miku teal
+code_alternate_rows = true # use alternating code row backgrounds
+code_alternate_row_color = "" # empty = current theme; or a custom hex colour
+accent = "#8A5CF5"         # accent colour; reset/default is Obsidian purple
+color_scheme = "system"    # "system" | "light" | "dark"
+confirm_delete = true      # ask before deleting; unsaved-change prompts always remain
 
 # App shortcuts. "Mod" means Ctrl on Windows/Linux and Cmd on macOS.
 [shortcuts]

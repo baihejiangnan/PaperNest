@@ -23,7 +23,7 @@ PaperNest is a **Tauri v2** desktop app:
 │  no framework                                  │
 │  • Milkdown "Crepe" editor (WYSIWYG)           │
 │  • CodeMirror, tabs, file tree, outline        │
-│  • image preview, block menu, Miku Cream       │
+│  • image preview, block menu, shared theme       │
 └───────────────────────────────────────────────┘
 ```
 
@@ -47,7 +47,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/code-editor.ts`, `src/file-types.ts` | CodeMirror text editor and extension-to-mode/language classification. Unknown readable text falls back to Plain Text. |
 | `src/workspace-sidebar.ts` | Lazy file tree, outline, search and context menus; calls `workspace.rs` for filesystem operations. |
 | `src/image-preview.ts`, `src/image-toolbar.ts`, `src/html-markdown.ts`, `src/image-block-markdown.ts` | Read-only image lightbox, image actions and Markdown/HTML image round-tripping. |
-| `src/miku-cream.ts` | Installs Crepe's structural frame CSS; `styles.css` owns the single built-in Miku Cream document rendering. |
+| `src/miku-cream.ts` | Installs Crepe's structural frame CSS; `styles.css` owns the single built-in Obsidian document rendering. |
 | `src/link-clipboard.ts` | ProseMirror `$prose` plugin: paste a URL over a selection / `Ctrl+K` → link it. |
 | `src/block-menu.ts` | The `⠿` block menu (turn‑into, insert table / image / divider / blank line, duplicate, delete). Raw ProseMirror commands. Exports `runBlockAction(crepe, id)` — the turn‑into entries reachable by `Ctrl/Cmd+0`–`7` from `main.ts`, built from the live selection via `targetFromSelection`. |
 | `src/emoji.ts` | `:shortcode:` input rule (`$prose`, same class as `find.ts`) + `EmojiPicker` popup (`#emoji-picker`, `Ctrl/Cmd+.`), backend‑agnostic like `find-bar.ts`. |
@@ -57,18 +57,22 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/markdown-serializer.ts` | `remarkStringifyOptionsCtx` tweaks: bullet‑list marker (`*`/`-`/`+`) and link/image handlers that stop `&` in URLs being escaped. Applied in `Editor.init` via `crepe.editor.config`. |
 | `src/find.ts` | `$prose` plugin for WYSIWYG find: scans text nodes for the query, decorates matches, exposes state via `findKey`. |
 | `src/find-bar.ts` | Find / replace UI shared by Markdown and Code modes. |
-| `src/styles.css` | App shell, file tree, overlays and Miku Cream document rendering. See [design rules](docs/design.md). |
+| `src/ui-theme.css` | Global light/dark tokens and HeroUI v3 semantic aliases. |
+| `src/modal.ts`, `src/dialogs.ts` | Focus isolation, app confirmation/message dialogs and their queue; no native warning/message dialogs. |
+| `src-tauri/src/delete_info.rs` | Background read-only file/reference analysis for deletion confirmation. |
+| `src-tauri/src/recycle.rs` | System recycle-bin operations. Windows uses a fresh COM STA and silent `IFileOperation` with `FOFX_RECYCLEONDELETE`; other desktop platforms use `trash`. Errors propagate to the in-app dialog, with no permanent-delete fallback. `delete_workspace_entry` awaits background completion before closing tabs, refreshing the tree or saving “do not ask again”. |
+| `src/styles.css` | App shell, file tree, overlays and Obsidian document rendering. See [design rules](docs/design.md). |
 | `src-tauri/src/lib.rs` | Tauri builder: single-instance plugin first, shared state, IPC command registry and settings watcher. `file_arg()` selects an existing file argument. |
 | `src-tauri/src/commands.rs` | Settings, document read/write/rename, export and image-loading commands. `get_settings` also returns startup file and version information. |
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions, Windows Explorer integration and same-process secondary-window creation. |
-| `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, shortcuts, quit_on_escape, list_marker, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
+| `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
 | `src-tauri/src/portable.rs` | Resolves the portable data dir (next to exe; on macOS next to the `.app`); writability check + OS‑config fallback. |
 | `src-tauri/src/export.rs` | `render_html`: Markdown → GFM HTML (comrak) wrapped in a self‑contained page. |
 | `src-tauri/src/mdfmt.rs` | `format_tables`: pretty‑prints GFM tables in a Markdown string. |
-| `src-tauri/assets/export/` | Bundled (offline) KaTeX + highlight.js + Miku Cream export CSS/template, `include_str!`‑ed by `export.rs`. |
+| `src-tauri/assets/export/` | Bundled (offline) KaTeX + highlight.js + Obsidian-style light export CSS/template, `include_str!`‑ed by `export.rs`. |
 | `src-tauri/tauri.conf.json`, `src-tauri/tauri.*.conf.json` | Shared and platform-specific window/bundle settings, including drag/drop and decorations. |
 | `src-tauri/capabilities/default.json` | Tauri permission allow‑list. **Add a permission here whenever you call a new `window.*` / plugin API.** |
-| `.github/workflows/release.yml` | CI: 5‑target matrix (win x64/arm64, mac universal, linux x64/arm64), `tauri-action`, draft release + checksums. |
+| `.github/workflows/release.yml` | Windows x64 portable EXE/MSI release: updater signing, embedded-key verification, artifact contract and SHA-256 checksums. Linux/macOS releases are deferred in TODO. |
 | `scripts/gen-settings-example.mjs` | Writes a commented `settings.example.toml` from Tauri's `beforeBuildCommand` hook. Keep its keys in sync with `Settings`. |
 
 ---
@@ -88,9 +92,11 @@ a read-only portable directory falls back there and shows a hint.
   appearance without a restart. The watcher skips the app's own
   writes by comparing a size+mtime signature (`AppState.last_write`).
   Text editing does **not** trigger a settings write.
-- **WebView2 data** (Windows) — the main WebView uses the mode-specific data
-  location selected in `lib.rs`; secondary windows use separate data directories
-  under the app-local `workspace-webviews/` path in `workspace.rs`.
+- **WebView2 data** (Windows) — `lib.rs` configures the main WebView's data
+  directory before startup. Secondary windows use separate `workspace-webviews/`
+  directories beside that profile: portable mode stays under the executable's
+  `data/` directory, installed mode uses the user's local PaperNest data directory.
+  Creating a window does not change process-wide WebView2 environment variables.
 
 ---
 
@@ -99,11 +105,28 @@ a read-only portable directory falls back there and shows a hint.
 ### Document / tabs
 - Each webview window initializes its own frontend state. The main window keeps
   one Crepe instance, one CodeMirror editor and cheap tab records containing
-  path, saved/content text, dirty/scroll state and an optional image URL.
+  path, saved/content text, dirty/scroll state, an optional image URL and a
+  start-page flag for blank new tabs.
+- The main window's titlebar belongs to `#document-pane`, so its tabs start
+  after the file sidebar. `TabBar` renders shrinking tabs while `main.ts`
+  manages the fixed new-tab/menu buttons, hover tooltip and menu actions.
+  Bookmarked groups contain only file paths and live in WebView localStorage;
+  unsaved document content is never placed in a bookmark.
+  A ResizeObserver keeps the active tab visible after window/sidebar size changes.
+  `src/tab-path.ts` normalizes ordinary and extended Windows/UNC path forms when
+  looking up an existing tab, so canonicalized paths reuse the same document.
+- Ordinary file-tree clicks call `openPreviewPath()` and reuse one preview tab.
+  The tree's "Open in new tab" command calls `openPath(path, true)` and marks
+  that tab as pinned. A dirty preview requires confirmation before replacement;
+  cancel keeps its content and path. Preview and pin flags are runtime tab state;
+  session restore still stores only paths.
 - Switching tabs → `TabBar.onActivate` → save the outgoing tab's text/scroll,
   then swap the visible view among Markdown, Code and image preview.
 - `readView()` / `writeView()` abstract the active text editor; image tabs do
   not produce editable text.
+  CodeMirror uses normalized line positions for search. Text serialization keeps
+  the exact loaded text while unchanged (including after undo), and preserves
+  the original newline style after edits through `src/code-text.ts`.
 - `toggleSource()` carries the reading position across the switch: it records the
   outgoing view's scroll as a 0..1 fraction (`viewScrollFraction()`) and re-applies
   it to the incoming view (`applyScrollFraction()`). Proportional only — cheap
@@ -114,14 +137,30 @@ a read-only portable directory falls back there and shows a hint.
 - `switching` flag suppresses the change handler during programmatic swaps.
 - `adoptNormalized()` — Crepe reformats Markdown on load; we adopt that as the
   clean baseline so a freshly opened file isn't marked dirty.
+- Milkdown's debounced change listener passes its serialized Markdown to
+  `main.ts`. A ProseMirror plugin tracks the host-document generation in a
+  WeakMap: derived transactions such as generated heading IDs retain ownership,
+  while `setContent()` and editor rebuilds invalidate older callbacks. Save,
+  tab switch, close and quit read the active view directly so a pending listener
+  cannot hide unsaved changes.
+- Session restore reads each saved path once, skips individual read failures,
+  then activates the tab identified by the original saved index.
 - `WorkspaceSidebar.setDocument()` reveals the active file, lazily loads its
   directory, and derives Markdown headings for the alternate outline view.
+  While the file pane is visible, it polls only the root and expanded folders
+  every 2.5 seconds; focus or visibility restoration triggers an immediate
+  refresh. Expanding a cached folder rereads it. Per-directory request IDs
+  keep older reads from overwriting newer results, and unchanged listings do
+  not rebuild the tree. This refreshes names and paths, not open document text.
   The secondary window skips sidebar/session restore and hides those controls.
 
 ### Save
 `saveDoc` → `invoke("write_document", …)`. Rust pretty‑prints GFM tables
 (`mdfmt`) and **returns the text it actually wrote**; the frontend resyncs the
-view if it changed.
+view if it changed in Code mode. In preview mode, Crepe's serialization remains
+the clean baseline so replacing the view does not erase undo history. When
+editing continues during the asynchronous write, the completed save updates
+the baseline without overwriting the newer view and leaves the tab dirty.
 
 ### Settings
 `get_settings` returns settings plus mode, location and startup-file metadata.
@@ -146,6 +185,8 @@ pass straight through; anything else is sent to the `read_image_data_url` Rust
 command, which resolves it against the active document's folder (`Editor.docPath`,
 kept current by `main.ts` on tab activate / open / save‑as), reads the file, and
 returns a `data:` URL (≤ 24 MiB). Results are memo‑cached per `docPath + src`.
+The Rust loader checks file metadata and bounds the read to 24 MiB + 1 byte
+before encoding, including when a file grows after the metadata check.
 HTML `<img>` and Markdown image forms are handled by the image conversion
 modules so supported attributes survive round-trips. The read-only lightbox
 receives an image source event and never changes the document. Opening an image
@@ -275,5 +316,6 @@ Keep everything inlined so exports stay offline.
 
 Use [docs/development.md](docs/development.md) for local commands and manual
 regression, and [`.github/workflows/release.yml`](.github/workflows/release.yml)
-for the release matrix. Keep `package.json` and `src-tauri/tauri.conf.json`
+for the Windows release workflow. Keep `package.json`, `src-tauri/Cargo.toml`
+and `src-tauri/tauri.conf.json`
 versions aligned for releases.

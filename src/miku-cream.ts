@@ -1,4 +1,4 @@
-// Miku Cream is PaperNest's single built-in rendering theme. We still inject
+// Obsidian colours are defined in ui-theme.css; this legacy module name is kept for compatibility. We still inject
 // Crepe's light frame stylesheet because it contains the editor component
 // structure; src/styles.css then owns the visual rendering.
 import frameLight from "@milkdown/crepe/theme/frame.css?inline";
@@ -18,17 +18,17 @@ import {
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 
 export const mikuCodePalette = {
-  base: "#383a42",
-  keyword: "#087d75",
-  functionName: "#2d6da3",
-  number: "#a6383f",
-  type: "#7a4fa3",
-  string: "#c52f73",
-  definition: "#2f7d53",
-  operator: "#a65d16",
-  comment: "#737d79",
-  link: "#147a74",
-  invalid: "#9f2530",
+  base: "var(--fg)",
+  keyword: "var(--syntax-keyword)",
+  functionName: "var(--syntax-function)",
+  number: "var(--syntax-number)",
+  type: "var(--syntax-type)",
+  string: "var(--syntax-string)",
+  definition: "var(--syntax-function)",
+  operator: "var(--syntax-operator)",
+  comment: "var(--muted)",
+  link: "var(--accent-soft-foreground)",
+  invalid: "var(--danger)",
 } as const;
 
 const codeEditorTheme = EditorView.theme(
@@ -43,27 +43,27 @@ const codeEditorTheme = EditorView.theme(
       lineHeight: "18px",
     },
     ".cm-content": {
-      caretColor: "#147a74",
+      caretColor: "var(--accent)",
       padding: "10px 0",
     },
     ".cm-cursor, .cm-dropCursor": {
-      borderLeftColor: "#147a74",
+      borderLeftColor: "var(--accent)",
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-      backgroundColor: "#c8ece8",
+      backgroundColor: "var(--selection)",
     },
     ".cm-line": {
       minHeight: "18px",
       padding: "0 14px 0 12px",
     },
     ".cm-gutters": {
-      color: "#8a9491",
-      backgroundColor: "#eef5f4",
-      borderRight: "1px solid #c8ddda",
+      color: "var(--muted)",
+      backgroundColor: "var(--bar-bg)",
+      borderRight: "1px solid var(--border)",
     },
     ".cm-foldPlaceholder": {
-      backgroundColor: "#e1f2ef",
-      color: "#596461",
+      backgroundColor: "var(--hover)",
+      color: "var(--bar-fg)",
       border: "none",
     },
     ".tok-keyword": {

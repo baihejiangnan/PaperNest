@@ -17,6 +17,18 @@ function Read-CargoVersion {
 }
 
 function Remove-IfExists([string]$Path) {
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $allowedPaths = @(
+        [System.IO.Path]::GetFullPath($StageDir),
+        [System.IO.Path]::GetFullPath($TargetBundle)
+    )
+    if ($resolvedPath -notin $allowedPaths) {
+        throw "Refusing to clean an unexpected release path: $resolvedPath"
+    }
+    $rootPrefix = [System.IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    if (-not $resolvedPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Release cleanup path is outside the project: $resolvedPath"
+    }
     if (Test-Path -LiteralPath $Path) {
         Remove-Item -LiteralPath $Path -Recurse -Force
     }
@@ -36,6 +48,50 @@ function Get-Sha256Hex([string]$Path) {
     }
     finally {
         $stream.Dispose()
+    }
+}
+
+function Assert-MsiAssociationActions([string]$Path) {
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $database = $installer.OpenDatabase($Path, 0)
+    $comObjects = [System.Collections.Generic.List[object]]::new()
+    $actions = @{}
+    $sequences = @{}
+    try {
+        $view = $database.OpenView('SELECT `Action`, `Type`, `Source`, `Target` FROM `CustomAction`')
+        $comObjects.Add($view)
+        $view.Execute()
+        while ($record = $view.Fetch()) {
+            $comObjects.Add($record)
+            $actions[$record.StringData(1)] = @($record.IntegerData(2), $record.StringData(3), $record.StringData(4))
+        }
+        $view.Close()
+        $view = $database.OpenView('SELECT `Action`, `Sequence` FROM `InstallExecuteSequence`')
+        $comObjects.Add($view)
+        $view.Execute()
+        while ($record = $view.Fetch()) {
+            $comObjects.Add($record)
+            $sequences[$record.StringData(1)] = $record.IntegerData(2)
+        }
+        $view.Close()
+        $register = $actions['PaperNestRegisterAssociationsAction']
+        $unregister = $actions['PaperNestUnregisterAssociationsAction']
+        if ($null -eq $register -or $null -eq $unregister -or
+            $register[0] -ne 18 -or $register[1] -ne 'Path' -or $register[2] -ne '--papernest-msi-register' -or
+            $unregister[0] -ne 82 -or $unregister[1] -ne 'Path' -or $unregister[2] -ne '--papernest-msi-unregister' -or
+            $sequences['PaperNestRegisterAssociationsAction'] -le $sequences['InstallFinalize'] -or
+            $sequences['PaperNestRegisterAssociationsAction'] -ge $sequences['LaunchApplication'] -or
+            $sequences['PaperNestUnregisterAssociationsAction'] -le $sequences['CostFinalize'] -or
+            $sequences['PaperNestUnregisterAssociationsAction'] -ge $sequences['RemoveFiles']) {
+            throw 'MSI association lifecycle actions are missing or incorrectly sequenced.'
+        }
+    }
+    finally {
+        for ($index = $comObjects.Count - 1; $index -ge 0; $index--) {
+            [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($comObjects[$index]) | Out-Null
+        }
+        [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($database) | Out-Null
+        [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) | Out-Null
     }
 }
 
@@ -131,6 +187,9 @@ try {
     Copy-Item -LiteralPath $internalExe -Destination $portablePath
     Copy-Item -LiteralPath $msis[0].FullName -Destination $msiPath
 
+    Write-Host "[release] Verifying MSI association lifecycle actions..."
+    Assert-MsiAssociationActions $msiPath
+
     Write-Host "[release] Signing Windows artifacts..."
     if ($useEnvironmentSigningKey) {
         pnpm tauri signer sign $portablePath
@@ -147,6 +206,22 @@ try {
     }
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath "$msiPath.sig")) {
         throw "MSI signing failed."
+    }
+
+    # Use the application's embedded public key and actual download verifier.
+    # A valid signature from a different local key must fail before staging.
+    $previousVerifyArtifact = $env:PAPERNEST_VERIFY_ARTIFACT
+    try {
+        foreach ($signedPath in @($portablePath, $msiPath)) {
+            $env:PAPERNEST_VERIFY_ARTIFACT = $signedPath
+            cargo test --manifest-path src-tauri/Cargo.toml --locked --lib `
+                staged_artifact_signature_accepts_original_and_rejects_tampering -- `
+                --ignored --exact update::tests::staged_artifact_signature_accepts_original_and_rejects_tampering
+            if ($LASTEXITCODE -ne 0) { throw "Embedded updater key verification failed: $signedPath" }
+        }
+    }
+    finally {
+        $env:PAPERNEST_VERIFY_ARTIFACT = $previousVerifyArtifact
     }
 
     $releaseBase = "https://github.com/baihejiangnan/PaperNest/releases/download/v$version"
@@ -173,6 +248,20 @@ try {
         throw "Release staging validation failed; updater artifact set is incomplete."
     }
 
+    # Include all five updater artifacts; never hash the checksum file itself.
+    # Use LF and UTF-8 without BOM so Windows and Unix validators read the same
+    # exact filenames. Regenerate on every build instead of keeping a stale sum.
+    $checksumLines = @($expected | Sort-Object | ForEach-Object {
+        $checksum = (Get-Sha256Hex (Join-Path $StageDir $_)).ToLowerInvariant()
+        "$checksum  $_"
+    })
+    [System.IO.File]::WriteAllText(
+        (Join-Path $StageDir "SHA256SUMS.txt"),
+        ([string]::Join("`n", $checksumLines) + "`n"),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    $expected += "SHA256SUMS.txt"
+
     if (-not (Test-Path -LiteralPath $ReleaseDir)) {
         New-Item -ItemType Directory -Path $ReleaseDir | Out-Null
     }
@@ -191,7 +280,7 @@ try {
         Write-Host ("  {0}  {1} bytes" -f $file.Name, $file.Length)
         Write-Host ("    SHA256 {0}" -f $hash)
     }
-    Write-Host "Result: PASS (signed Windows release + updater metadata)"
+    Write-Host "Result: PASS (updater-signed Windows release + metadata + SHA256 checksums)"
 }
 catch {
     Remove-IfExists $StageDir

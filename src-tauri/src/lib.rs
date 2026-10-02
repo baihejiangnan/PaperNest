@@ -1,9 +1,11 @@
 mod assets;
 mod commands;
+mod delete_info;
 mod export;
 mod mdfmt;
 mod portable;
 mod proxy;
+mod recycle;
 mod settings;
 mod update;
 mod workspace;
@@ -51,8 +53,10 @@ pub fn run() {
 
     let store = Store::locate();
 
-    // Keep WebView2 data in the mode-specific PaperNest data directory. Must be
-    // set before the webview starts.
+    let mut context = tauri::generate_context!();
+
+    // Select the main profile before WebView2 starts. Drop the startup override
+    // in setup so later windows honor their own data directories.
     #[cfg(target_os = "windows")]
     {
         let data = if store.portable {
@@ -62,7 +66,10 @@ pub fn run() {
         };
         if let Some(data) = data {
             if std::fs::create_dir_all(&data).is_ok() {
-                std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data);
+                std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &data);
+                if let Some(main) = context.config_mut().app.windows.iter_mut().find(|w| w.label == "main") {
+                    main.data_directory = Some(data);
+                }
             }
         }
     }
@@ -89,6 +96,8 @@ pub fn run() {
             last_write,
         })
         .setup(move |app| {
+            #[cfg(target_os = "windows")]
+            std::env::remove_var("WEBVIEW2_USER_DATA_FOLDER");
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 settings::watch(settings_path, watcher_last_write, handle)
@@ -112,6 +121,7 @@ pub fn run() {
             workspace::duplicate_workspace_file,
             workspace::rename_workspace_entry,
             workspace::delete_workspace_entry,
+            delete_info::get_workspace_delete_info,
             workspace::open_workspace_location,
             workspace::open_workspace_window,
             commands::render_html,
@@ -123,6 +133,6 @@ pub fn run() {
             update::use_prepared_version,
             update::show_prepared_version,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

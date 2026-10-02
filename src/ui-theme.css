@@ -1,0 +1,118 @@
+/* Global Obsidian palette + HeroUI v3 semantic variables. See docs/design.md. */
+:root {
+  --background: #ffffff;
+  --foreground: #222222;
+  --surface: #ffffff;
+  --surface-secondary: #f6f6f6;
+  --surface-tertiary: #efefef;
+  --muted: #5c5c5c;
+  --border: #e4e4e4;
+  --accent: #8a5cf5;
+  --accent-foreground: #ffffff;
+  --danger: #d92d45;
+  --danger-foreground: #ffffff;
+  --success: #18783b;
+  --warning: #b35900;
+  --syntax-keyword: #7852ee;
+  --syntax-function: #086ddd;
+  --syntax-number: #a84408;
+  --syntax-string: #18783b;
+  --syntax-type: #7852ee;
+  --syntax-operator: #5c5c5c;
+  --inline-code: #7852ee;
+  --overlay: rgb(0 0 0 / 40%);
+  --shadow-popup: 0 8px 28px rgb(0 0 0 / 14%);
+  --shadow-modal: 0 24px 72px rgb(0 0 0 / 22%);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #1c1c1c;
+  --foreground: #dadada;
+  --surface: #282828;
+  --surface-secondary: #232323;
+  --surface-tertiary: #333333;
+  --muted: #b3b3b3;
+  --border: #3f3f3f;
+  --danger: #fb464c;
+  --danger-foreground: #1c1c1c;
+  --success: #44cf6e;
+  --warning: #e9973f;
+  --syntax-keyword: #a882ff;
+  --syntax-function: #75b8ff;
+  --syntax-number: #e9973f;
+  --syntax-string: #44cf6e;
+  --syntax-type: #fa99cd;
+  --syntax-operator: #b3b3b3;
+  --inline-code: #a882ff;
+  --overlay: rgb(0 0 0 / 60%);
+  --shadow-popup: 0 8px 28px rgb(0 0 0 / 32%);
+  --shadow-modal: 0 24px 72px rgb(0 0 0 / 48%);
+  color-scheme: dark;
+}
+
+/* Match the OS before settings are loaded, preventing a bright startup flash. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --background: #1c1c1c;
+    --foreground: #dadada;
+    --surface: #282828;
+    --surface-secondary: #232323;
+    --surface-tertiary: #333333;
+    --muted: #b3b3b3;
+    --border: #3f3f3f;
+    --danger: #fb464c;
+    --danger-foreground: #1c1c1c;
+    --success: #44cf6e;
+    --warning: #e9973f;
+    --syntax-keyword: #a882ff;
+    --syntax-function: #75b8ff;
+    --syntax-number: #e9973f;
+    --syntax-string: #44cf6e;
+    --syntax-type: #fa99cd;
+    --syntax-operator: #b3b3b3;
+    --inline-code: #a882ff;
+    --overlay: rgb(0 0 0 / 60%);
+    --shadow-popup: 0 8px 28px rgb(0 0 0 / 32%);
+    --shadow-modal: 0 24px 72px rgb(0 0 0 / 48%);
+    color-scheme: dark;
+  }
+}
+
+:root {
+  --bg: var(--background);
+  --fg: var(--foreground);
+  --bar-bg: var(--surface-secondary);
+  --bar-fg: var(--muted);
+  --hover: var(--surface-tertiary);
+  --surface-foreground: var(--foreground);
+  --surface-hover: var(--surface-tertiary);
+  --field-background: var(--background);
+  --field-foreground: var(--foreground);
+  --field-border: var(--border);
+  --field-placeholder: var(--muted);
+  --field-hover: var(--surface-secondary);
+  --field-focus: var(--background);
+  --focus: var(--accent);
+  --separator: var(--border);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --accent-soft-foreground: color-mix(in srgb, var(--accent) 65%, var(--foreground));
+  --selection: color-mix(in srgb, var(--accent) 24%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  --code-alt-row-color: var(--surface-secondary);
+  --radius: 6px;
+  --radius-field: 6px;
+  --radius-popup: 8px;
+  --radius-modal: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --control-height: 32px;
+  --duration-fast: 140ms;
+  --z-popup: 220;
+  --z-modal: 230;
+  --z-modal-nested: 240;
+  --z-preview: 250;
+}

@@ -3,6 +3,7 @@
 // only their text.
 
 import { t } from "./i18n";
+import { tabPathKey } from "./tab-path";
 
 export interface Tab {
   id: string;
@@ -15,11 +16,16 @@ export interface Tab {
   scrollTop: number;
   /** Loaded image for a read-only image tab; null for text documents. */
   imageUrl: string | null;
+  /** Empty landing page opened by the new-tab button. */
+  startPage: boolean;
+  /** File-tree clicks replace this tab rather than accumulating new tabs. */
+  preview: boolean;
+  /** Explicit "open in new tab" keeps this tab out of the preview slot. */
+  pinned: boolean;
 }
 
 let seq = 0;
 const nextId = () => `t${++seq}`;
-const pathKey = (path: string): string => path.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
 
 export function baseName(path: string | null): string {
   if (!path) return t("doc.untitled");
@@ -32,13 +38,14 @@ export class TabBar {
   activeId = "";
   /** Keep the strip visible even with a single tab (settings-driven). */
   private alwaysShow = false;
+  private stacked = false;
 
   /** Called after the active tab changes; `prev` is the tab we left (if any). */
   onActivate: (next: Tab, prev: Tab | null) => void = () => {};
   /** Called when the set of tabs or their identity changes (persist trigger). */
   onStructureChange: () => void = () => {};
   /** Called when the user asks to close a tab; main.ts decides (dirty guard). */
-  onCloseRequest: (tab: Tab) => void = () => {};
+  onCloseRequest: (tab: Tab) => Promise<boolean> = async () => false;
 
   private readonly el: HTMLElement;
 
@@ -48,6 +55,7 @@ export class TabBar {
     this.el.addEventListener("auxclick", (e) => {
       if ((e as MouseEvent).button === 1) this.handleClick(e); // middle-click closes
     });
+    new ResizeObserver(() => this.revealActiveTab()).observe(this.el);
   }
 
   get active(): Tab | undefined {
@@ -61,9 +69,17 @@ export class TabBar {
     this.render();
   }
 
+  get isStacked(): boolean { return this.stacked; }
+
+  setStacked(on: boolean): void {
+    this.stacked = on;
+    this.el.classList.toggle("stacked", on);
+    this.revealActiveTab();
+  }
+
   findByPath(path: string): Tab | undefined {
-    const key = pathKey(path);
-    return this.tabs.find((t) => t.path && pathKey(t.path) === key);
+    const key = tabPathKey(path);
+    return this.tabs.find((t) => t.path && tabPathKey(t.path) === key);
   }
 
   add(
@@ -71,6 +87,7 @@ export class TabBar {
     content: string,
     activate = true,
     imageUrl: string | null = null,
+    startPage = false,
   ): Tab {
     const tab: Tab = {
       id: nextId(),
@@ -80,6 +97,9 @@ export class TabBar {
       dirty: false,
       scrollTop: 0,
       imageUrl,
+      startPage,
+      preview: false,
+      pinned: false,
     };
     this.tabs.push(tab);
     this.onStructureChange();
@@ -106,7 +126,7 @@ export class TabBar {
     this.tabs.splice(idx, 1);
     this.onStructureChange();
     if (this.tabs.length === 0) {
-      this.add(null, "");
+      this.add(null, "", true, null, true);
       return;
     }
     if (wasActive) {
@@ -124,7 +144,7 @@ export class TabBar {
       const node = this.el.querySelector<HTMLElement>(`[data-tab="${tab.id}"]`);
       node?.classList.toggle("dirty", tab.dirty);
       const label = node?.querySelector(".tab-name");
-      if (label) label.textContent = tab.imageUrl ? baseName(tab.path).replace(/\.[^.]+$/, "") : baseName(tab.path);
+      if (label) label.textContent = this.label(tab);
     }
   }
 
@@ -137,11 +157,20 @@ export class TabBar {
       item.className = "tab" + (tab.id === this.activeId ? " active" : "");
       item.classList.toggle("dirty", tab.dirty);
       item.dataset.tab = tab.id;
-      item.title = tab.path ?? t("doc.untitled");
+      item.setAttribute("role", "tab");
+      item.setAttribute("aria-selected", String(tab.id === this.activeId));
+      item.setAttribute("aria-label", this.label(tab));
+      item.tabIndex = tab.id === this.activeId ? 0 : -1;
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          this.activate(tab.id);
+        }
+      });
 
       const name = document.createElement("span");
       name.className = "tab-name";
-      name.textContent = tab.imageUrl ? baseName(tab.path).replace(/\.[^.]+$/, "") : baseName(tab.path);
+      name.textContent = this.label(tab);
 
       const close = document.createElement("button");
       close.className = "tab-close";
@@ -160,30 +189,30 @@ export class TabBar {
       this.el.appendChild(item);
     }
 
-    const add = document.createElement("button");
-    add.id = "tab-add";
-    add.setAttribute("aria-label", t("tab.new"));
-    add.textContent = "+";
-    this.el.appendChild(add);
+    this.revealActiveTab();
+  }
+
+  private revealActiveTab(): void {
     const activeItem = this.el.querySelector<HTMLElement>(".tab.active");
     if (activeItem) requestAnimationFrame(() => {
       if (activeItem.isConnected) activeItem.scrollIntoView({ block: "nearest", inline: "nearest" });
     });
   }
 
+  private label(tab: Tab): string {
+    return tab.startPage ? t("tab.new") : tab.imageUrl
+      ? baseName(tab.path).replace(/\.[^.]+$/, "")
+      : baseName(tab.path);
+  }
+
   private handleClick(e: Event): void {
     const target = e.target as HTMLElement;
-
-    if (target.closest("#tab-add")) {
-      this.add(null, "");
-      return;
-    }
 
     const closeId = target.closest<HTMLElement>("[data-close]")?.dataset.close;
     if (closeId) {
       e.preventDefault();
       const tab = this.tabs.find((t) => t.id === closeId);
-      if (tab) this.onCloseRequest(tab);
+      if (tab) void this.onCloseRequest(tab);
       return;
     }
 
@@ -192,7 +221,7 @@ export class TabBar {
     if ((e as MouseEvent).button === 1) {
       e.preventDefault();
       const tab = this.tabs.find((t) => t.id === tabId);
-      if (tab) this.onCloseRequest(tab);
+      if (tab) void this.onCloseRequest(tab);
     } else {
       this.activate(tabId);
     }

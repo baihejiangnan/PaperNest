@@ -28,7 +28,9 @@ export default defineConfig(async () => ({
       ? { protocol: "ws", host, port: 1421 }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      // Windows build/test scratch files can be locked while created. They are
+      // not frontend sources and must not crash the development watcher.
+      ignored: ["**/src-tauri/**", "**/output/tmp/**", "**/.build-tmp/**"],
     },
   },
 }));

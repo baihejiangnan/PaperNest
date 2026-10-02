@@ -85,6 +85,9 @@
 
         <CustomAction Id="LaunchApplication" Impersonate="yes" FileKey="Path" ExeCommand="[LAUNCHAPPARGS]" Return="asyncNoWait" />
         <UIRef Id="PaperNestUI" />
+        <!-- WiX only links referenced fragments; keep association lifecycle actions. -->
+        <CustomActionRef Id="PaperNestRegisterAssociationsAction" />
+        <CustomActionRef Id="PaperNestUnregisterAssociationsAction" />
 
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="DesktopFolder" Name="Desktop">
@@ -349,7 +352,7 @@
         {{/if}}
 
         <InstallExecuteSequence>
-          <Custom Action="LaunchApplication" After="InstallFinalize">AUTOLAUNCHAPP AND NOT Installed</Custom>
+          <Custom Action="LaunchApplication" After="PaperNestRegisterAssociationsAction">AUTOLAUNCHAPP AND NOT Installed</Custom>
         </InstallExecuteSequence>
 
         <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]" After="CostFinalize"/>

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "PaperNest - a minimalist WYSIWYG Markdown editor"
 authors = ["baihejiangnan"]
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.85"
 
 [lib]
 name = "papernest_lib"
@@ -28,8 +28,16 @@ base64 = "0.22"
 semver = "1"
 minisign-verify = "0.2.5"
 
+[target.'cfg(not(windows))'.dependencies]
+trash = "5.2"
+
+[dev-dependencies]
+trash = "5.2"
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
+windows-core = "0.62"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]

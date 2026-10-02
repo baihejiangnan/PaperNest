@@ -105,8 +105,10 @@
                   Return="ignore" />
 
     <InstallExecuteSequence>
+      <!-- An immediate type-18 action needs the installed EXE to exist;
+           run after the install transaction and before automatic app launch. -->
       <Custom Action="PaperNestRegisterAssociationsAction"
-              After="InstallFiles">NOT REMOVE~="ALL"</Custom>
+              After="InstallFinalize">NOT REMOVE~="ALL"</Custom>
       <Custom Action="PaperNestUnregisterAssociationsAction"
               Before="RemoveFiles">REMOVE~="ALL"</Custom>
     </InstallExecuteSequence>

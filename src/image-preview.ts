@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { activateModal, deactivateModal } from "./modal";
 
 export const IMAGE_PREVIEW_EVENT = "mdmeow:image-preview";
 export const IMAGE_SOURCE_EVENT = "mdmeow:image-source";
@@ -16,7 +17,6 @@ export class ImagePreview {
   private readonly caption: HTMLDivElement;
   private readonly hint: HTMLDivElement;
   private readonly closeButton: HTMLButtonElement;
-  private previousFocus: HTMLElement | null = null;
   private scale = 1;
   private offsetX = 0;
   private offsetY = 0;
@@ -66,9 +66,6 @@ export class ImagePreview {
 
   open(src: string, alt: string): void {
     if (!src) return;
-    this.previousFocus = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
     this.root.setAttribute("aria-label", t("image.preview"));
     this.closeButton.title = t("image.previewClose");
     this.closeButton.setAttribute("aria-label", t("image.previewClose"));
@@ -81,8 +78,7 @@ export class ImagePreview {
     this.offsetY = 0;
     this.renderTransform();
     this.root.hidden = false;
-    this.root.focus();
-    document.addEventListener("keydown", this.onKeyDown, true);
+    activateModal(this.root, () => this.close(), this.closeButton);
   }
 
   close(): void {
@@ -94,27 +90,13 @@ export class ImagePreview {
     }
     this.dragPointer = null;
     this.stage.classList.remove("dragging");
-    document.removeEventListener("keydown", this.onKeyDown, true);
-    this.previousFocus?.focus();
-    this.previousFocus = null;
+    deactivateModal(this.root);
   }
 
   private renderTransform(): void {
     this.image.style.transform =
       `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
   }
-
-  private onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Tab") {
-      event.preventDefault();
-      this.closeButton.focus();
-      return;
-    }
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.close();
-  };
 
   private onWheel = (event: WheelEvent): void => {
     event.preventDefault();

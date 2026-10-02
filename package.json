@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test:code-text": "node scripts/test-code-text.mjs",
+    "test:tab-path": "node scripts/test-tab-path.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",

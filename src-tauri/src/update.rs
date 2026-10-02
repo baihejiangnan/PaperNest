@@ -543,6 +543,22 @@ pub fn show_prepared_version(version: String) -> Result<(), String> {
 mod tests {
     use super::{artifact_names, parse_version, release_info, GithubAsset, GithubRelease};
 
+    // Run against each staged release artifact before publishing. This exercises
+    // the same embedded public key and verifier as the download/install path.
+    #[test]
+    #[ignore = "requires PAPERNEST_VERIFY_ARTIFACT and its .sig file"]
+    fn staged_artifact_signature_accepts_original_and_rejects_tampering() {
+        let path = std::env::var("PAPERNEST_VERIFY_ARTIFACT")
+            .expect("set PAPERNEST_VERIFY_ARTIFACT to the signed artifact path");
+        let mut data = std::fs::read(&path).expect("read staged artifact");
+        let signature = std::fs::read_to_string(format!("{path}.sig"))
+            .expect("read staged artifact signature");
+        super::verify_signature(&data, signature.trim()).expect("verify staged artifact");
+        assert!(!data.is_empty(), "release artifact must not be empty");
+        data[0] ^= 1;
+        assert!(super::verify_signature(&data, signature.trim()).is_err());
+    }
+
     #[test]
     fn parses_v_prefixed_versions() {
         assert_eq!(parse_version("v1.7.6").unwrap().to_string(), "1.7.6");

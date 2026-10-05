@@ -6,7 +6,7 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-> 这是基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续修改的个人版本。当前仓库保存源码和开发进度，尚未发布适用于新名称的安装包。旧项目的安装包不包含这里的新增功能。
+> 这是基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续修改的个人版本。Windows 便携版和安装包见 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)。旧项目的安装包不包含这里的新增功能。
 
 ## 能做什么
 
@@ -18,18 +18,23 @@
 | 处理文件 | 保存、另存为、重命名、新建、复制和删除；文件或目录可从文件树菜单在系统文件管理器中定位。 |
 | 输出和自定义 | 导出 HTML，通过系统打印流程输出 PDF；可调整字体、强调色、浅色/深色/跟随系统主题、快捷键和窗口行为。 |
 
-文件树按需读取目录；显示时定期同步根目录和已展开的子目录，返回应用窗口时立即刷新，折叠目录在再次展开时重新读取。以点号开头的项目和符号链接仍会被隐藏。Markdown 中的相对图片与本地链接以当前文档所在目录解析。点击图片可以放大预览，并可调整对齐和缩放。对于二进制文件，应用不会将其当作文本打开。
+文件树按需读取目录；显示时定期同步根目录和已展开的子目录，返回应用窗口时立即刷新，折叠目录在再次展开时重新读取。以点号开头的项目和符号链接仍会被隐藏。Markdown 中的相对图片与本地链接以当前文档所在目录解析。点击图片可以放大预览，并可调整对齐和缩放。对于二进制文件，应用不会将其当作文本打开。不支持的文件格式或文本编码会在窗口上方居中显示琥珀色胶囊提示，4 秒后自动消失，可手动关闭，不中断当前阅读。
+
+Windows 下，右键“在资源管理器中打开”会打开所选文件夹；右键文件时打开其所在目录并选中文件，在文件树空白处操作则打开当前根目录。
 
 默认使用 Obsidian 风格的中性色与紫色强调色。警告、确认与消息使用应用内弹窗；删除确认显示文件数量、引用来源和“不再询问”，可在常规设置中恢复删除前询问。文件和文件夹删除会移入系统回收站，可从回收站恢复；移入失败会提示错误，不会改为永久删除。全局组件规则见 [UI 规范](docs/design.md)。
 
 收藏标签页会保存当前有文件路径的标签页列表，之后可从标题栏箭头菜单恢复；未保存的新文件内容不会进入收藏。
 在文件树中普通点击文件会复用预览标签页；要保留文件的独立标签页，请右键选择“在新标签页中打开”。切换有未保存修改的预览页前会先确认。
+右键打开独立标签页时会立即显示标签；读取较慢时显示“正在打开文件…”，完成后自动显示内容。加载期间可以切换或关闭标签页，后续读取结果不会抢回当前页面或重新打开已关闭的标签。
 
 “在新窗口中打开”使用同一应用进程中的单文档窗口，Windows 开发版已完成多窗口与资源管理器定位回归，记录见 [开发说明](docs/development.md)。Windows 候选发行包的剩余检查见 [TODO](TODO.md)；Linux 与 macOS 的发行和实机确认暂定。
 
 ## 获取与运行
 
-目前请从源码构建。需要 Node.js 20+、pnpm 与 Rust stable（最低 1.85）；Windows 还需要 Visual C++ Build Tools、Windows SDK 和 WebView2。
+Windows x64 用户可从 [最新发行版](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载便携 EXE 或 MSI 安装包，运行需要 WebView2 Runtime。
+
+从源码构建需要 Node.js 20+、pnpm 与 Rust stable（最低 1.85）；Windows 还需要 Visual C++ Build Tools、Windows SDK 和 WebView2。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -42,7 +47,7 @@ pnpm tauri dev
 pnpm build
 ```
 
-本机打包可运行 `pnpm tauri build`；`pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。发布工作流以 `vX.Y.Z` 标签构建 Windows 产物，需配置 `TAURI_SIGNING_PRIVATE_KEY`；Linux/macOS 发行暂定。更新签名用于应用内验签，当前没有 Windows Authenticode 证书签名。在发布页出现本项目的正式产物之前，请不要将上游版本视作本项目版本。自动检查更新默认关闭；发布自己的签名版本后可在设置中开启。
+本机打包可运行 `pnpm tauri build`；`pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。发布工作流以 `vX.Y.Z` 标签构建 Windows 产物，需配置 `TAURI_SIGNING_PRIVATE_KEY`；Linux/macOS 发行暂定。更新签名用于应用内验签，当前没有 Windows Authenticode 证书签名。自动检查更新默认关闭，可在设置中开启以获取本项目发布的签名版本。
 
 ## 常用操作
 

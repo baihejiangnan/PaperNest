@@ -16,6 +16,71 @@ body {
 
 #app { display: flex; flex-direction: column; height: 100vh; }
 
+/* Non-blocking preview feedback: variant D from the notification previews. */
+.preview-notice-host {
+  position: fixed;
+  inset: 76px 0 auto;
+  z-index: var(--z-popup);
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+  pointer-events: none;
+}
+.preview-notice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: min(640px, 100%);
+  min-height: 46px;
+  padding: 10px 15px 10px 18px;
+  border: 1px solid var(--warning-soft-border);
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning-soft-foreground);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 4%);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 160ms, transform 200ms cubic-bezier(.16, 1, .3, 1);
+}
+.preview-notice.is-visible { opacity: 1; transform: translateY(0); }
+.preview-notice-message { min-width: 0; overflow-wrap: anywhere; }
+.preview-notice-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: var(--warning-icon-background);
+  color: var(--warning-icon-foreground);
+}
+.preview-notice-icon svg { width: 18px; height: 18px; }
+.preview-notice-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: -3px -5px -3px 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: .6;
+  cursor: pointer;
+}
+.preview-notice-close svg { width: 14px; height: 14px; }
+.preview-notice-close:hover { opacity: 1; background: rgb(128 128 128 / 12%); }
+.preview-notice-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .preview-notice { transition: none; }
+}
+
 #btn-sidebar {
   flex: none;
   width: 30px;
@@ -216,12 +281,16 @@ body.single-document-window #actions .sep { display: none !important; }
   line-height: 1;
   width: 16px;
   height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   border-radius: 4px;
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.7;
 }
 #tabs .tab:hover .tab-close,
-#tabs .tab.active .tab-close { opacity: 1; }
+#tabs .tab.active .tab-close,
+#tabs .tab:focus-within .tab-close { opacity: 1; }
 #tabs .tab-close:hover { background: var(--border); }
 #editor { flex: 1; overflow: auto; min-height: 0; }
 #image-document { flex: 1; min-height: 0; overflow: auto; padding: 24px 18px; background: var(--bg); }
@@ -1835,12 +1904,10 @@ body.mdmeow-file-drag::after {
 }
 #titlebar #tabs .tab.active { background: var(--bg); border-color: var(--border); color: var(--fg); }
 #titlebar #tabs .tab:not(.active):hover { background: color-mix(in srgb, var(--bg) 65%, var(--bar-bg)); }
-#titlebar #tabs .tab-name { flex: 1; min-width: 0; }
-#titlebar #tabs .tab:hover .tab-name,
-#titlebar #tabs .tab.active .tab-name { padding-right: 13px; }
+#titlebar #tabs .tab-name { flex: 1; min-width: 0; padding-right: 19px; }
 #titlebar #tabs .tab-image-icon { flex: none; width: 15px; height: 15px; }
 #titlebar #tabs .tab-image-icon svg { display: block; width: 100%; height: 100%; }
-#titlebar #tabs .tab-close { position: absolute; top: 11px; right: 4px; opacity: 0; }
+#titlebar #tabs .tab-close { position: absolute; top: 11px; right: 4px; }
 #titlebar #tabs.stacked .tab:not(.active) { display: none; }
 #tab-toolbar { display: flex; flex: none; align-items: center; margin-left: auto; padding: 0 3px; }
 #tab-toolbar button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--bar-fg); cursor: pointer; }
@@ -1860,6 +1927,8 @@ body.windows-chrome #window-controls { display: flex; }
 #workspace-layout { grid-column: 2; grid-row: 1; }
 #workspace-sidebar { flex-basis: clamp(220px, 25vw, 290px); }
 #new-tab-page { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--bg); }
+#document-loading { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--bg); color: var(--bar-fg); }
+#document-loading[hidden], #document-pane.document-loading #document-nav #actions { display: none !important; }
 #new-tab-page[hidden], #document-pane.start-page-active #editor,
 #document-pane.start-page-active #source-shell,
 #document-pane.start-page-active #image-document,

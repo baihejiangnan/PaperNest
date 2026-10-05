@@ -58,6 +58,7 @@ const EN = {
   "update.unsavedInstall": "You have unsaved changes. Start the update and close PaperNest anyway?",
 
   "doc.untitled": "Untitled",
+  "doc.loading": "Opening file…",
 
   "tab.close": "Close tab",
   "tab.new": "New tab",
@@ -121,6 +122,9 @@ const EN = {
   "dialog.confirmTitle": "Confirm action",
   "dialog.infoTitle": "Notice",
   "dialog.errorTitle": "Operation failed",
+  "notice.unsupportedFormat": "This file format cannot be previewed yet",
+  "notice.unsupportedEncoding": "This file encoding cannot be previewed yet",
+  "notice.close": "Dismiss notification",
   "dialog.deleteTitle": "Delete file or folder",
   "dialog.deleteFolderTitle": "Delete folder",
   "dialog.delete": "Delete",
@@ -287,6 +291,7 @@ const DE: Record<I18nKey, string> = {
   "update.unsavedInstall": "Es gibt ungespeicherte Änderungen. Update trotzdem starten und PaperNest schließen?",
 
   "doc.untitled": "Ohne Titel",
+  "doc.loading": "Datei wird geöffnet…",
 
   "tab.close": "Tab schließen",
   "tab.new": "Neuer Tab",
@@ -350,6 +355,9 @@ const DE: Record<I18nKey, string> = {
   "dialog.confirmTitle": "Aktion bestätigen",
   "dialog.infoTitle": "Hinweis",
   "dialog.errorTitle": "Aktion fehlgeschlagen",
+  "notice.unsupportedFormat": "Dieses Dateiformat kann noch nicht angezeigt werden",
+  "notice.unsupportedEncoding": "Diese Dateikodierung kann noch nicht angezeigt werden",
+  "notice.close": "Benachrichtigung schließen",
   "dialog.deleteTitle": "Datei oder Ordner löschen",
   "dialog.deleteFolderTitle": "Ordner löschen",
   "dialog.delete": "Löschen",
@@ -514,6 +522,7 @@ const ZH_CN: Record<I18nKey, string> = {
   "update.unsavedInstall": "仍有未保存的更改。确定启动更新并关闭 PaperNest 吗？",
 
   "doc.untitled": "未命名",
+  "doc.loading": "正在打开文件…",
 
   "tab.close": "关闭标签页",
   "tab.new": "新建标签页",
@@ -577,6 +586,9 @@ const ZH_CN: Record<I18nKey, string> = {
   "dialog.confirmTitle": "确认操作",
   "dialog.infoTitle": "提示",
   "dialog.errorTitle": "操作失败",
+  "notice.unsupportedFormat": "该文件格式暂不支持预览",
+  "notice.unsupportedEncoding": "该文件编码暂不支持预览",
+  "notice.close": "关闭通知",
   "dialog.deleteTitle": "删除文件",
   "dialog.deleteFolderTitle": "删除文件夹",
   "dialog.delete": "删除",
@@ -741,6 +753,7 @@ const JA: Record<I18nKey, string> = {
   "update.unsavedInstall": "未保存の変更があります。アップデートを開始して PaperNest を閉じますか？",
 
   "doc.untitled": "無題",
+  "doc.loading": "ファイルを開いています…",
   "tab.close": "タブを閉じる",
   "tab.new": "新しいタブ",
   "tab.list": "すべてのタブ",
@@ -803,6 +816,9 @@ const JA: Record<I18nKey, string> = {
   "dialog.confirmTitle": "操作の確認",
   "dialog.infoTitle": "お知らせ",
   "dialog.errorTitle": "操作に失敗しました",
+  "notice.unsupportedFormat": "このファイル形式はまだプレビューできません",
+  "notice.unsupportedEncoding": "この文字コードはまだプレビューできません",
+  "notice.close": "通知を閉じる",
   "dialog.deleteTitle": "ファイルの削除",
   "dialog.deleteFolderTitle": "フォルダーの削除",
   "dialog.delete": "削除",

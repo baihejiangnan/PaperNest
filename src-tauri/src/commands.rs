@@ -69,8 +69,14 @@ pub fn unregister_open_with() -> Result<OpenWithStatus, String> {
 }
 
 #[tauri::command]
-pub fn read_document(path: String) -> Result<String, String> {
-    let bytes = std::fs::read(&path).map_err(|e| format!("Cannot read {path}: {e}"))?;
+pub async fn read_document(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || read_document_text(&path))
+        .await
+        .map_err(|e| format!("Cannot read document: {e}"))?
+}
+
+fn read_document_text(path: &str) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("Cannot read {path}: {e}"))?;
     let sample = &bytes[..bytes.len().min(8192)];
     if looks_like_binary(sample) {
         return Err(format!("Cannot open {path}: the file appears to be binary."));
@@ -89,7 +95,7 @@ fn looks_like_binary(sample: &[u8]) -> bool {
 
 #[cfg(test)]
 mod document_tests {
-    use super::looks_like_binary;
+    use super::{looks_like_binary, read_document};
 
     #[test]
     fn ordinary_utf8_text_is_not_binary() {
@@ -104,6 +110,37 @@ mod document_tests {
     #[test]
     fn dense_control_bytes_are_binary() {
         assert!(looks_like_binary(&[1, 2, 3, 4, b'a', b'b', b'c']));
+    }
+
+    #[test]
+    fn background_document_read_preserves_text_and_reports_errors() {
+        use std::io::Write;
+
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "papernest-read-{}-{suffix}.txt",
+            std::process::id()
+        ));
+        let text = "# 文档\r\n\r\nUTF-8 text\r\n";
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        file.write_all(text.as_bytes()).unwrap();
+        drop(file);
+        let read = || tauri::async_runtime::block_on(read_document(path.display().to_string()));
+        assert_eq!(read().unwrap(), text);
+
+        std::fs::write(&path, b"text\0binary").unwrap();
+        assert!(read().unwrap_err().contains("binary"));
+        std::fs::write(&path, [0xff, 0xfe]).unwrap();
+        assert!(read().unwrap_err().contains("not valid UTF-8"));
+        std::fs::remove_file(&path).unwrap();
+        assert!(read().unwrap_err().contains("Cannot read"));
     }
 }
 
@@ -177,6 +214,8 @@ pub fn render_html(markdown: String, title: String, doc_path: Option<String>) ->
 /// path, so `proxyDomURL` in the frontend routes those here. Remote (`http(s):`),
 /// `data:` and `blob:` targets never reach this command.
 #[tauri::command]
-pub fn read_image_data_url(doc_path: Option<String>, src: String) -> Result<String, String> {
-    assets::to_data_url(doc_path.as_deref(), &src)
+pub async fn read_image_data_url(doc_path: Option<String>, src: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || assets::to_data_url(doc_path.as_deref(), &src))
+        .await
+        .map_err(|e| format!("Cannot read image: {e}"))?
 }

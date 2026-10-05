@@ -59,6 +59,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/find-bar.ts` | Find / replace UI shared by Markdown and Code modes. |
 | `src/ui-theme.css` | Global light/dark tokens and HeroUI v3 semantic aliases. |
 | `src/modal.ts`, `src/dialogs.ts` | Focus isolation, app confirmation/message dialogs and their queue; no native warning/message dialogs. |
+| `src/preview-notice.ts` | Non-blocking amber preview notices for binary/non-UTF-8 files; a single notice with timer, hover/focus pause, dismissal and localized text. |
 | `src-tauri/src/delete_info.rs` | Background read-only file/reference analysis for deletion confirmation. |
 | `src-tauri/src/recycle.rs` | System recycle-bin operations. Windows uses a fresh COM STA and silent `IFileOperation` with `FOFX_RECYCLEONDELETE`; other desktop platforms use `trash`. Errors propagate to the in-app dialog, with no permanent-delete fallback. `delete_workspace_entry` awaits background completion before closing tabs, refreshing the tree or saving “do not ask again”. |
 | `src/styles.css` | App shell, file tree, overlays and Obsidian document rendering. See [design rules](docs/design.md). |
@@ -106,7 +107,7 @@ a read-only portable directory falls back there and shows a hint.
 - Each webview window initializes its own frontend state. The main window keeps
   one Crepe instance, one CodeMirror editor and cheap tab records containing
   path, saved/content text, dirty/scroll state, an optional image URL and a
-  start-page flag for blank new tabs.
+  start-page flag for blank new tabs and a loading flag for pending file reads.
 - The main window's titlebar belongs to `#document-pane`, so its tabs start
   after the file sidebar. `TabBar` renders shrinking tabs while `main.ts`
   manages the fixed new-tab/menu buttons, hover tooltip and menu actions.
@@ -117,7 +118,14 @@ a read-only portable directory falls back there and shows a hint.
   looking up an existing tab, so canonicalized paths reuse the same document.
 - Ordinary file-tree clicks call `openPreviewPath()` and reuse one preview tab.
   The tree's "Open in new tab" command calls `openPath(path, true)` and marks
-  that tab as pinned. A dirty preview requires confirmation before replacement;
+  that tab as pinned. It creates the tab before awaiting the file read and shows
+  a loading status with editing/save/export disabled. Completion updates that
+  same tab, mounts content only if it is still active, and ignores closed tabs
+  and their late read errors. Pending editor callbacks cannot update a loading
+  or start-page tab. `read_document` and `read_image_data_url` run file reads and
+  image encoding in `tauri::async_runtime::spawn_blocking`, keeping synchronous
+  filesystem work off the desktop event loop.
+  A dirty preview requires confirmation before replacement;
   cancel keeps its content and path. Preview and pin flags are runtime tab state;
   session restore still stores only paths.
 - Switching tabs → `TabBar.onActivate` → save the outgoing tab's text/scroll,
@@ -153,6 +161,13 @@ a read-only portable directory falls back there and shows a hint.
   keep older reads from overwriting newer results, and unchanged listings do
   not rebuild the tree. This refreshes names and paths, not open document text.
   The secondary window skips sidebar/session restore and hides those controls.
+- The file tree's `open_workspace_location` command uses a fresh COM STA off the
+  desktop event loop. On Windows, `ShellExecuteW` opens the selected directory
+  (or the tree root for a blank-area menu); `SHOpenFolderAndSelectItems` opens a
+  file's parent and selects the item. Paths are resolved and converted from
+  extended Windows paths to ordinary drive/UNC paths. Explorer integration must
+  be verified at the app's normal desktop integrity level; a low-integrity
+  development executable cannot call the normal desktop Shell successfully.
 
 ### Save
 `saveDoc` → `invoke("write_document", …)`. Rust pretty‑prints GFM tables

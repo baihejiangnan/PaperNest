@@ -18,6 +18,8 @@ export interface Tab {
   imageUrl: string | null;
   /** Empty landing page opened by the new-tab button. */
   startPage: boolean;
+  /** File requested in a new tab; its content has not arrived yet. */
+  loading: boolean;
   /** File-tree clicks replace this tab rather than accumulating new tabs. */
   preview: boolean;
   /** Explicit "open in new tab" keeps this tab out of the preview slot. */
@@ -88,6 +90,7 @@ export class TabBar {
     activate = true,
     imageUrl: string | null = null,
     startPage = false,
+    loading = false,
   ): Tab {
     const tab: Tab = {
       id: nextId(),
@@ -98,6 +101,7 @@ export class TabBar {
       scrollTop: 0,
       imageUrl,
       startPage,
+      loading,
       preview: false,
       pinned: false,
     };
@@ -159,6 +163,7 @@ export class TabBar {
       item.dataset.tab = tab.id;
       item.setAttribute("role", "tab");
       item.setAttribute("aria-selected", String(tab.id === this.activeId));
+      if (tab.loading) item.setAttribute("aria-busy", "true");
       item.setAttribute("aria-label", this.label(tab));
       item.tabIndex = tab.id === this.activeId ? 0 : -1;
       item.addEventListener("keydown", (event) => {

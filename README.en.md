@@ -6,7 +6,7 @@ A lightweight desktop app for local documents. Open Markdown to read or edit it,
 
 [简体中文](README.md) · [English](README.en.md)
 
-> This is a personal continuation of [MDmeow](https://github.com/zakee039/MDmeow). This repository currently hosts source code and work in progress; installers under the new name have not been released yet. Upstream installers do not include this repository's additions.
+> This is a personal continuation of [MDmeow](https://github.com/zakee039/MDmeow). Windows portable and installer downloads are available in [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest). Upstream installers do not include this repository's additions.
 
 ## What it does
 
@@ -18,20 +18,26 @@ A lightweight desktop app for local documents. Open Markdown to read or edit it,
 | Work with files | Save, Save As, rename, create, duplicate, and delete. File tree actions can reveal files and folders in the system file manager. |
 | Export and customize | Export HTML or print to PDF; adjust fonts, accent color, light/dark/system theme, shortcuts, and window behavior. |
 
-The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text.
+The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text. Unsupported file formats or text encodings show an amber capsule centered near the top of the window. It disappears after four seconds, can be dismissed manually, and lets you keep reading.
+
+On Windows, “Open in File Explorer” opens the selected folder, or opens a file's parent folder with that file selected. Using the menu in the tree's blank area opens its current root folder.
+
+Ordinary file-tree clicks reuse a preview tab. Choose “Open in new tab” from a file's context menu to keep a separate tab: it appears immediately and shows “Opening file…” while reading. You can switch or close it during loading; completion keeps your current selection and never reopens a closed tab. Replacing an edited preview requires confirmation.
 
 Opening a file in a new window uses a single-document window in the same app process. Multiple windows and Explorer location actions passed Windows development-build checks; see [development notes](docs/development.md). Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux and macOS releases and on-device checks are deferred.
 
 ## Get started
 
-Build from source for now. You need Node.js 20+, pnpm, and stable Rust (1.85 or newer). Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
+Windows x64 users can download the portable EXE or MSI installer from the [latest release](https://github.com/baihejiangnan/PaperNest/releases/latest). WebView2 Runtime is required.
+
+To build from source, you need Node.js 20+, pnpm, and stable Rust (1.85 or newer). Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-Check the frontend build with `pnpm build`. Package locally with `pnpm tauri build`, or run `pnpm release:windows` for the Windows x64 portable EXE, MSI, updater signatures, `latest.json` and `SHA256SUMS.txt`. The release workflow builds Windows artifacts for a `vX.Y.Z` tag and requires `TAURI_SIGNING_PRIVATE_KEY`; Linux/macOS releases are deferred. Updater signatures are verified by the app; Windows Authenticode certificate signing is not configured. Until this project's own artifacts appear on its Releases page, do not treat upstream downloads as this version. Automatic update checks are off by default until signed releases are available.
+Check the frontend build with `pnpm build`. Package locally with `pnpm tauri build`, or run `pnpm release:windows` for the Windows x64 portable EXE, MSI, updater signatures, `latest.json` and `SHA256SUMS.txt`. The release workflow builds Windows artifacts for a `vX.Y.Z` tag and requires `TAURI_SIGNING_PRIVATE_KEY`; Linux/macOS releases are deferred. Updater signatures are verified by the app; Windows Authenticode certificate signing is not configured. Automatic update checks are off by default and can be enabled in settings to receive this project's signed releases.
 
 ## Common shortcuts
 

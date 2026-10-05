@@ -9,6 +9,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { ask, message } from "./dialogs";
+import { dismissPreviewNotice, showUnsupportedPreviewNotice } from "./preview-notice";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Editor } from "./editor";
@@ -203,19 +204,22 @@ function shouldUseCodeView(tab: Tab | undefined = tabBar.active): boolean {
 function setViewVisibility(tab: Tab | undefined = tabBar.active): void {
   const image = Boolean(tab?.imageUrl);
   const startPage = Boolean(tab?.startPage);
+  const loading = Boolean(tab?.loading);
   codeViewVisible = shouldUseCodeView(tab);
-  editorHost.hidden = startPage || image || codeViewVisible;
-  sourceShell.hidden = startPage || image || !codeViewVisible;
-  imageDocument.hidden = startPage || !image;
+  editorHost.hidden = loading || startPage || image || codeViewVisible;
+  sourceShell.hidden = loading || startPage || image || !codeViewVisible;
+  imageDocument.hidden = loading || startPage || !image;
   (document.getElementById("new-tab-page") as HTMLElement).hidden = !startPage;
+  (document.getElementById("document-loading") as HTMLElement).hidden = !loading;
   document.getElementById("document-pane")?.classList.toggle("start-page-active", startPage);
+  document.getElementById("document-pane")?.classList.toggle("document-loading", loading);
   imageElement.src = tab?.imageUrl ?? "";
   imageElement.alt = image ? baseName(tab?.path ?? null) : "";
 }
 
 /** Current document text, from whichever view is active. */
 function readView(): string {
-  if (tabBar.active?.imageUrl || tabBar.active?.startPage) return "";
+  if (tabBar.active?.imageUrl || tabBar.active?.startPage || tabBar.active?.loading) return "";
   return codeViewVisible ? codeEditor.getText() : editor.getMarkdown();
 }
 
@@ -233,7 +237,7 @@ function statsSelectionText(): string {
 
 function updateTextStats(): void {
   textStatsFrame = null;
-  if (!tabBar.active || tabBar.active.imageUrl || tabBar.active.startPage) {
+  if (!tabBar.active || tabBar.active.imageUrl || tabBar.active.startPage || tabBar.active.loading) {
     textStatsEl.hidden = true;
     return;
   }
@@ -387,7 +391,7 @@ function cancelTitleRename(): void {
 
 async function commitTitleRename(): Promise<void> {
   const tab = tabBar.active;
-  if (!tab?.path) {
+  if (!tab?.path || tab.loading) {
     cancelTitleRename();
     return;
   }
@@ -440,7 +444,7 @@ function parentOfWorkspacePath(path: string): string {
 
 function beginTitleRename(): void {
   const tab = tabBar.active;
-  if (!tab) return;
+  if (!tab || tab.loading) return;
   if (!tab.path) {
     void saveAs();
     return;
@@ -576,7 +580,7 @@ function updateTabContent(tab: Tab, content: string): void {
 
 function markDirtyFromView(): void {
   const tab = tabBar.active;
-  if (tab && !tab.imageUrl) updateTabContent(tab, readView());
+  if (tab && !tab.imageUrl && !tab.startPage && !tab.loading) updateTabContent(tab, readView());
 }
 
 // --- tab wiring -------------------------------------------------------------
@@ -586,16 +590,12 @@ tabBar.onStructureChange = () => {
   if (!tabMenuEl.hidden) renderTabMenu();
 };
 
-tabBar.onActivate = (next: Tab, prev: Tab | null) => {
+function showTab(next: Tab): void {
   hideTabTooltip();
-  if (prev) {
-    if (!prev.imageUrl && !prev.startPage) updateTabContent(prev, codeViewVisible ? codeEditor.getText() : editor.getMarkdown());
-    prev.scrollTop = prev.imageUrl ? imageDocument.scrollTop : codeViewVisible ? codeEditor.scrollTop : editorHost.scrollTop;
-  }
   editor.setDocPath(next.path);
   setViewVisibility(next);
-  if (next.startPage) {
-    // A start page has no document content to mount in the editor.
+  if (next.startPage || next.loading) {
+    // Landing and loading pages have no document content to mount.
   } else if (next.imageUrl) {
     imageDocument.scrollTop = next.scrollTop;
   } else {
@@ -607,10 +607,19 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
   updateTitle();
   updateSourceButton();
   scheduleTextStats(true);
-  if (!next.imageUrl && !next.startPage) (codeViewVisible ? codeEditor : editor).focus();
+  if (!next.imageUrl && !next.startPage && !next.loading) (codeViewVisible ? codeEditor : editor).focus();
   persistSoon();
+  if (next.loading) return;
   void workspace.setDocument(next.path, next.imageUrl ? "" : next.content);
   rememberNavigation(next.path);
+}
+
+tabBar.onActivate = (next: Tab, prev: Tab | null) => {
+  if (prev && !prev.loading) {
+    if (!prev.imageUrl && !prev.startPage) updateTabContent(prev, codeViewVisible ? codeEditor.getText() : editor.getMarkdown());
+    prev.scrollTop = prev.imageUrl ? imageDocument.scrollTop : codeViewVisible ? codeEditor.scrollTop : editorHost.scrollTop;
+  }
+  showTab(next);
 };
 
 workspace.onOpen = openPreviewPath;
@@ -697,7 +706,7 @@ tabBar.onCloseRequest = async (tab: Tab) => {
 
 editor.onChange = (markdown) => {
   const tab = tabBar.active;
-  if (switching || codeViewVisible || !tab || tab.imageUrl) return;
+  if (switching || codeViewVisible || !tab || tab.imageUrl || tab.startPage || tab.loading) return;
   updateTabContent(tab, markdown);
   workspace.setContent(markdown);
   scheduleTextStats(true);
@@ -710,7 +719,7 @@ codeEditor.onChange = () => {
   if (!codeViewVisible) return;
   const text = codeEditor.getText();
   const tab = tabBar.active;
-  if (!tab || tab.imageUrl) return;
+  if (!tab || tab.imageUrl || tab.startPage || tab.loading) return;
   updateTabContent(tab, text);
   workspace.setContent(text);
   scheduleTextStats(true);
@@ -842,14 +851,16 @@ function createDocumentFromStartPage(): void {
 
 let previewOpenSequence = 0;
 
-async function readPath(path: string): Promise<{ content: string; imageUrl: string | null } | null> {
+async function readPath(path: string, isRelevant = () => true): Promise<{ content: string; imageUrl: string | null } | null> {
   try {
     if (isImagePath(path)) {
       return { content: "", imageUrl: await invoke<string>("read_image_data_url", { docPath: null, src: path }) };
     }
     return { content: await invoke<string>("read_document", { path }), imageUrl: null };
   } catch (error) {
-    await message(String(error), { title: "PaperNest", kind: "error" });
+    if (isRelevant() && !showUnsupportedPreviewNotice(path, error)) {
+      await message(String(error), { title: "PaperNest", kind: "error" });
+    }
     return null;
   }
 }
@@ -864,7 +875,7 @@ async function openPreviewPath(path: string): Promise<void> {
 
   const slot = tabBar.tabs.find((tab) => tab.preview)
     ?? (tabBar.active && !tabBar.active.pinned ? tabBar.active : undefined);
-  const loaded = await readPath(path);
+  const loaded = await readPath(path, () => request === previewOpenSequence);
   if (!loaded || request !== previewOpenSequence) return;
 
   if (slot && tabBar.tabs.includes(slot)) {
@@ -908,7 +919,26 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
     return;
   }
 
-  const loaded = await readPath(path);
+  const loadingTab = inNewTab ? tabBar.add(path, "", true, null, false, true) : null;
+  if (loadingTab) loadingTab.pinned = true;
+  const loaded = await readPath(path, () => !loadingTab || tabBar.tabs.includes(loadingTab));
+  if (loadingTab) {
+    // Completion belongs to this tab even if the user has since switched or
+    // closed it. Never activate another document on behalf of an older read.
+    if (!tabBar.tabs.includes(loadingTab)) return;
+    if (!loaded) {
+      tabBar.remove(loadingTab.id);
+      return;
+    }
+    loadingTab.saved = loaded.content;
+    loadingTab.content = loaded.content;
+    loadingTab.imageUrl = loaded.imageUrl;
+    loadingTab.loading = false;
+    if (tabBar.active === loadingTab) showTab(loadingTab);
+    tabBar.render();
+    persistSoon();
+    return;
+  }
   if (!loaded) return;
   const { content: text, imageUrl } = loaded;
   const image = imageUrl !== null;
@@ -981,7 +1011,7 @@ async function wireFileDrop(): Promise<void> {
 }
 
 async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
-  if (!tab || tab.imageUrl) return false;
+  if (!tab || tab.imageUrl || tab.loading) return false;
   if (!tab.path) return tab === tabBar.active ? saveAs() : false;
 
   const path = tab.path;
@@ -1020,7 +1050,7 @@ async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
 
 async function saveAs(): Promise<boolean> {
   const tab = tabBar.active;
-  if (!tab || tab.imageUrl) return false;
+  if (!tab || tab.imageUrl || tab.loading) return false;
 
   const dest = await save({
     defaultPath: tab.path ?? `${stem(tab.path)}.md`,
@@ -1258,7 +1288,7 @@ function wireTabChrome(): void {
 
 async function exportHtml(): Promise<void> {
   const tab = tabBar.active;
-  if (tab?.imageUrl) return;
+  if (tab?.imageUrl || tab?.loading) return;
   const dest = await save({
     defaultPath: `${stem(tab?.path ?? null)}.html`,
     filters: [{ name: "HTML", extensions: ["html"] }],
@@ -1279,7 +1309,7 @@ async function exportHtml(): Promise<void> {
 
 async function exportPdf(): Promise<void> {
   const tab = tabBar.active;
-  if (tab?.imageUrl) return;
+  if (tab?.imageUrl || tab?.loading) return;
   const html = await invoke<string>("render_html", {
     markdown: readView(),
     title: stem(tab?.path ?? null),
@@ -1311,11 +1341,12 @@ function updateSourceButton(): void {
   const btn = document.getElementById("btn-source") as HTMLButtonElement | null;
   if (!btn) return;
   const image = Boolean(tabBar.active?.imageUrl);
+  const loading = Boolean(tabBar.active?.loading);
   for (const id of ["btn-save", "btn-save-as", "btn-export"]) {
-    (document.getElementById(id) as HTMLButtonElement | null)?.toggleAttribute("disabled", image);
+    (document.getElementById(id) as HTMLButtonElement | null)?.toggleAttribute("disabled", image || loading);
   }
   const markdown = isMarkdownPath(tabBar.active?.path ?? null);
-  btn.disabled = !markdown;
+  btn.disabled = !markdown || loading;
   btn.innerHTML = markdown && sourceMode ? ICON_TO_WYSIWYG : ICON_TO_SOURCE;
   const label = markdown
     ? sourceMode
@@ -1360,7 +1391,7 @@ function updateShortcutTitles(): void {
 
 function toggleSource(): void {
   const tab = tabBar.active;
-  if (!tab || !isMarkdownPath(tab.path)) return;
+  if (!tab || tab.loading || !isMarkdownPath(tab.path)) return;
 
   findBar.close();
   const md = readView();
@@ -1856,6 +1887,11 @@ function wireShortcuts(): void {
         if (findBar.isOpen) {
           e.preventDefault();
           findBar.close();
+          return;
+        }
+        if (dismissPreviewNotice()) {
+          e.preventDefault();
+          e.stopPropagation();
           return;
         }
         if (settings.quit_on_escape) {

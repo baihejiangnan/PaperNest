@@ -855,7 +855,11 @@ export class SettingsPanel {
     testRow.append(testLabel, testWrap);
 
     fragment.append(statusRow, addressRow, testRow);
-    requestAnimationFrame(() => this.#refreshProxyControls());
+    // Construction happens before settings arrive from Rust. Hidden controls
+    // are populated by refresh() when the panel opens; do not read them early.
+    requestAnimationFrame(() => {
+      if (this.#open) this.#refreshProxyControls();
+    });
     return fragment;
   }
 

@@ -118,6 +118,8 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 - 将 package.json、Tauri 配置、Cargo.toml 与 Cargo.lock 的应用版本统一为 0.1.1，保留现有更新公钥。前端类型检查及构建、Code 文本和标签路径检查通过；Rust 默认测试 31 项通过，3 项显式集成测试跳过。测试临时目录设置为工作区可写目录，避免受限环境的系统临时目录权限错误。
 - `pnpm release:windows` 生成便携 EXE、MSI、两份更新签名、latest.json 和 SHA256SUMS.txt；MSI 关联生命周期动作及顺序检查通过，两个产物使用应用内嵌公钥验签通过，修改产物字节后的验签均被拒绝。便携 EXE SHA-256 为 `c93c9eea3b0fcd211d22f35899b846ef640f06a3494e3ffd99ff86534e53d30f`，MSI 为 `f6140c73153ca771df59f179c4b06cf6512b33962c3e9d918db330790c1ba536`。
 - 本次变更的桌面与浏览器检查范围见上述标签页、资源管理器及下述通知记录；没有将 v0.1.0 的安装/卸载结果记为 v0.1.1 新安装测试。通知剩余桌面检查仍在 TODO 中保留。仓库尚未配置云端签名密钥，本次使用本地签名构建，产物没有 Authenticode 证书签名。
+- 公开发行及下载核对（2026-10-06）：[v0.1.1](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.1) 已公开发布为最新正式版本；标签及发行源码指向 `605d8bc38e322600d05dae51c41b35d9d23af192`，源码已正常推送至远端 main 和 `codex/windows-release-0.1.1`。六个 GitHub 资产的 digest、大小和 uploaded 状态与本地一致；匿名下载全部六文件后 SHA-256 均一致，应用使用的 latest-release API、latest/download/latest.json 及元数据中的 MSI 下载入口检查通过。
+- 标签触发的 [CI 构建](https://github.com/baihejiangnan/PaperNest/actions/runs/37337295013) 在要求 `TAURI_SIGNING_PRIVATE_KEY` 的步骤停止，未执行构建和发布，没有覆盖本地验签后上传的六个文件。自动构建仍需配置与现有更新公钥匹配的签名密钥；本次手动发行和公开下载核对已完成。
 
 - 通知桌面基本检查（2026-10-05）：以独立的 `com.baihejiangnan.papernest.desktop-preview` 标识构建最新 debug 程序（`tauri build --debug --no-bundle`，离线锁定依赖），正常关闭并更新原测试实例，原会话恢复为 `package.wxs`。在实际 WebView2 文件树中点击 `Icon/ProductIcon`，顶部居中的琥珀色提示显示，原文档保留，未出现“操作失败／知道了”确认框；随后提示自行消失，再次点击可重新显示。测试窗口保留给用户查看。本次未生成或替换正式 MSI；深浅／系统主题、窄窗口和更多打开入口仍按清单继续验证。
 

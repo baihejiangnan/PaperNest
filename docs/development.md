@@ -153,7 +153,9 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 - 用户确认本轮界面检查没有问题并授权推送、发布。该确认与上述浏览器组件自动检查分别记录，不将其计为安装／卸载自动测试。设置界面桌面待确认项已关闭，其他明确列出的平台验证范围继续保留。
 - 应用版本统一升为 0.1.2，继续使用现有更新签名公钥与本地私钥构建 Windows 便携版、MSI 和更新元数据；签名凭据不进入源码或发行文件。前端构建、文本与标签路径检查通过；Rust 默认检查 31 项通过、3 项显式集成检查跳过。EXE 和 MSI 分别通过内嵌公钥验签与篡改拒绝检查，MSI 关联生命周期动作检查通过。
-- 六个产物已生成：便携 EXE、MSI、两份 `.sig`、latest.json 和 SHA256SUMS.txt。便携 EXE SHA-256 为 `a5d00f06140ac9db6cb4de135629fd035a318d7d79df5052837f45306550668c`，MSI 为 `65462a0c62e49151a33c063084c076cab88c921866ea3985435ae2e51f698355`。本机新版 pnpm 的自动依赖重装检查通过单次命令环境关闭，构建使用原锁定依赖，未改变依赖清单。公开资产核对结果在发行完成后追加。
+- 六个产物已生成：便携 EXE、MSI、两份 `.sig`、latest.json 和 SHA256SUMS.txt。便携 EXE SHA-256 为 `a5d00f06140ac9db6cb4de135629fd035a318d7d79df5052837f45306550668c`，MSI 为 `65462a0c62e49151a33c063084c076cab88c921866ea3985435ae2e51f698355`。本机新版 pnpm 的自动依赖重装检查通过单次命令环境关闭，构建使用原锁定依赖，未改变依赖清单。
+- 公开发行及下载核对：[v0.1.2](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.2) 已发布为最新正式版本，标签指向源码提交 `def166dd920db261e719c5c469b3a9226bbc5406`；源码已推送到 main 和 `codex/windows-release-0.1.2`。六个资产的 GitHub digest、大小与 uploaded 状态均一致；匿名下载全部六文件后 SHA-256 均与本地产物一致。应用使用的 latest-release API 与 latest/download/latest.json 均返回 0.1.2，元数据中的 MSI URL 和签名与本地一致。
+- 标签触发的 [CI 构建](https://github.com/baihejiangnan/PaperNest/actions/runs/37569271857) 在要求 `TAURI_SIGNING_PRIVATE_KEY` 的步骤停止，构建和发布均未执行，没有覆盖本地签名并验签后上传的资产。云端自动构建仍需配置与应用内嵌公钥匹配的签名密钥；本次手动发行、公开下载及更新入口核对已完成。产物具有更新签名，没有 Authenticode 证书签名。
 
 ### Windows v0.1.1 发行构建（2026-10-05）
 

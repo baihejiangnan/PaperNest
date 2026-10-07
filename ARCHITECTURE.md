@@ -47,6 +47,8 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/code-editor.ts`, `src/file-types.ts` | CodeMirror text editor and extension-to-mode/language classification. Unknown readable text falls back to Plain Text. |
 | `src/workspace-sidebar.ts` | Lazy file tree, outline, search and context menus; calls `workspace.rs` for filesystem operations. |
 | `src/image-preview.ts`, `src/image-toolbar.ts`, `src/html-markdown.ts`, `src/image-block-markdown.ts` | Read-only image lightbox, image actions and Markdown/HTML image round-tripping. |
+| `src/text-context-menu.ts`, `src/text-context-actions.ts` | The themed document context menu, body-mounted submenu panels, keyboard navigation and selection-preserving ProseMirror/CodeMirror actions. |
+| `src/link-picker.ts` | Non-modal selection-anchored link input, sibling-file filtering through existing directory IPC and relative link choices. |
 | `src/miku-cream.ts` | Installs Crepe's structural frame CSS; `styles.css` owns the single built-in Obsidian document rendering. |
 | `src/link-clipboard.ts` | ProseMirror `$prose` plugin: paste a URL over a selection / `Ctrl+K` → link it. |
 | `src/block-menu.ts` | The `⠿` block menu (turn‑into, insert table / image / divider / blank line, duplicate, delete). Raw ProseMirror commands. Exports `runBlockAction(crepe, id)` — the turn‑into entries reachable by `Ctrl/Cmd+0`–`7` from `main.ts`, built from the live selection via `targetFromSelection`. |
@@ -182,6 +184,21 @@ the baseline without overwriting the newer view and leaves the tab dirty.
 `save_settings` persists the whole `Settings` struct and records its signature.
 External edits arrive as a `settings-changed` event.
 
+`SettingsPanel` uses a category sidebar and owns a transient font-preview state.
+Preview clears the overlay and card backgrounds, retaining an opaque font-control
+group; `modal.ts` keeps the visible document inert. Escape/backdrop first returns
+to full settings, and closing or rebuilding clears preview. Font input emits
+through the existing `onChange` → `applyAppearance` → debounced save path; preview
+adds no persisted setting or IPC. `CodeEditor` places its document theme before
+the shared Crepe theme so user source fonts and sizes take precedence.
+
+Settings search is local, transient navigation state. Its index comes from
+`SECTIONS` plus explicit proxy, version, preview and file-extension entries;
+searching never constructs inactive controls or invokes system/network actions.
+Results select a category, refresh from the current settings and focus the target.
+The update card keeps its asynchronous status separate from the content renderer,
+so completion cannot reset a preference or replace active search results.
+
 ### Opening files from the OS
 `file_arg(argv)` finds the first existing file in the command line. Text-vs-
 binary validation happens when `read_document` is called. First launch reads
@@ -191,6 +208,24 @@ main window and focuses it. On Windows, file association registration is
 handled by `windows_integration.rs`. The file tree's "new window" action calls
 an async Rust command that creates another WebView window in the same app
 process; it does not start a second PaperNest process.
+
+### Document context menus
+`Editor` and `CodeEditor` own one `TextContextMenu` each. Rich text exposes inline
+formatting, paragraph conversions and insertion; CodeMirror (including embedded
+code blocks) exposes plain editing actions. Paragraph conversions and insertion
+reuse `block-menu.ts`. Menu panels live under `body`, so editor scrolling cannot
+clip them; submenu placement flips at screen edges and scrolls in small windows.
+Actions capture the selection and document identity when opened, restore them
+before editing, and check document ownership again after asynchronous clipboard
+or link-input operations. Replacing a document closes its menu. `Editor` owns a
+`LinkPicker` anchored to the selection, without a backdrop or background inert.
+It uses `list_workspace_dir` on the current document's parent, excludes folders
+and the current file, filters names locally, and returns encoded `./filename`
+links. The selection label is preserved; at an empty caret, a picked file supplies
+its readable name. Unsaved documents and failed directory reads retain manual
+link input. A stale read cannot reopen or replace a newer picker. Document/path,
+mode and language changes dismiss the picker; Esc restores its selection. Find
+requests go through the shared find bar. No settings fields or Rust commands are added.
 
 ### Images in the editor
 The WebView can't load `<img>` by filesystem path. Crepe's image‑block feature
@@ -203,7 +238,11 @@ returns a `data:` URL (≤ 24 MiB). Results are memo‑cached per `docPath + src
 The Rust loader checks file metadata and bounds the read to 24 MiB + 1 byte
 before encoding, including when a file grows after the metadata check.
 HTML `<img>` and Markdown image forms are handled by the image conversion
-modules so supported attributes survive round-trips. The read-only lightbox
+modules so supported attributes survive round-trips. The editor observes newly
+inserted HTML image DOM nodes and resolves their sources again when ProseMirror
+recreates them while applying HTML presentation. Pending results only update
+images still owned by the same document generation, path and source.
+The read-only lightbox
 receives an image source event and never changes the document. Opening an image
 file directly creates an image tab rather than loading binary data as text.
 

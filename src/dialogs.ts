@@ -9,6 +9,8 @@ export interface DialogOptions {
   details?: HTMLElement;
   rememberLabel?: string;
   ready?: Promise<void>;
+  initialFocus?: HTMLElement;
+  canConfirm?: () => boolean;
 }
 export interface DialogResult { confirmed: boolean; remember: boolean }
 let queue: Promise<unknown> = Promise.resolve();
@@ -64,6 +66,11 @@ function renderDialog(body: string, options: DialogOptions, confirmation: boolea
     confirm.type = "button";
     confirm.className = `app-dialog-button ${options.danger ? "is-danger" : "is-primary"}`;
     confirm.textContent = options.confirmLabel ?? t(confirmation ? "dialog.confirm" : "dialog.ok");
+    const validate = () => { confirm.disabled = options.canConfirm ? !options.canConfirm() : false; };
+    if (options.canConfirm) {
+      validate();
+      options.details?.addEventListener("input", validate);
+    }
     if (options.ready) {
       confirm.disabled = true;
       card.setAttribute("aria-busy", "true");
@@ -93,7 +100,7 @@ function renderDialog(body: string, options: DialogOptions, confirmation: boolea
     root.appendChild(card);
     document.body.appendChild(root);
     // Opening or pressing Enter must not accidentally approve a destructive action.
-    activateModal(root, () => finish(false), confirmation ? cancel : confirm);
+    activateModal(root, () => finish(false), options.initialFocus ?? (confirmation ? cancel : confirm));
   });
 }
 
@@ -103,4 +110,30 @@ export async function ask(body: string, options: DialogOptions = {}): Promise<bo
 
 export async function message(body: string, options: DialogOptions = {}): Promise<void> {
   await confirmDialog(body, options, false);
+}
+
+/** A small application input dialog, using the same queue and focus lifecycle. */
+export async function promptText(label: string, options: {
+  title: string;
+  value?: string;
+  placeholder?: string;
+  validate?: (value: string) => boolean;
+}): Promise<string | null> {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "app-dialog-input";
+  input.value = options.value ?? "";
+  input.placeholder = options.placeholder ?? "";
+  input.setAttribute("aria-label", label);
+  const canConfirm = () => Boolean(input.value.trim()) && (options.validate?.(input.value.trim()) ?? true);
+  input.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.isComposing) {
+      event.preventDefault();
+      if (canConfirm()) input.closest(".app-dialog-card")?.querySelector<HTMLButtonElement>(".is-primary")?.click();
+    }
+  });
+  const result = await confirmDialog(label, {
+    title: options.title, details: input, initialFocus: input, canConfirm,
+  });
+  return result.confirmed ? input.value.trim() : null;
 }

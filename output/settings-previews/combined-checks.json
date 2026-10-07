@@ -1,0 +1,97 @@
+{
+  "checks": [
+    {
+      "name": "starts with editor and live preview",
+      "pass": true
+    },
+    {
+      "name": "desktop classification and sample beside controls",
+      "pass": true
+    },
+    {
+      "name": "body size updates sample independently",
+      "pass": true
+    },
+    {
+      "name": "body font updates preview",
+      "pass": true
+    },
+    {
+      "name": "source setting switches to source example",
+      "pass": true
+    },
+    {
+      "name": "source font separate from body",
+      "pass": true
+    },
+    {
+      "name": "code stripes toggle reflected",
+      "pass": true
+    },
+    {
+      "name": "code stripe color reflected",
+      "pass": true
+    },
+    {
+      "name": "sample tabs keyboard navigation",
+      "pass": true
+    },
+    {
+      "name": "reset synchronizes controls and sample",
+      "pass": true
+    },
+    {
+      "name": "other categories collapse sample",
+      "pass": true
+    },
+    {
+      "name": "dark theme includes preview",
+      "pass": true
+    },
+    {
+      "name": "search typography from general restores sample",
+      "pass": true
+    },
+    {
+      "name": "large font remains inside sample panel",
+      "pass": true
+    },
+    {
+      "name": "panel fits 960",
+      "pass": true
+    },
+    {
+      "name": "stacked preview 960",
+      "pass": true
+    },
+    {
+      "name": "panel fits 480",
+      "pass": true
+    },
+    {
+      "name": "stacked preview 480",
+      "pass": true
+    },
+    {
+      "name": "original a-sidebar.html unchanged initial state",
+      "pass": true
+    },
+    {
+      "name": "original b-top-tabs.html unchanged initial state",
+      "pass": true
+    },
+    {
+      "name": "original c-drawer.html unchanged initial state",
+      "pass": true
+    },
+    {
+      "name": "combined comparison entry available",
+      "pass": true
+    },
+    {
+      "name": "combined thumbnail loaded",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

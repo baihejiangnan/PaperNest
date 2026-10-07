@@ -101,9 +101,9 @@ export class FindBar {
     if (this.#open) this.#runQuery(0);
   }
 
-  open(withReplace: boolean): void {
+  open(withReplace: boolean, selectedText?: string): void {
     if (!this.#target) return;
-    const seed = this.#target().selectionText();
+    const seed = selectedText ?? this.#target().selectionText();
     if (seed && !seed.includes("\n")) this.#findInput.value = seed;
     this.#el.hidden = false;
     this.#el.classList.toggle("replace-mode", withReplace);

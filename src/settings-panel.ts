@@ -49,8 +49,46 @@ export type SettingKey = keyof PanelSettings;
 type SettingValue = string | number | boolean | string[];
 type SettingsTab = "general" | "editor" | "shortcuts" | "associations" | "updates";
 
+const TAB_LABELS: Record<SettingsTab, I18nKey> = {
+  general: "settings.tab.general", editor: "settings.tab.editor",
+  shortcuts: "settings.tab.shortcuts", associations: "settings.tab.associations",
+  updates: "settings.tab.updates",
+};
+const TAB_DESCRIPTIONS: Record<SettingsTab, I18nKey> = {
+  general: "settings.description.general", editor: "settings.description.editor",
+  shortcuts: "settings.description.shortcuts", associations: "settings.description.associations",
+  updates: "settings.description.updates",
+};
+const ASSOCIATION_LABELS: Record<FileCategoryId, I18nKey> = {
+  markdown: "settings.associations.category.markdown", config: "settings.associations.category.config",
+  web: "settings.associations.category.web", code: "settings.associations.category.code",
+  text: "settings.associations.category.text",
+};
+type SearchResult = { tab: SettingsTab; label: string; section: string; target: string; terms: string };
+
+function settingsIcon(name: SettingsTab | "search"): SVGElement {
+  const paths = {
+    general: '<path d="m9 3-.5 2-2 1-2-.5-2 3.5 1.5 1.5v3L2.5 15l2 3.5 2-.5 2 1L9 21h6l.5-2 2-1 2 .5 2-3.5-1.5-1.5v-3L21.5 9l-2-3.5-2 .5-2-1L15 3z"/><circle cx="12" cy="12" r="3"/>',
+    editor: '<path d="m4 17 12-12 3 3L7 20H4zm10-10 3 3"/>',
+    shortcuts: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h1m3 0h1m3 0h1m3 0h1M6 13h1m3 0h1m3 0h1m3 0h1M8 16h8"/>',
+    associations: '<path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h5"/>',
+    updates: '<path d="M20 7a8 8 0 1 0 0 10M20 3v5h-5"/>',
+    search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+  };
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.7");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = paths[name]; // Static icon paths; labels and search use textContent.
+  return svg;
+}
+
 type Field =
-  | { key: SettingKey; kind: "checkbox"; label: I18nKey }
+  | { key: SettingKey; kind: "checkbox"; label: I18nKey; hint?: I18nKey }
   | {
       key: SettingKey;
       kind: "select";
@@ -221,12 +259,13 @@ const SECTIONS: Section[] = [
   },
   {
     tab: "updates",
-    title: "settings.tab.updates",
+    title: "settings.updatePreferences",
     fields: [
       {
         key: "auto_check_updates",
         kind: "checkbox",
         label: "settings.autoCheckUpdates",
+        hint: "settings.autoCheckUpdates.hint",
       },
     ],
   },
@@ -236,6 +275,9 @@ export class SettingsPanel {
   #el: HTMLElement;
   #open = false;
   #activeTab: SettingsTab = "general";
+  #fontPreview = false;
+  #query = "";
+  #compactTabs = window.matchMedia("(max-width: 600px)");
   #get: () => PanelSettings;
   #path = "";
   #capturingShortcut: ShortcutAction | null = null;
@@ -273,9 +315,12 @@ export class SettingsPanel {
     this.#el.hidden = true;
     document.body.appendChild(this.#el);
     this.#el.addEventListener("click", event => {
-      if (event.target === this.#el) this.close();
+      if (event.target === this.#el) this.#dismiss();
     });
     this.#build();
+    this.#compactTabs.addEventListener("change", () => {
+      this.#el.querySelector(".settings-tabs")?.setAttribute("aria-orientation", this.#compactTabs.matches ? "horizontal" : "vertical");
+    });
   }
 
   /** The settings.toml path shown in the footer (known after get_settings). */
@@ -345,8 +390,9 @@ export class SettingsPanel {
     if (this.#open) return;
     this.#open = true;
     this.#el.hidden = false;
+    if (this.#query) this.#setSearch("");
     this.refresh();
-    activateModal(this.#el, () => this.close(), this.#el.querySelector<HTMLElement>(".settings-tab.active") ?? undefined);
+    activateModal(this.#el, () => this.#dismiss(), this.#el.querySelector<HTMLElement>(".settings-tab.active") ?? undefined);
     // next frame so the transition runs from the hidden state
     requestAnimationFrame(() => {
       if (!this.#open) return;
@@ -358,6 +404,7 @@ export class SettingsPanel {
   close(): void {
     if (!this.#open) return;
     this.#capturingShortcut = null;
+    this.#setFontPreview(false);
     this.#open = false;
     this.#el.classList.remove("open");
     document.getElementById("app")?.classList.remove("settings-open");
@@ -368,6 +415,7 @@ export class SettingsPanel {
 
   /** Rewrite every control from the current settings. */
   refresh(): void {
+    if (this.#query.trim()) return;
     if (this.#activeTab === "associations") {
       this.#renderActiveTab();
       return;
@@ -425,10 +473,131 @@ export class SettingsPanel {
     this.#capturingShortcut = null;
     this.#build();
     this.refresh();
+    if (this.#open) this.#el.querySelector<HTMLElement>(this.#query.trim() ? ".settings-search-input" : ".settings-tab.active")?.focus();
   }
 
   #emit(key: SettingKey, value: SettingValue): void {
     this.onChange(key, value);
+  }
+
+  #dismiss(): void {
+    if (this.#fontPreview) this.#setFontPreview(false, true);
+    else if (this.#query.trim()) this.#setSearch("", true);
+    else this.close();
+  }
+
+  #setSearch(value: string, focus = false): void {
+    this.#query = value;
+    this.#capturingShortcut = null;
+    const input = this.#el.querySelector<HTMLInputElement>(".settings-search-input");
+    if (input) input.value = value;
+    const clear = this.#el.querySelector<HTMLButtonElement>(".settings-search-clear");
+    if (clear) clear.hidden = !value;
+    this.#renderActiveTab();
+    this.refresh();
+    if (focus) input?.focus();
+  }
+
+  #searchResults(): SearchResult[] {
+    const results: SearchResult[] = [];
+    const add = (tab: SettingsTab, label: I18nKey, section: I18nKey, target: string, terms = "") => {
+      results.push({ tab, label: t(label), section: t(section), target, terms });
+    };
+    for (const section of SECTIONS) {
+      for (const field of section.fields ?? []) {
+        const target = "action" in field ? `shortcut-${field.action}` : field.key;
+        const terms = [target, field.kind === "checkboxColor" ? field.colorKey : "", "hint" in field && field.hint ? t(field.hint) : "",
+          field.kind === "select" ? field.options.map(option => t(option.label)).join(" ") : ""].join(" ");
+        add(section.tab, field.label, section.title, target, terms);
+      }
+    }
+    add("general", "settings.proxy.status", "settings.section.proxy", "proxy_enabled", "proxy_enabled");
+    add("general", "settings.proxy.address", "settings.section.proxy", "proxy_url", "proxy_url HTTP SOCKS5");
+    add("general", "settings.proxy.test", "settings.section.proxy", "proxy_test");
+    add("updates", "settings.currentVersion", "settings.tab.updates", "current_version", "PaperNest GitHub Releases " + t("settings.updateSource"));
+    add("updates", "update.check", "settings.tab.updates", "check_updates", t("settings.updateSource"));
+    add("editor", "settings.fontPreview.start", "settings.section.fonts", "font_preview", t("settings.fontPreview.hint"));
+    add("associations", "settings.tab.associations", "settings.tab.associations", "file_associations", "file_associations " + t("settings.associations.register") + " " + t("settings.associations.setDefault"));
+    for (const category of FILE_CATEGORY_ORDER) {
+      for (const ext of associationExtensionsByCategory(category)) {
+        results.push({ tab: "associations", label: ext, section: t(ASSOCIATION_LABELS[category]), target: `association${ext}`, terms: ext });
+      }
+    }
+    const words = this.#query.trim().toLocaleLowerCase().split(/\s+/);
+    return results.filter(result => {
+      const text = `${result.label} ${result.section} ${t(TAB_LABELS[result.tab])} ${result.terms}`.toLocaleLowerCase();
+      return words.every(word => text.includes(word));
+    });
+  }
+
+  #renderSearch(content: HTMLElement): void {
+    const results = this.#searchResults();
+    const summary = document.createElement("p");
+    summary.className = "settings-search-summary";
+    summary.setAttribute("role", "status");
+    summary.textContent = results.length ? t("settings.search.count", { count: String(results.length) }) : t("settings.search.empty");
+    content.appendChild(summary);
+    const list = document.createElement("ul");
+    list.className = "settings-search-results";
+    list.addEventListener("keydown", event => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      const buttons = [...list.querySelectorAll<HTMLButtonElement>("button")];
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (index < 0) return;
+      event.preventDefault();
+      if (event.key === "ArrowUp" && index === 0) {
+        this.#el.querySelector<HTMLInputElement>(".settings-search-input")?.focus();
+      } else {
+        const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+          : Math.max(0, Math.min(buttons.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+        buttons[next]?.focus();
+      }
+    });
+    for (const result of results) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      const label = document.createElement("strong");
+      label.textContent = result.label;
+      const location = document.createElement("span");
+      location.textContent = `${t(TAB_LABELS[result.tab])} / ${result.section}`;
+      button.append(label, location);
+      button.addEventListener("click", () => {
+        this.#activeTab = result.tab;
+        this.#query = "";
+        this.#build();
+        this.refresh();
+        const target = this.#el.querySelector<HTMLElement>(`[data-setting="${result.target}"]`);
+        if (!target) return;
+        target.scrollIntoView({ block: "center" });
+        target.classList.add("settings-located");
+        target.addEventListener("focusout", event => {
+          if (!target.contains(event.relatedTarget as Node | null)) target.classList.remove("settings-located");
+        });
+        const control = target.matches("button, input, select") ? target
+          : target.querySelector<HTMLElement>("input:not(:disabled), select:not(:disabled), button:not(:disabled)");
+        if (control && !control.matches(":disabled")) control.focus({ preventScroll: true });
+        else {
+          const fallback = target.matches(":disabled") ? target.parentElement! : target;
+          fallback.tabIndex = -1;
+          fallback.focus({ preventScroll: true });
+        }
+      });
+      li.appendChild(button);
+      list.appendChild(li);
+    }
+    content.appendChild(list);
+  }
+
+  #setFontPreview(enabled: boolean, focus = false): void {
+    this.#fontPreview = enabled;
+    this.#el.classList.toggle("font-preview", enabled);
+    const toggle = this.#el.querySelector<HTMLButtonElement>(".settings-font-preview-toggle");
+    if (toggle) {
+      toggle.textContent = t(enabled ? "settings.fontPreview.end" : "settings.fontPreview.start");
+      toggle.setAttribute("aria-pressed", String(enabled));
+      if (focus) toggle.focus({ preventScroll: true });
+    }
   }
 
   #normalizeHex(value: string, fallback: string): string {
@@ -504,6 +673,7 @@ export class SettingsPanel {
   }
 
   #build(): void {
+    this.#setFontPreview(false);
     this.#el.replaceChildren();
 
     const card = document.createElement("div");
@@ -514,31 +684,25 @@ export class SettingsPanel {
 
     const title = document.createElement("h2");
     title.id = "settings-title";
-    title.textContent = t("settings.title");
-    card.appendChild(title);
+    title.append(settingsIcon("general"), document.createTextNode(t("settings.title")));
 
     const head = document.createElement("div");
     head.className = "settings-head";
     const tabs = document.createElement("nav");
     tabs.className = "settings-tabs";
     tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-orientation", this.#compactTabs.matches ? "horizontal" : "vertical");
     tabs.setAttribute("aria-label", t("settings.title"));
     tabs.addEventListener("keydown", event => {
       const buttons = [...tabs.querySelectorAll<HTMLButtonElement>("button")];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      if (index < 0 || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
-        : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+        : (index + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next].click();
     });
-    const tabDefs: Array<[SettingsTab, I18nKey]> = [
-      ["general", "settings.tab.general"],
-      ["editor", "settings.tab.editor"],
-      ["shortcuts", "settings.tab.shortcuts"],
-      ["associations", "settings.tab.associations"],
-      ["updates", "settings.tab.updates"],
-    ];
+    const tabDefs = Object.entries(TAB_LABELS) as Array<[SettingsTab, I18nKey]>;
     for (const [id, label] of tabDefs) {
       const button = document.createElement("button");
       button.type = "button";
@@ -549,9 +713,10 @@ export class SettingsPanel {
       button.setAttribute("aria-selected", String(id === this.#activeTab));
       button.tabIndex = id === this.#activeTab ? 0 : -1;
       button.classList.toggle("active", id === this.#activeTab);
-      button.textContent = t(label);
+      button.append(settingsIcon(id), document.createTextNode(t(label)));
       button.addEventListener("click", () => {
-        if (this.#activeTab === id) { button.focus(); return; }
+        if (this.#activeTab === id && !this.#query.trim()) { button.focus(); return; }
+        this.#query = "";
         this.#activeTab = id;
         this.#build();
         this.refresh();
@@ -560,20 +725,58 @@ export class SettingsPanel {
       tabs.appendChild(button);
     }
     const x = document.createElement("button");
+    x.type = "button";
     x.className = "settings-close";
     x.setAttribute("aria-label", t("about.close"));
     x.textContent = "×";
     x.addEventListener("click", () => this.close());
-    head.append(tabs, x);
+    const search = document.createElement("div");
+    search.className = "settings-search";
+    const input = document.createElement("input");
+    input.type = "search";
+    input.className = "settings-search-input";
+    input.placeholder = t("settings.search.placeholder");
+    input.setAttribute("aria-label", t("settings.search.placeholder"));
+    input.setAttribute("aria-controls", "settings-tab-content");
+    input.value = this.#query;
+    input.addEventListener("input", () => this.#setSearch(input.value));
+    input.addEventListener("keydown", event => {
+      if (event.isComposing) return;
+      if (event.key === "Enter" || event.key === "ArrowDown") {
+        const first = this.#el.querySelector<HTMLButtonElement>(".settings-search-results button");
+        if (!first) return;
+        event.preventDefault();
+        if (event.key === "Enter") first.click();
+        else first.focus();
+      }
+    });
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "settings-search-clear";
+    clear.textContent = "×";
+    clear.hidden = !this.#query;
+    clear.setAttribute("aria-label", t("settings.search.clear"));
+    clear.addEventListener("click", () => this.#setSearch("", true));
+    search.append(settingsIcon("search"), input, clear);
+    head.append(title, search, x);
     card.appendChild(head);
+
+    const body = document.createElement("div");
+    body.className = "settings-body";
+    body.appendChild(tabs);
 
     const content = document.createElement("div");
     content.className = "settings-content";
     content.id = "settings-tab-content";
     content.setAttribute("role", "tabpanel");
     content.setAttribute("aria-labelledby", `settings-tab-${this.#activeTab}`);
-    card.appendChild(content);
+    body.appendChild(content);
+    card.appendChild(body);
+    const foot = document.createElement("p");
+    foot.className = "settings-foot";
+    card.appendChild(foot);
     this.#el.appendChild(card);
+    this.setPath(this.#path);
     this.#renderActiveTab();
   }
 
@@ -581,6 +784,29 @@ export class SettingsPanel {
     const content = this.#el.querySelector<HTMLElement>(".settings-content");
     if (!content) return;
     content.replaceChildren();
+    const searching = Boolean(this.#query.trim());
+    content.setAttribute("role", searching ? "region" : "tabpanel");
+    content.removeAttribute("aria-labelledby");
+    content.removeAttribute("aria-label");
+    if (searching) content.setAttribute("aria-label", t("settings.search.title"));
+    else content.setAttribute("aria-labelledby", `settings-tab-${this.#activeTab}`);
+    for (const tab of this.#el.querySelectorAll<HTMLButtonElement>(".settings-tab")) {
+      const active = !searching && tab.id === `settings-tab-${this.#activeTab}`;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", String(active));
+    }
+    const heading = document.createElement("div");
+    heading.className = "settings-page-heading";
+    const headingTitle = document.createElement("h3");
+    headingTitle.textContent = t(searching ? "settings.search.title" : TAB_LABELS[this.#activeTab]);
+    heading.appendChild(headingTitle);
+    if (!searching) {
+      const description = document.createElement("p");
+      description.textContent = t(TAB_DESCRIPTIONS[this.#activeTab]);
+      heading.appendChild(description);
+    }
+    content.appendChild(heading);
+    if (searching) { this.#renderSearch(content); return; }
 
     if (this.#activeTab === "associations") {
       content.appendChild(this.#associationControls());
@@ -589,11 +815,27 @@ export class SettingsPanel {
       content.appendChild(this.#updateControls());
     }
 
-    for (const section of SECTIONS.filter((item) => item.tab === this.#activeTab)) {
+    const sections = SECTIONS.filter((item) => item.tab === this.#activeTab)
+      .sort((a, b) => Number(b.title === "settings.section.fonts") - Number(a.title === "settings.section.fonts"));
+    for (const section of sections) {
       const fs = document.createElement("fieldset");
       const lg = document.createElement("legend");
       lg.textContent = t(section.title);
       fs.appendChild(lg);
+      if (section.title === "settings.section.fonts") {
+        fs.className = "settings-fonts";
+        const hint = document.createElement("p");
+        hint.className = "settings-font-preview-hint";
+        hint.textContent = t("settings.fontPreview.hint");
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "settings-action settings-font-preview-toggle";
+        toggle.dataset.setting = "font_preview";
+        toggle.textContent = t("settings.fontPreview.start");
+        toggle.setAttribute("aria-pressed", "false");
+        toggle.addEventListener("click", () => this.#setFontPreview(!this.#fontPreview, true));
+        fs.append(hint, toggle);
+      }
       if (section.custom === "proxy") {
         fs.appendChild(this.#proxyControls());
       } else {
@@ -601,18 +843,12 @@ export class SettingsPanel {
       }
       content.appendChild(fs);
     }
-
-    const foot = document.createElement("p");
-    foot.className = "settings-foot";
-    foot.textContent = `${t("settings.savedNote")}  ${t("settings.fileAt", {
-      path: this.#path,
-    })}`;
-    content.appendChild(foot);
   }
 
   #associationControls(): HTMLElement {
     const wrap = document.createElement("section");
     wrap.className = "settings-associations";
+    wrap.dataset.setting = "file_associations";
 
     const toolbar = document.createElement("div");
     toolbar.className = "settings-association-toolbar";
@@ -679,24 +915,18 @@ export class SettingsPanel {
     wrap.appendChild(toolbar);
 
     const selected = new Set(this.#get().file_associations.map((ext) => ext.toLowerCase()));
-    const categoryLabels: Record<FileCategoryId, I18nKey> = {
-      markdown: "settings.associations.category.markdown",
-      config: "settings.associations.category.config",
-      web: "settings.associations.category.web",
-      code: "settings.associations.category.code",
-      text: "settings.associations.category.text",
-    };
 
     for (const category of FILE_CATEGORY_ORDER) {
       const group = document.createElement("div");
       group.className = "settings-association-group";
       const title = document.createElement("h3");
-      title.textContent = t(categoryLabels[category]);
+      title.textContent = t(ASSOCIATION_LABELS[category]);
       const grid = document.createElement("div");
       grid.className = "settings-association-grid";
       for (const ext of associationExtensionsByCategory(category)) {
         const item = document.createElement("label");
         item.className = "settings-association-item";
+        item.dataset.setting = `association${ext}`;
         item.classList.toggle("registered", this.#registeredExtensions.has(ext));
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -734,41 +964,65 @@ export class SettingsPanel {
   #updateControls(): HTMLElement {
     const box = document.createElement("section");
     box.className = "settings-update-box";
-
-    const versionRow = document.createElement("div");
-    versionRow.className = "settings-row";
+    box.dataset.setting = "current_version";
+    const icon = document.createElement("div");
+    icon.className = "settings-update-icon";
+    icon.appendChild(settingsIcon("updates"));
+    const copy = document.createElement("div");
+    copy.className = "settings-update-copy";
     const versionLabel = document.createElement("span");
-    versionLabel.className = "settings-label";
+    versionLabel.className = "settings-update-caption";
     versionLabel.textContent = t("settings.currentVersion");
+    const name = document.createElement("h4");
+    name.textContent = "PaperNest ";
     const version = document.createElement("code");
     version.className = "settings-version";
     version.textContent = this.#appVersion ? `v${this.#appVersion}` : "—";
-    versionRow.append(versionLabel, version);
-
-    const actionRow = document.createElement("div");
-    actionRow.className = "settings-row";
-    const status = document.createElement("span");
-    status.className = "settings-label settings-update-status";
-    status.textContent = this.#updateStatus;
+    name.appendChild(version);
+    const source = document.createElement("p");
+    source.className = "settings-update-source";
+    source.textContent = t("settings.updateSource");
+    const status = document.createElement("p");
+    status.className = "settings-update-status";
+    status.setAttribute("role", "status");
+    status.textContent = this.#updateBusy ? t("update.checking") : this.#updateStatus;
+    status.hidden = !status.textContent;
+    copy.append(versionLabel, name, source, status);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "settings-action";
+    button.dataset.setting = "check_updates";
     button.disabled = this.#updateBusy;
     button.textContent = this.#updateBusy ? t("update.checking") : t("update.check");
     button.addEventListener("click", async () => {
       if (this.#updateBusy) return;
       this.#updateBusy = true;
-      this.#renderActiveTab();
+      this.#updateStatus = "";
+      this.#refreshUpdateControls();
       try {
         this.#updateStatus = await this.onCheckUpdates();
+      } catch (err) {
+        this.#updateStatus = t("update.failed", { err: String(err) });
       } finally {
         this.#updateBusy = false;
-        this.#renderActiveTab();
+        this.#refreshUpdateControls();
       }
     });
-    actionRow.append(status, button);
-    box.append(versionRow, actionRow);
+    box.append(icon, copy, button);
     return box;
+  }
+
+  #refreshUpdateControls(): void {
+    const button = this.#el.querySelector<HTMLButtonElement>('[data-setting="check_updates"]');
+    if (button) {
+      button.disabled = this.#updateBusy;
+      button.textContent = t(this.#updateBusy ? "update.checking" : "update.check");
+    }
+    const status = this.#el.querySelector<HTMLElement>(".settings-update-status");
+    if (status) {
+      status.textContent = this.#updateBusy ? t("update.checking") : this.#updateStatus;
+      status.hidden = !status.textContent;
+    }
   }
 
   #proxyControls(): DocumentFragment {
@@ -776,6 +1030,7 @@ export class SettingsPanel {
 
     const statusRow = document.createElement("div");
     statusRow.className = "settings-row settings-row--proxy";
+    statusRow.dataset.setting = "proxy_enabled";
     const statusLabel = document.createElement("span");
     statusLabel.className = "settings-label";
     statusLabel.textContent = t("settings.proxy.status");
@@ -793,6 +1048,7 @@ export class SettingsPanel {
 
     const addressRow = document.createElement("label");
     addressRow.className = "settings-row settings-row--proxy";
+    addressRow.dataset.setting = "proxy_url";
     const addressLabel = document.createElement("span");
     addressLabel.className = "settings-label";
     addressLabel.textContent = t("settings.proxy.address");
@@ -812,6 +1068,7 @@ export class SettingsPanel {
 
     const testRow = document.createElement("div");
     testRow.className = "settings-row settings-row--proxy";
+    testRow.dataset.setting = "proxy_test";
     const testLabel = document.createElement("span");
     testLabel.className = "settings-label";
     testLabel.textContent = t("settings.proxy.test");
@@ -908,6 +1165,7 @@ export class SettingsPanel {
         : "label",
     );
     row.className = "settings-row settings-row--" + f.kind;
+    row.dataset.setting = "action" in f ? `shortcut-${f.action}` : f.key;
 
     const labelText = document.createElement("span");
     labelText.className = "settings-label";
@@ -940,6 +1198,25 @@ export class SettingsPanel {
       cb.dataset.key = f.key;
       cb.addEventListener("change", () => this.#emit(f.key, cb.checked));
       control = cb;
+      if (f.key === "auto_check_updates") {
+        cb.checked = this.#open && Boolean(this.#get().auto_check_updates);
+        row.classList.add("settings-row--update-toggle");
+        const copy = document.createElement("span");
+        copy.className = "settings-toggle-copy";
+        copy.appendChild(labelText);
+        if (f.hint) {
+          const hint = document.createElement("span");
+          hint.className = "settings-toggle-hint";
+          hint.textContent = t(f.hint);
+          copy.appendChild(hint);
+          hint.id = "settings-auto-update-hint";
+          cb.setAttribute("aria-describedby", hint.id);
+        }
+        cb.setAttribute("role", "switch");
+        cb.setAttribute("aria-label", t(f.label));
+        row.append(copy, cb);
+        return row;
+      }
       row.prepend(cb);
       row.append(labelText);
       return row;
@@ -1045,6 +1322,10 @@ export class SettingsPanel {
       inp.min = String(f.min);
       inp.max = String(f.max);
       inp.dataset.key = f.key;
+      inp.addEventListener("input", () => {
+        // An empty or partial number must remain editable, without saving 0/NaN.
+        if (inp.value !== "" && inp.validity.valid) this.#emit(f.key, Number(inp.value));
+      });
       inp.addEventListener("change", () => {
         const n = Math.max(f.min, Math.min(f.max, Number(inp.value) || f.min));
         inp.value = String(n);
@@ -1059,6 +1340,7 @@ export class SettingsPanel {
       inp.spellcheck = false;
       if (f.placeholder) inp.placeholder = t(f.placeholder);
       inp.dataset.key = f.key;
+      inp.addEventListener("input", () => this.#emit(f.key, inp.value.trim()));
       inp.addEventListener("change", () => this.#emit(f.key, inp.value.trim()));
       control = inp;
     }

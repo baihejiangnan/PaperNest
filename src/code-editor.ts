@@ -29,6 +29,8 @@ import {
 import { mikuCreamCodeMirrorTheme } from "./miku-cream";
 import type { FindStatus } from "./find-bar";
 import { serializeCodeText } from "./code-text";
+import { TextContextMenu } from "./text-context-menu";
+import { codeContextTarget } from "./text-context-actions";
 
 const setAlternateRows = StateEffect.define<boolean>();
 
@@ -133,6 +135,9 @@ export class CodeEditor {
   readonly host: HTMLElement;
   onChange: () => void = () => {};
   onSelectionChange: () => void = () => {};
+  onFindRequest: (text: string) => void = () => {};
+  getFindShortcut: () => string = () => "";
+  readonly contextMenu: TextContextMenu;
 
   #view: EditorView | null = null;
   #language = new Compartment();
@@ -149,6 +154,14 @@ export class CodeEditor {
 
   constructor(host: HTMLElement) {
     this.host = host;
+    this.contextMenu = new TextContextMenu(host, event => {
+      const view = this.#view;
+      if (!view) return null;
+      return codeContextTarget(view, event, {
+        isCurrent: () => this.#view === view && !this.host.closest("[hidden]"),
+        find: text => this.onFindRequest(text), findShortcut: this.getFindShortcut(),
+      });
+    });
   }
 
   init(text = ""): void {
@@ -160,6 +173,7 @@ export class CodeEditor {
   }
 
   destroy(): void {
+    this.contextMenu.close();
     this.#view?.destroy();
     this.#view = null;
   }
@@ -180,8 +194,9 @@ export class CodeEditor {
       }),
       alternateRowsEnabled.init(() => this.#alternateRows),
       alternateRowsPlugin,
-      ...mikuCreamCodeMirrorTheme,
+      // Earlier themes take precedence: user fonts must win over Crepe's defaults.
       codeDocumentTheme,
+      ...mikuCreamCodeMirrorTheme,
       this.#language.of([]),
     ];
     const state = EditorState.create({ doc: text, extensions });
@@ -195,6 +210,7 @@ export class CodeEditor {
     path: string | null,
     scrollTop = 0,
   ): Promise<void> {
+    this.contextMenu.close();
     if (!this.#view) this.init();
     if (!this.#view) return;
     this.#clearFindState();
@@ -217,6 +233,7 @@ export class CodeEditor {
   }
 
   setText(text: string): void {
+    this.contextMenu.close();
     if (!this.#view) return;
     const current = this.getText();
     if (current === text) return;

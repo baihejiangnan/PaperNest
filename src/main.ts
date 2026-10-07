@@ -207,6 +207,7 @@ function setViewVisibility(tab: Tab | undefined = tabBar.active): void {
   const loading = Boolean(tab?.loading);
   codeViewVisible = shouldUseCodeView(tab);
   editorHost.hidden = loading || startPage || image || codeViewVisible;
+  if (editorHost.hidden) editor.dismissTextMenus();
   sourceShell.hidden = loading || startPage || image || !codeViewVisible;
   imageDocument.hidden = loading || startPage || !image;
   (document.getElementById("new-tab-page") as HTMLElement).hidden = !startPage;
@@ -354,6 +355,7 @@ function applyLanguage(pref: LangPref): void {
 onLangChange(() => {
   applyStaticI18n();
   editor.retranslate();
+  codeEditor.contextMenu.close();
   findBar.retranslate();
   emojiPicker.retranslate();
   settingsPanel.retranslate();
@@ -1437,10 +1439,13 @@ const sourceFindTarget: FindTarget = {
   focusView: () => codeEditor.focus(),
 };
 
-function openFind(withReplace: boolean): void {
+function openFind(withReplace: boolean, selectedText?: string): void {
   findBar.bind(() => (codeViewVisible ? sourceFindTarget : editorFindTarget));
-  findBar.open(withReplace);
+  findBar.open(withReplace, selectedText);
 }
+
+editor.onFindRequest = codeEditor.onFindRequest = text => openFind(false, text);
+editor.getFindShortcut = codeEditor.getFindShortcut = () => formatShortcut(settings.shortcuts.find);
 
 // --- about panel --------------------------------------------------------
 

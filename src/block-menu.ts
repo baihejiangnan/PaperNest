@@ -82,7 +82,11 @@ export type BlockActionId =
   | "h1"
   | "h2"
   | "h3"
+  | "h4"
+  | "h5"
+  | "h6"
   | "bullet"
+  | "task"
   | "ordered"
   | "quote"
   | "code";
@@ -105,12 +109,13 @@ interface Item {
 
 /** Ctrl/Cmd+0..7 → block id (mirrors `main.ts` `wireShortcuts()`). Shown
  *  right-aligned in the menu so the shortcut is discoverable. */
-const SHORTCUT_DIGIT: Record<BlockActionId, number> = {
+const SHORTCUT_DIGIT: Partial<Record<BlockActionId, number>> = {
   text: 0, h1: 1, h2: 2, h3: 3, bullet: 4, ordered: 5, quote: 6, code: 7,
 };
 const IS_MAC = /Mac|iPhone|iPad/i.test(navigator.platform);
 function shortcutHint(id: BlockActionId): string {
   const d = SHORTCUT_DIGIT[id];
+  if (d === undefined) return "";
   return IS_MAC ? `⌘${d}` : `Ctrl+${d}`;
 }
 
@@ -314,21 +319,43 @@ function applyToList(view: EditorView, name: string, target: Target): void {
  * list with one item per selected block rather than N separate one-item
  * lists.
  */
-const toList =
-  (name: string): Runner =>
-  (ctx, target) => {
-    const view = ctx.get(editorViewCtx);
-    const blocks = target.blocks;
-    if (blocks && blocks.length > 1) {
-      const ordered = [...blocks].sort((a, b) => b.from - a.from);
-      for (const b of ordered) {
-        applyToList(view, name, { textPos: b.from + 1, from: b.from, to: b.to, node: b.node });
-      }
-      mergeAdjacentBlocks(view, name, indexRange(blocks));
-      return;
+function applyListSelection(view: EditorView, target: Target, name: string, task: boolean): void {
+  const apply = (current: Target) => {
+    applyToList(view, name, current);
+    const $from = view.state.selection.$from;
+    for (let depth = $from.depth; depth > 0; depth--) {
+      const item = $from.node(depth);
+      if (item.type.name !== "list_item") continue;
+      view.dispatch(view.state.tr.setNodeMarkup($from.before(depth), undefined, {
+        ...item.attrs, checked: task ? item.attrs.checked ?? false : null,
+      }));
+      break;
     }
-    applyToList(view, name, target);
   };
+  if (target.containerItems) {
+    const { anchor, indices } = target.containerItems;
+    for (const index of [...indices].sort((a, b) => b - a)) {
+      const container = view.state.doc.resolve(anchor + 1).parent;
+      let offset = 0;
+      for (let i = 0; i < index; i++) offset += container.child(i).nodeSize;
+      const child = container.child(index);
+      const from = anchor + 1 + offset;
+      apply({ textPos: from + 2, from, to: from + child.nodeSize, node: child });
+    }
+  } else if (target.blocks && target.blocks.length > 1) {
+    for (const block of [...target.blocks].sort((a, b) => b.from - a.from)) {
+      apply({ ...block, textPos: block.from + 1 });
+    }
+    mergeAdjacentBlocks(view, name, indexRange(target.blocks));
+  } else apply(target);
+}
+
+const toList = (name: string): Runner => (ctx, target) =>
+  applyListSelection(ctx.get(editorViewCtx), target, name, false);
+
+/** Set task state on the selected items, leaving neighbouring items untouched. */
+const toTaskList: Runner = (ctx, target) =>
+  applyListSelection(ctx.get(editorViewCtx), target, "bullet_list", true);
 
 const structural =
   (fn: (view: EditorView, target: Target) => void): Runner =>
@@ -355,10 +382,14 @@ const GROUPS: Item[][] = [
     { labelKey: "block.h1", id: "h1", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 1 })), active: isHeading(1) },
     { labelKey: "block.h2", id: "h2", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 2 })), active: isHeading(2) },
     { labelKey: "block.h3", id: "h3", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 3 })), active: isHeading(3) },
+    { labelKey: "block.h4", id: "h4", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 4 })), active: isHeading(4) },
+    { labelKey: "block.h5", id: "h5", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 5 })), active: isHeading(5) },
+    { labelKey: "block.h6", id: "h6", run: turnInto((v) => setBlockType(node(v, "heading"), { level: 6 })), active: isHeading(6) },
   ],
   [
     { labelKey: "block.bulletList", id: "bullet", run: toList("bullet_list"), active: isType("bullet_list") },
     { labelKey: "block.numberedList", id: "ordered", run: toList("ordered_list"), active: isType("ordered_list") },
+    { labelKey: "block.taskList", id: "task", run: toTaskList, active: (n) => n.type.name === "bullet_list" && n.firstChild?.attrs.checked != null },
     { labelKey: "block.quote", id: "quote", run: turnInto((v) => wrapIn(node(v, "blockquote")), "blockquote"), active: isType("blockquote") },
     { labelKey: "block.codeBlock", id: "code", run: turnInto((v) => setBlockType(node(v, "code_block"))), active: isType("code_block") },
     {
@@ -618,6 +649,33 @@ export function runBlockAction(crepe: Crepe, id: BlockActionId): void {
       item.run(ctx, target);
     } catch (err) {
       console.error("[mdmeow] block shortcut failed", err);
+    }
+    view.focus();
+  });
+}
+
+export type InsertActionId = "table" | "image" | "divider" | "code" | "math";
+
+/** Insert after the last selected top-level block without replacing its text. */
+export function runInsertAction(crepe: Crepe, id: InsertActionId): void {
+  crepe.editor.action(ctx => {
+    const view = ctx.get(editorViewCtx);
+    const target = targetFromSelection(view);
+    if (!target) return;
+    const $end = view.state.selection.$to;
+    if ($end.depth > 0) {
+      target.from = $end.before(1);
+      target.node = $end.node(1);
+      target.to = target.from + target.node.nodeSize;
+    } else target.to = view.state.doc.content.size;
+    if (id === "code" || id === "math") {
+      const code = node(view, "code_block").create({ language: id === "math" ? "latex" : "" },
+        id === "math" ? view.state.schema.text("x^2") : undefined);
+      const tr = view.state.tr.insert(target.to, code);
+      view.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(target.to + 1))).scrollIntoView());
+    } else {
+      const key: I18nKey = id === "table" ? "block.table" : id === "image" ? "block.image" : "block.divider";
+      GROUPS.flat().find(item => item.labelKey === key)?.run(ctx, target);
     }
     view.focus();
   });

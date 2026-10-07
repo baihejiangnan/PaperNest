@@ -12,6 +12,7 @@ import { linkFromClipboard } from "./link-clipboard";
 import {
   installBlockMenu,
   runBlockAction,
+  runInsertAction,
   type BlockActionId,
   type BlockMenuHandle,
 } from "./block-menu";
@@ -35,6 +36,10 @@ import {
   safeHtmlPresentationPlugin,
 } from "./html-markdown";
 import { mikuCreamCodeMirrorTheme } from "./miku-cream";
+import { EditorView as CodeView } from "@codemirror/view";
+import { TextContextMenu } from "./text-context-menu";
+import { LinkPicker } from "./link-picker";
+import { richContextTarget, codeContextTarget } from "./text-context-actions";
 import {
   findKey,
   findPlugin,
@@ -50,7 +55,9 @@ export class Editor {
   private readonly host: HTMLElement;
   private readonly imagePreview = new ImagePreview();
   private lineNumberFrame: number | null = null;
-  private readonly codeLineObserver: MutationObserver;
+  private readonly presentationObserver: MutationObserver;
+  private readonly contextMenu: TextContextMenu;
+  private readonly linkPicker = new LinkPicker();
   private readonly copyFeedbackTimers = new WeakMap<
     HTMLButtonElement,
     [number, number]
@@ -71,9 +78,31 @@ export class Editor {
   onSelectionChange: () => void = () => {};
   /** Opens a rendered Markdown link through the host application's routing. */
   onLinkClick: (href: string) => void = () => {};
+  onFindRequest: (text: string) => void = () => {};
+  getFindShortcut: () => string = () => "";
 
   constructor(host: HTMLElement) {
     this.host = host;
+    this.contextMenu = new TextContextMenu(host, event => {
+      const view = this.view();
+      if (!view || event.target instanceof Element && event.target.closest("input, textarea, button")) return null;
+      const generation = this.documentGeneration;
+      const isCurrent = () => this.view() === view && generation === this.documentGeneration && !this.host.hidden;
+      const codeDom = event.target instanceof Element ? event.target.closest<HTMLElement>(".cm-editor") : null;
+      const code = codeDom ? CodeView.findFromDOM(codeDom) : null;
+      const options = { isCurrent, find: (text: string) => this.onFindRequest(text), findShortcut: this.getFindShortcut() };
+      if (code) return codeContextTarget(code, event, options);
+      return richContextTarget(view, event, {
+        ...options,
+        pickLink: (value, restore) => {
+          const doc = view.state.doc;
+          return this.linkPicker.open({ value, restore, docPath: this.docPath,
+            anchor: view.coordsAtPos(view.state.selection.to), isCurrent: () => isCurrent() && view.state.doc === doc });
+        },
+        block: id => this.runBlockAction(id),
+        insert: id => { if (this.crepe) runInsertAction(this.crepe, id); },
+      });
+    });
     this.host.addEventListener(IMAGE_PREVIEW_EVENT, (event) => {
       const { src, alt } = (event as CustomEvent<ImagePreviewRequest>).detail;
       void Promise.resolve(this.resolveImageSrc(src)).then((resolved) => {
@@ -102,7 +131,9 @@ export class Editor {
       event.stopPropagation();
       this.onLinkClick(link.dataset.mdmeowLinkHref ?? "");
     }, { capture: true });
-    this.codeLineObserver = new MutationObserver((mutations) => {
+    this.presentationObserver = new MutationObserver((mutations) => {
+      let codeChanged = false;
+      let imagesAdded = false;
       for (const mutation of mutations) {
         const target =
           mutation.target instanceof Element
@@ -111,8 +142,7 @@ export class Editor {
         if (target?.closest(".mdmeow-code-line-numbers")) continue;
 
         if (target?.closest(".milkdown-code-block")) {
-          this.scheduleExternalCodeLineNumbers();
-          return;
+          codeChanged = true;
         }
 
         for (const node of mutation.addedNodes) {
@@ -121,16 +151,34 @@ export class Editor {
             node.matches(".milkdown-code-block, .cm-content, .cm-line") ||
             node.querySelector(".milkdown-code-block, .cm-content, .cm-line")
           ) {
-            this.scheduleExternalCodeLineNumbers();
-            return;
+            codeChanged = true;
+          }
+          // ProseMirror can recreate HTML images while applying structural
+          // decorations. Resolve the replacement node as well as the initial
+          // one; a pending read may still belong to a detached old node.
+          if (
+            node.matches('img[data-mdmeow-html-img="true"]') ||
+            node.querySelector('img[data-mdmeow-html-img="true"]')
+          ) {
+            imagesAdded = true;
           }
         }
       }
+      if (codeChanged) this.scheduleExternalCodeLineNumbers();
+      if (imagesAdded) this.resolveHtmlImages();
     });
-    this.codeLineObserver.observe(this.host, {
+    this.presentationObserver.observe(this.host, {
       childList: true,
       subtree: true,
     });
+  }
+
+  private resolveHtmlImages(): void {
+    const generation = this.documentGeneration;
+    const docPath = this.docPath;
+    resolveRawHtmlImages(this.host, this.resolveImageSrc, () =>
+      generation === this.documentGeneration && docPath === this.docPath,
+    );
   }
 
   private scheduleExternalCodeLineNumbers(): void {
@@ -270,6 +318,8 @@ export class Editor {
   /** Tell the editor which file is being edited, so relative image paths
    *  (`![](pic.png)`, `![](../assets/pic.png)`) resolve against its folder. */
   setDocPath(path: string | null): void {
+    this.contextMenu.close();
+    this.linkPicker.close();
     this.docPath = path;
   }
 
@@ -371,7 +421,7 @@ export class Editor {
           || generations.get(updatedDoc) !== this.documentGeneration) return;
         this.onChange(markdown);
         this.scheduleExternalCodeLineNumbers();
-        resolveRawHtmlImages(this.host, this.resolveImageSrc);
+        this.resolveHtmlImages();
         refreshSafeRawHtml(this.host);
       });
       listener.selectionUpdated(() => {
@@ -395,9 +445,11 @@ export class Editor {
 
   /** Replace the whole document without tearing the instance down. */
   setContent(markdown: string): void {
+    this.contextMenu.close();
+    this.linkPicker.close();
     this.documentGeneration++;
     this.crepe?.editor.action(replaceAll(markdown, true));
-    resolveRawHtmlImages(this.host, this.resolveImageSrc);
+    this.resolveHtmlImages();
     refreshSafeRawHtml(this.host);
     this.scheduleExternalCodeLineNumbers();
   }
@@ -425,7 +477,14 @@ export class Editor {
   /** Re-label UI after a language change (block menu; placeholder waits for a
    *  reload — it is only visible on an empty document). */
   retranslate(): void {
+    this.contextMenu.close();
+    this.linkPicker.close();
     this.blockMenu?.retranslate();
+  }
+
+  dismissTextMenus(): void {
+    this.contextMenu.close();
+    this.linkPicker.close();
   }
 
   /** Insert plain text at the cursor (used for emoji). */
@@ -542,6 +601,8 @@ export class Editor {
   }
 
   async destroy(): Promise<void> {
+    this.contextMenu.close();
+    this.linkPicker.close();
     this.documentGeneration++;
     this.imagePreview.close();
     if (this.lineNumberFrame !== null) {

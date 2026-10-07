@@ -557,14 +557,17 @@ export function patchHtmlMarkdown(crepe: Crepe): void {
 export function resolveRawHtmlImages(
   host: HTMLElement,
   resolver: (src: string) => string | Promise<string>,
+  isCurrent: () => boolean = () => true,
 ): void {
   requestAnimationFrame(() => {
+    if (!isCurrent()) return;
     host.querySelectorAll<HTMLImageElement>('img[data-mdmeow-html-img="true"]').forEach((img) => {
       const raw = img.dataset.mdmeowSrc ?? img.getAttribute("src") ?? "";
       if (!raw) return;
       Promise.resolve(resolver(raw))
         .then((resolved) => {
-          if (img.isConnected && resolved && img.src !== resolved) img.src = resolved;
+          if (isCurrent() && host.contains(img) && img.dataset.mdmeowSrc === raw
+            && resolved && img.getAttribute("src") !== resolved) img.src = resolved;
         })
         .catch(() => undefined);
     });

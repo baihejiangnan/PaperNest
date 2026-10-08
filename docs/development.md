@@ -205,6 +205,17 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.1.6 发行构建（2026-10-08）
+
+- 发行源码提交 `4757697e1898a631d15d388edc915ad7e3ff506d`，是 v0.1.5（`1f792a1`）后 main 的下一提交，内容为 v0.1.5 之后的全部功能改动加上一项仅忽略 `.workbuddy-ai/` 的提交（`.gitignore` 一行）。改动为未保存更改弹窗改为“保存／不保存／取消”、可选自动保存（`auto_save`，默认关闭）、列表符号默认 `-` 且保存时不再转义词内下划线、深色模式行内公式颜色跟随主题紫色；四处应用版本统一为 0.1.6，更新公钥、签名构建脚本与发行工作流未改变。
+- 从该提交验证：`pnpm build` 通过（1178 个模块）；`pnpm test:code-text`、`pnpm test:tab-path`、`pnpm test:details-html`、`pnpm test:markdown-serializer` 四项通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 为 **45 项通过、3 项显式忽略、1 项失败**。失败项 `new_md::registry::tests::registration_preserves_defaults_and_other_writers` 在 `src-tauri/src/new_md.rs:474` 的 `RegKey::predef(HKEY_CURRENT_USER).create_subkey(...).unwrap()` 处返回 `Os { code: 5, kind: PermissionDenied }`，**在本执行环境中未通过，不记为通过**。判定为环境限制而非本轮回归的依据：`src-tauri/src/new_md.rs` 自 v0.1.4 提交 `96e0020` 起未改动（`git diff f2df3ac..4757697 -- src-tauri/src/new_md.rs` 为空），本次会话中整个 HKCU 写入被系统拒绝（`New-Item HKCU:\…` 与 `reg add HKCU\…` 均返回拒绝访问），把同一测试 EXE 复制到普通临时目录单独运行仍是 code 5。该限制与上文“Windows 系统‘新建 MD 文件’（2026-10-08）”记录一致。
+- `pnpm release:windows` 退出码 0，末行 `Result: PASS (updater-signed Windows release + metadata + SHA256 checksums)`；前端类型检查与构建、MSI 关联生命周期动作检查通过，EXE 与 MSI 分别通过内嵌公钥验签及篡改拒绝测试（该测试在本次构建中对两个产物各执行一次），构建后无 tracked 改动。本次构建环境的两个既有阻塞与绕行方式：① 上一版残留的 `src-tauri/target/release/bundle/msi/PaperNest_0.1.5_x64_en-US.msi` 因继承的 `Everyone:(DENY)(DC)` 拒绝删除 ACE 无法删除（占用进程已确认并终止，`takeown`/`icacls`/`del` 均失败），故把 `target/release/bundle` 整体改名为 `bundle-held` 使其不在构建脚本的清理路径内，脚本自建 `bundle/`，未修改任何脚本、ACL 或系统权限；② 顶层 PATH 中某个 `pnpm.ps1` 兜底指向本机不存在的 `pnpm.cjs`／`node.exe`，仅对该构建进程从 PATH 移除该目录后 `pnpm`（含 `tauri-cli 2.11.4`）正常可用。
+- [v0.1.6 正式发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.6) 已公开为 latest，附注标签 `45bf651dbb3eaca9a8252216d44630e5a214702e` 解引用为上述源码提交，main 与 `codex/windows-release-0.1.6` 均已推送。草稿阶段核对六项资产名称、uploaded 状态、大小与 GitHub digest 后公开；匿名下载六个文件，大小与 SHA-256 均与本地一致，公开副本通过 SHA256SUMS.txt 校验。匿名 latest-release API、latest/download/latest.json、元数据中的 MSI URL 与签名全部通过核对。latest.json 带 UTF-8 BOM，与 v0.1.5 已发布文件一致，SHA256SUMS.txt 为无 BOM、LF。
+- 便携 EXE SHA-256：`9b1b59f9eb2b6e5084fd340d9b07dedd180558e579a2f40c895d202a2934590d`；MSI SHA-256：`7718d78fd8223546e97ce54474b665371a9bd0b6ee63656e2e516cfe3408e3eb`。其余文件哈希见 Release 的 SHA256SUMS.txt。
+- 标签触发的 [release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37795106357) 在 `Require updater signing secret` 步骤因缺少 `TAURI_SIGNING_PRIVATE_KEY` 停止，构建与 publish 被跳过。本次通过现有本地密钥签名发布，没有上传私钥。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 发行源码提交的日常 CI 在 [main](https://github.com/baihejiangnan/PaperNest/actions/runs/37792088122) 和 [发行分支](https://github.com/baihejiangnan/PaperNest/actions/runs/37792088124) 均通过。
+- 未覆盖范围：三选一未保存弹窗与 `auto_save` 只完成构建、逻辑脚本和浏览器组件检查，**尚未在实际 WebView2 桌面窗口中操作**；本次发行构建不等于安装／升级／卸载回归。
+
 ### Windows v0.1.5 发行构建（2026-10-08）
 
 - 发行源码提交 `1f792a136955cef94cffc3facd9dbf4d2cb4dcb3`，从 v0.1.4 后的 main（`cd2e35c`）快进。改动为 Markdown 折叠区块（GitHub 合并写法、`<details open>`，折叠／`<div align>` 改由 ProseMirror 装饰呈现）、移除关于页 Miku 彩蛋并将 `miku-cream.ts` 改名为 `editor-theme.ts`、中英文 README 重构与项目介绍页重设计；四处应用版本统一为 0.1.5，更新公钥、签名构建脚本与发行工作流未改变。

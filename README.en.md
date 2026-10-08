@@ -6,7 +6,7 @@ A lightweight desktop app for local documents. Open Markdown to read or edit it,
 
 [简体中文](README.md) · [English](README.en.md)
 
-> This is a personal continuation of [MDmeow](https://github.com/zakee039/MDmeow). Windows portable and installer downloads are available in [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest). Upstream installers do not include this repository's additions.
+> PaperNest is developed on top of [MDmeow](https://github.com/zakee039/MDmeow). Windows portable and installer downloads are available in [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest). Upstream installers do not include this repository's additions.
 
 ## What it does
 

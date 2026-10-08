@@ -49,7 +49,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/image-preview.ts`, `src/image-toolbar.ts`, `src/html-markdown.ts`, `src/image-block-markdown.ts` | Read-only image lightbox, image actions and Markdown/HTML image round-tripping. |
 | `src/text-context-menu.ts`, `src/text-context-actions.ts` | The themed document context menu, body-mounted submenu panels, keyboard navigation and selection-preserving ProseMirror/CodeMirror actions. |
 | `src/link-picker.ts` | Non-modal selection-anchored link input, sibling-file filtering through existing directory IPC and relative link choices. |
-| `src/miku-cream.ts` | Installs Crepe's structural frame CSS; `styles.css` owns the single built-in Obsidian document rendering. |
+| `src/editor-theme.ts` | Installs Crepe's structural frame CSS; `styles.css` owns the single built-in Obsidian document rendering. |
 | `src/link-clipboard.ts` | ProseMirror `$prose` plugin: paste a URL over a selection / `Ctrl+K` → link it. |
 | `src/block-menu.ts` | The `⠿` block menu (turn‑into, insert table / image / divider / blank line, duplicate, delete). Raw ProseMirror commands. Exports `runBlockAction(crepe, id)` — the turn‑into entries reachable by `Ctrl/Cmd+0`–`7` from `main.ts`, built from the live selection via `targetFromSelection`. |
 | `src/emoji.ts` | `:shortcode:` input rule (`$prose`, same class as `find.ts`) + `EmojiPicker` popup (`#emoji-picker`, `Ctrl/Cmd+.`), backend‑agnostic like `find-bar.ts`. |

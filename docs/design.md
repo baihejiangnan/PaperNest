@@ -4,7 +4,7 @@ PaperNest 以阅读内容为视觉中心，保留轻量编辑入口。本文件�
 
 ## 色彩与主题
 
-运行时颜色的唯一入口是 [src/ui-theme.css](../src/ui-theme.css)。布局及组件样式在 [src/styles.css](../src/styles.css)。[src/miku-cream.ts](../src/miku-cream.ts) 保留历史文件名，负责 Crepe 结构样式与共享语法高亮；实际颜色使用全局变量。
+运行时颜色的唯一入口是 [src/ui-theme.css](../src/ui-theme.css)。布局及组件样式在 [src/styles.css](../src/styles.css)。[src/editor-theme.ts](../src/editor-theme.ts) 负责 Crepe 结构样式与共享语法高亮；实际颜色使用全局变量。
 
 | 用途 / 变量 | 浅色 | 深色 | 使用范围 |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ PaperNest 以阅读内容为视觉中心，保留轻量编辑入口。本文件�
 颜色基础参考 [Obsidian 官方配色变量](https://docs.obsidian.md/Reference/CSS%20variables/Foundations/Colors)，组件语义参考 [HeroUI v3 主题文档](https://heroui.com/en/docs/react/getting-started/theming)。警告、成功和语法高亮属于状态色，不能作为第二套应用强调色。
 
 - `color_scheme` 默认为 `system`；可在设置中选择 `light` / `dark`。系统主题变化立即更新，手动选择优先。初始化前使用 CSS 媒体查询避免深色系统出现浅色闪屏。
-- `accent` 仍允许用户覆盖。选中背景、链接、焦点及按钮从此变量派生；不得硬编码初音绿色。
+- `accent` 仍允许用户覆盖。选中背景、链接、焦点及按钮从此变量派生；不得硬编码固定强调色。
 - 旧配置缺少 `color_scheme` 时，原默认 `#39C5BB` 迁移为紫色，原代码隔行色 `#FAFFFF` 迁移为跟随主题。其他自定义颜色保留；新配置中主动选择绿色仍有效。
 - `code_alternate_row_color = ""` 表示使用主题次级背景；用户可选择自定义颜色或通过“默认”恢复自动配色。
 - Markdown 与普通文本 Code 模式共用语义高亮和用户字体设置。HTML/PDF 导出使用中性浅色与紫色，以适合独立阅读及打印。

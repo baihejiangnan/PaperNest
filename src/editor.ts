@@ -35,7 +35,7 @@ import {
   resolveRawHtmlImages,
   safeHtmlPresentationPlugin,
 } from "./html-markdown";
-import { mikuCreamCodeMirrorTheme } from "./miku-cream";
+import { codeMirrorTheme } from "./editor-theme";
 import { EditorView as CodeView } from "@codemirror/view";
 import { TextContextMenu } from "./text-context-menu";
 import { LinkPicker } from "./link-picker";
@@ -384,7 +384,7 @@ export class Editor {
       defaultValue: "",
       featureConfigs: {
         [Crepe.Feature.CodeMirror]: {
-          theme: mikuCreamCodeMirrorTheme,
+          theme: codeMirrorTheme,
           // Preview-capable blocks (currently LaTeX) render as their result by
           // default. Ordinary code blocks have no preview and stay editable.
           previewOnlyByDefault: true,

@@ -1,4 +1,4 @@
-// Obsidian colours are defined in ui-theme.css; this legacy module name is kept for compatibility. We still inject
+// Obsidian colours are defined in ui-theme.css. We still inject
 // Crepe's light frame stylesheet because it contains the editor component
 // structure; src/styles.css then owns the visual rendering.
 import frameLight from "@milkdown/crepe/theme/frame.css?inline";
@@ -17,7 +17,7 @@ import {
 } from "@codemirror/view";
 import { classHighlighter, highlightTree } from "@lezer/highlight";
 
-export const mikuCodePalette = {
+export const codePalette = {
   base: "var(--fg)",
   keyword: "var(--syntax-keyword)",
   functionName: "var(--syntax-function)",
@@ -34,7 +34,7 @@ export const mikuCodePalette = {
 const codeEditorTheme = EditorView.theme(
   {
     "&": {
-      color: mikuCodePalette.base,
+      color: codePalette.base,
       backgroundColor: "var(--bg)",
     },
     ".cm-scroller": {
@@ -67,36 +67,36 @@ const codeEditorTheme = EditorView.theme(
       border: "none",
     },
     ".tok-keyword": {
-      color: mikuCodePalette.keyword,
+      color: codePalette.keyword,
       fontWeight: "600",
     },
     ".tok-variableName, .tok-propertyName, .tok-macroName": {
-      color: mikuCodePalette.base,
+      color: codePalette.base,
     },
     ".tok-labelName": {
-      color: mikuCodePalette.functionName,
+      color: codePalette.functionName,
     },
     ".tok-number, .tok-bool, .tok-atom, .tok-literal": {
-      color: mikuCodePalette.number,
+      color: codePalette.number,
     },
     ".tok-typeName, .tok-className, .tok-namespace": {
-      color: mikuCodePalette.type,
+      color: codePalette.type,
     },
     ".tok-string, .tok-string2, .tok-inserted": {
-      color: mikuCodePalette.string,
+      color: codePalette.string,
     },
     ".tok-definition": {
-      color: mikuCodePalette.definition,
+      color: codePalette.definition,
     },
     ".tok-operator, .tok-punctuation": {
-      color: mikuCodePalette.operator,
+      color: codePalette.operator,
     },
     ".tok-meta, .tok-comment": {
-      color: mikuCodePalette.comment,
+      color: codePalette.comment,
       fontStyle: "italic",
     },
     ".tok-link, .tok-url": {
-      color: mikuCodePalette.link,
+      color: codePalette.link,
       textDecoration: "underline",
     },
     ".tok-strong": {
@@ -106,7 +106,7 @@ const codeEditorTheme = EditorView.theme(
       fontStyle: "italic",
     },
     ".tok-invalid, .tok-deleted": {
-      color: mikuCodePalette.invalid,
+      color: codePalette.invalid,
     },
   },
   { dark: false },
@@ -201,7 +201,7 @@ const semanticTokenPlugin = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
-export const mikuCreamCodeMirrorTheme = [
+export const codeMirrorTheme = [
   codeEditorTheme,
   semanticTokenPlugin,
 ];
@@ -216,6 +216,6 @@ function themeStyleEl(): HTMLStyleElement {
   return el;
 }
 
-export function installMikuCreamRendering(): void {
+export function installEditorRendering(): void {
   themeStyleEl().textContent = frameLight;
 }

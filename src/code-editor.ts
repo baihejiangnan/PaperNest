@@ -26,7 +26,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 
-import { mikuCreamCodeMirrorTheme } from "./miku-cream";
+import { codeMirrorTheme } from "./editor-theme";
 import type { FindStatus } from "./find-bar";
 import { serializeCodeText } from "./code-text";
 import { TextContextMenu } from "./text-context-menu";
@@ -196,7 +196,7 @@ export class CodeEditor {
       alternateRowsPlugin,
       // Earlier themes take precedence: user fonts must win over Crepe's defaults.
       codeDocumentTheme,
-      ...mikuCreamCodeMirrorTheme,
+      ...codeMirrorTheme,
       this.#language.of([]),
     ];
     const state = EditorState.create({ doc: text, extensions });

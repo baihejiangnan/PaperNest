@@ -719,7 +719,7 @@ button.workspace-crumb:hover, button.workspace-crumb:focus-visible { opacity: 1;
 }
 
 /* Syntax colours are installed through CodeMirror's HighlightStyle in
-   miku-cream.ts so they follow semantic tokens across all supported languages. */
+   editor-theme.ts so they follow semantic tokens across all supported languages. */
 
 /* Inline code: darker purple improves legibility while keeping clear
    weight contrast between ordinary and bold code. */
@@ -2017,33 +2017,6 @@ body:has(.link-picker) #editor :is(.milkdown-toolbar, .milkdown-link-tooltip) { 
   display: flex;
   justify-content: center;
   gap: 8px;
-}
-
-/* Hidden five-click About-logo easter egg. */
-#miku-easter {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal-nested);
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(5px);
-}
-#miku-easter[hidden] {
-  display: none !important;
-}
-#miku-easter-image {
-  display: block;
-  max-width: min(780px, 86vw);
-  max-height: 82vh;
-  width: auto;
-  height: auto;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
-  cursor: pointer;
-  user-select: none;
 }
 
 /* Native file-drop feedback. Tauri owns the actual OS drop event. */

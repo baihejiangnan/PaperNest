@@ -18,7 +18,7 @@ import { CodeEditor } from "./code-editor";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import { TabBar, baseName, type Tab } from "./tabs";
 import { isImagePath, isMarkdownPath, knownExtensions } from "./file-types";
-import { installMikuCreamRendering } from "./miku-cream";
+import { installEditorRendering } from "./editor-theme";
 import { FindBar, type FindTarget } from "./find-bar";
 import { EmojiPicker } from "./emoji";
 import { SettingsPanel, type SettingKey, type NewMdMenuStatus } from "./settings-panel";
@@ -1514,12 +1514,6 @@ const updateSecondaryButton = document.getElementById(
 const updatePrimaryButton = document.getElementById(
   "about-update-primary-action",
 ) as HTMLButtonElement;
-const mikuEasterEl = document.getElementById("miku-easter") as HTMLElement;
-const mikuEasterImage = document.getElementById(
-  "miku-easter-image",
-) as HTMLImageElement;
-let aboutLogoClickCount = 0;
-let aboutLogoClickTimer: number | null = null;
 let versionInfo: VersionInfo | null = null;
 let preparedVersion: PreparedVersion | null = null;
 let versionBusy = false;
@@ -1536,16 +1530,6 @@ function openAbout(): void {
 function closeAbout(): void {
   aboutEl.hidden = true;
   deactivateModal(aboutEl);
-}
-
-function openMikuEaster(): void {
-  mikuEasterEl.hidden = false;
-  activateModal(mikuEasterEl, closeMikuEaster);
-}
-
-function closeMikuEaster(): void {
-  mikuEasterEl.hidden = true;
-  deactivateModal(mikuEasterEl);
 }
 
 function setUpdateActions(
@@ -1800,25 +1784,6 @@ function wireAbout(): void {
     e.preventDefault();
     void openUrl("https://github.com/zakee039/MDmeow");
   });
-
-  aboutEl.querySelector(".about-logo")?.addEventListener("click", () => {
-    aboutLogoClickCount += 1;
-    if (aboutLogoClickTimer !== null) window.clearTimeout(aboutLogoClickTimer);
-
-    if (aboutLogoClickCount >= 5) {
-      aboutLogoClickCount = 0;
-      aboutLogoClickTimer = null;
-      openMikuEaster();
-      return;
-    }
-
-    aboutLogoClickTimer = window.setTimeout(() => {
-      aboutLogoClickCount = 0;
-      aboutLogoClickTimer = null;
-    }, 1400);
-  });
-
-  mikuEasterImage.addEventListener("click", closeMikuEaster);
 }
 
 // --- export menu -------------------------------------------------------
@@ -1913,11 +1878,6 @@ function wireShortcuts(): void {
         if (emojiPicker.isOpen) {
           e.preventDefault();
           emojiPicker.close();
-          return;
-        }
-        if (!mikuEasterEl.hidden) {
-          e.preventDefault();
-          closeMikuEaster();
           return;
         }
         if (!aboutEl.hidden) {
@@ -2372,7 +2332,7 @@ async function bootstrap(): Promise<void> {
   settingsPanel.setVersion(payload.version);
   settingsPanel.refresh();
   applyAppearance();
-  installMikuCreamRendering();
+  installEditorRendering();
   editor.setListMarker(settings.list_marker);
   applyProxySettings(false);
   tabBar.setAlwaysShow(settings.always_show_tabbar);

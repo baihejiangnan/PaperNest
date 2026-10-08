@@ -6,7 +6,7 @@
 
 [简体中文](README.md) · [English](README.en.md)
 
-> 这是基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续修改的个人版本。Windows 便携版和安装包见 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)。旧项目的安装包不包含这里的新增功能。
+> 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发。Windows 便携版和安装包见 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)。旧项目的安装包不包含这里的新增功能。
 
 ## 能做什么
 

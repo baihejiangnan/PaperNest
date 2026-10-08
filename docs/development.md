@@ -47,7 +47,7 @@
 | Code 模式与文件类型 | `src/code-editor.ts`、`src/file-types.ts` |
 | 文件树、大纲和菜单 | `src/workspace-sidebar.ts`、`src-tauri/src/workspace.rs` |
 | 文件读写、设置与文件关联 | `src-tauri/src/commands.rs`、`src-tauri/src/settings.rs`、`src-tauri/src/windows_integration.rs`、`src-tauri/src/new_md.rs` |
-| 视觉与文案 | `src/styles.css`、`src/miku-cream.ts`、`src/i18n.ts`、`index.html` |
+| 视觉与文案 | `src/styles.css`、`src/editor-theme.ts`、`src/i18n.ts`、`index.html` |
 
 自定义 Rust IPC 命令须在 `src-tauri/src/lib.rs` 注册；前端新增 Tauri 窗口或插件 API 时检查 `src-tauri/capabilities/default.json`。数据流细节见 [ARCHITECTURE.md](../ARCHITECTURE.md)。
 

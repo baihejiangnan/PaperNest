@@ -31,9 +31,9 @@ import {
 } from "./image-preview";
 import {
   patchHtmlMarkdown,
-  refreshSafeRawHtml,
   resolveRawHtmlImages,
   safeHtmlPresentationPlugin,
+  safeHtmlStructurePlugin,
 } from "./html-markdown";
 import { codeMirrorTheme } from "./editor-theme";
 import { EditorView as CodeView } from "@codemirror/view";
@@ -407,6 +407,7 @@ export class Editor {
       .use(findPlugin)
       .use(imageToolbarPlugin)
       .use(safeHtmlPresentationPlugin)
+      .use(safeHtmlStructurePlugin)
       .use(emojiInputRule)
       .use(documentOwnership);
     let updatedDoc: object | null = null;
@@ -422,7 +423,6 @@ export class Editor {
         this.onChange(markdown);
         this.scheduleExternalCodeLineNumbers();
         this.resolveHtmlImages();
-        refreshSafeRawHtml(this.host);
       });
       listener.selectionUpdated(() => {
         this.onSelectionChange();
@@ -450,7 +450,6 @@ export class Editor {
     this.documentGeneration++;
     this.crepe?.editor.action(replaceAll(markdown, true));
     this.resolveHtmlImages();
-    refreshSafeRawHtml(this.host);
     this.scheduleExternalCodeLineNumbers();
   }
 

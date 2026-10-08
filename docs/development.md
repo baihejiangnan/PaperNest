@@ -12,10 +12,11 @@
 - `pnpm build`：TypeScript 类型检查及 Vite 前端产物构建。
 - `pnpm test:code-text`：检查 CodeMirror 文本序列化的 CRLF、LF、CR、混合换行、空文本、编辑及撤销，防止打开文本后误判未保存。
 - `pnpm test:tab-path`：检查普通 Windows 路径、扩展路径和 UNC 路径的标签身份，避免同一文件重复打开。
+- `pnpm test:details-html`：检查 `<details>` 开始标记的识别，包括 `open` 属性及与 `<summary>` 合并在同一 HTML 块的 GitHub 写法；其他 HTML 保持原样显示。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：快速检查 Rust。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
-- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、两个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
+- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、三个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
 - `pnpm release:windows`：Windows x64 EXE/MSI、更新签名、元数据及 SHA-256 清单。脚本检查 MSI 实际关联动作与执行顺序，并通过应用内嵌公钥检查两个产物的有效签名及篡改拒绝；CI 再核对完整六文件集合和校验和。当前 [工作流](../.github/workflows/release.yml) 仅发行 Windows，Linux/macOS 的现有本地脚本暂定。
 
 如果已经有开发实例占用 Vite 端口或单实例锁，先确认该实例及未保存内容，再重启开发命令。不要用旧的 `target/debug` 可执行文件来判断新改动是否生效；Rust 改动需要完成重新编译。
@@ -23,6 +24,13 @@
 在受限执行环境中，工作区生成的 EXE 可能继承低完整性标记，即使窗口能正常显示，也无法调用正常桌面权限下的资源管理器；目录打开会返回错误码 5，文件定位会返回 `0x80070005`。这时先核对应用与 Explorer 的完整性等级。桌面验证应将最新已编译程序复制到独立的普通临时目录，在该目录使用测试配置启动；不修改工作区或系统目录的权限。已有下载版、安装版或开发版可能占用同一应用标识的单实例锁，检查进程时也应包括版本化的 EXE 名称，不能只检查 `PaperNest.exe`。
 
 ## 修改位置
+
+### Markdown 折叠区块（2026-10-08）
+
+- 渲染视图支持 GitHub 常见写法：`<details>` 与 `<summary>` 写在相邻两行（同一个 HTML 块）、`<details open>` 默认展开，以及原有的各自独立成段写法；`<summary>` 内的 `<b>` 等标签只取文字。开始标记的识别在无 DOM 依赖的 `src/details-html.ts`，由 `pnpm test:details-html` 覆盖。
+- 折叠、`<div align>` 对齐和标记段落隐藏改由 `src/html-markdown.ts` 中的 ProseMirror 插件以节点装饰呈现。此前直接写入段落 DOM 的类会在 ProseMirror 检测到外部修改后被重绘清除，导致旧写法也不能折叠、`</details>` 段落未隐藏。读者的展开／收起状态保存在插件状态中并随编辑映射位置，不写入 Markdown，也不进入撤销历史。
+- 嵌套折叠只记录最近一层，暂不支持；源码视图与保存内容保持原样。
+- 组件检查（Vite + 无头 Edge，2026-10-08）：四种写法初始展开状态正确，鼠标与 Enter 切换正常，其他位置编辑后切换状态保留，`<div align="center">` 居中，7 个纯标记段落隐藏，`getMarkdown()` 原样保留四种写法；中英文 README 的 4 个折叠区块均默认收起，无原始标签文本。尚未在实际 WebView2 桌面窗口中核对。
 
 ### MD 文件树筛选与侧栏宽度（2026-10-08）
 

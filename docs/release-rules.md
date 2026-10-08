@@ -56,6 +56,7 @@ PowerShell 中 `$ErrorActionPreference = 'Stop'` 不保证 Git、pnpm、Cargo、
 ```powershell
 pnpm test:code-text
 pnpm test:tab-path
+pnpm test:details-html
 cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
 pnpm release:windows
 ```

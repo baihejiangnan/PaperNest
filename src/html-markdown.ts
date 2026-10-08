@@ -6,18 +6,19 @@
 //   * <img ...>          -> render as an actual image, preserving the raw HTML.
 //   * <!--more-->        -> keep in the document, but hide it in WYSIWYG mode.
 //   * <a>...</a>         -> hide paired markers and make their content clickable.
+//   * <details>/<summary> -> collapsible section; see details-html.ts.
 
 import { schemaCtx } from "@milkdown/kit/core";
 import type { Crepe } from "@milkdown/crepe";
 import { $prose } from "@milkdown/kit/utils";
-import { Plugin } from "@milkdown/kit/prose/state";
-import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
+import { parseDetailsOpening } from "./details-html";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const MORE_COMMENT = /^<!--\s*more\s*-->$/i;
-const DETAILS_OPEN = /^<details\s*>$/i;
 const DETAILS_CLOSE = /^<\/details\s*>$/i;
 const DIV_CLOSE = /^<\/div\s*>$/i;
 const KBD_OPEN = /^<kbd\s*>$/i;
@@ -329,9 +330,32 @@ function parseSummary(value: string): string | null {
   return summary.textContent ?? "";
 }
 
+function summaryDom(value: string, title: string): [string, Record<string, string>, string] {
+  return [
+    "span",
+    {
+      "data-type": "html",
+      "data-value": value,
+      "data-mdmeow-safe-html": "summary",
+      role: "button",
+      tabindex: "0",
+      contenteditable: "false",
+      "aria-expanded": "false",
+    },
+    title,
+  ];
+}
+
 function safeHtmlDom(value: string): [string, Record<string, string>, string] | null {
   const trimmed = value.trim();
-  if (DETAILS_OPEN.test(trimmed)) return safeMarkerDom(value, "details-open");
+  const details = parseDetailsOpening(trimmed);
+  if (details) {
+    if (details.summary === null) return safeMarkerDom(value, "details-open");
+    // `<details>` and `<summary>` share one HTML block: the summary also opens
+    // the section, so no separate (hidden) opening marker exists.
+    const title = parseSummary(details.summary);
+    return title === null ? null : summaryDom(value, title);
+  }
   if (DETAILS_CLOSE.test(trimmed)) return safeMarkerDom(value, "details-close");
   if (DIV_CLOSE.test(trimmed)) return safeMarkerDom(value, "div-close");
   if (KBD_OPEN.test(trimmed)) return safeMarkerDom(value, "kbd-open");
@@ -341,173 +365,196 @@ function safeHtmlDom(value: string): [string, Record<string, string>, string] | 
   if (align) return safeMarkerDom(value, "div-open", { "data-mdmeow-align": align });
 
   const summary = parseSummary(trimmed);
-  if (summary !== null) {
-    return [
-      "span",
-      {
-        "data-type": "html",
-        "data-value": value,
-        "data-mdmeow-safe-html": "summary",
-        role: "button",
-        tabindex: "0",
-        contenteditable: "false",
-        "aria-expanded": "false",
-      },
-      summary,
-    ];
-  }
+  if (summary !== null) return summaryDom(value, summary);
 
   return null;
 }
 
-function markerIn(
-  block: HTMLElement,
-  kind: SafeHtmlKind,
-): HTMLElement | null {
-  if (block.dataset.mdmeowSafeHtml === kind) return block;
-  return block.querySelector<HTMLElement>(`[data-mdmeow-safe-html="${kind}"]`);
+// --- Block structure: <div align> ranges and <details> sections -------------
+//
+// Structural raw HTML is presented through ProseMirror node decorations rather
+// than classes written onto block DOM: ProseMirror redraws a block's DOM when it
+// notices outside mutations, which immediately discards such classes. Reader
+// toggles live in plugin state, keyed by the summary node's position and mapped
+// through edits, so the Markdown source is never touched.
+
+interface StructureState {
+  /** Summary position -> expanded, for sections the reader has toggled. */
+  toggles: Map<number, boolean>;
+  decorations: DecorationSet;
 }
 
-function hideMarkerOnlyBlock(block: HTMLElement, marker: HTMLElement): void {
-  if (block === marker || block.textContent?.trim() === "") {
-    block.classList.add("mdmeow-html-marker-block");
-  }
+interface DetailsToggle {
+  pos: number;
+  expanded: boolean;
 }
 
-function applyDivRanges(root: HTMLElement): void {
-  const blocks = [...root.children].filter(
-    (node): node is HTMLElement => node instanceof HTMLElement,
-  );
-  const stack: Array<{ index: number; align: string; marker: HTMLElement }> = [];
+const structureKey = new PluginKey<StructureState>("mdmeow-safe-html-structure");
 
-  blocks.forEach((block, index) => {
-    const open = markerIn(block, "div-open");
-    if (open) {
-      hideMarkerOnlyBlock(block, open);
-      stack.push({
-        index,
-        align: open.dataset.mdmeowAlign ?? "left",
-        marker: open,
-      });
-    }
-
-    const close = markerIn(block, "div-close");
-    if (!close || !stack.length) return;
-    hideMarkerOnlyBlock(block, close);
-    const range = stack.pop();
-    if (!range) return;
-    for (let i = range.index + 1; i < index; i += 1) {
-      blocks[i].classList.add(`mdmeow-html-align-${range.align}`);
-    }
-  });
+interface BlockHtml {
+  detailsOpen: { open: boolean; merged: boolean } | null;
+  summaryPos: number | null;
+  detailsClose: boolean;
+  divAlign: "left" | "center" | "right" | null;
+  divClose: boolean;
 }
 
-function setDetailsExpanded(
-  blocks: HTMLElement[],
-  summaryIndex: number,
-  closeIndex: number,
-  summary: HTMLElement,
-  expanded: boolean,
-): void {
-  summary.setAttribute("aria-expanded", String(expanded));
-  summary.classList.toggle("mdmeow-details-expanded", expanded);
-  for (let i = summaryIndex + 1; i < closeIndex; i += 1) {
-    blocks[i].classList.toggle("mdmeow-details-collapsed", !expanded);
-  }
-}
-
-function applyDetailsRanges(root: HTMLElement): void {
-  const blocks = [...root.children].filter(
-    (node): node is HTMLElement => node instanceof HTMLElement,
-  );
-  let openIndex = -1;
-  let summaryIndex = -1;
-  let summary: HTMLElement | null = null;
-
-  blocks.forEach((block, index) => {
-    const open = markerIn(block, "details-open");
-    if (open) {
-      hideMarkerOnlyBlock(block, open);
-      openIndex = index;
-      summaryIndex = -1;
-      summary = null;
+function inspectBlock(block: ProseNode, blockPos: number): BlockHtml {
+  const info: BlockHtml = {
+    detailsOpen: null,
+    summaryPos: null,
+    detailsClose: false,
+    divAlign: null,
+    divClose: false,
+  };
+  block.descendants((node, offset) => {
+    if (node.type.name !== "html") return;
+    const value = String(node.attrs?.value ?? "").trim();
+    const pos = blockPos + 1 + offset;
+    const details = parseDetailsOpening(value);
+    if (details) {
+      if (details.summary === null) {
+        info.detailsOpen ??= { open: details.open, merged: false };
+      } else if (parseSummary(details.summary) !== null) {
+        info.detailsOpen ??= { open: details.open, merged: true };
+        info.summaryPos ??= pos;
+      }
       return;
     }
+    if (DETAILS_CLOSE.test(value)) info.detailsClose = true;
+    else if (DIV_CLOSE.test(value)) info.divClose = true;
+    else if (info.summaryPos === null && parseSummary(value) !== null) info.summaryPos = pos;
+    else info.divAlign ??= parseDivAlign(value);
+  });
+  return info;
+}
 
-    if (openIndex >= 0 && !summary) {
-      const candidate = markerIn(block, "summary");
-      if (candidate) {
-        summary = candidate;
-        summaryIndex = index;
-        candidate.classList.add("mdmeow-details-summary");
+function structureDecorations(doc: ProseNode, toggles: Map<number, boolean>): DecorationSet {
+  const blocks: Array<{ node: ProseNode; pos: number; html: BlockHtml }> = [];
+  doc.forEach((node, pos) => blocks.push({ node, pos, html: inspectBlock(node, pos) }));
+
+  const decorations: Decoration[] = [];
+  const addClass = (index: number, className: string) => {
+    const { node, pos } = blocks[index];
+    decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: className }));
+  };
+  // Marker-only blocks (an HTML tag on its own) disappear in the rendered view.
+  const hideIfEmpty = (index: number) => {
+    if (blocks[index].node.textContent.trim() === "") addClass(index, "mdmeow-html-marker-block");
+  };
+
+  const divStack: Array<{ index: number; align: string }> = [];
+  let section: { open: boolean; summaryIndex: number; summaryPos: number } | null = null;
+
+  blocks.forEach(({ html }, index) => {
+    if (html.divAlign) {
+      hideIfEmpty(index);
+      divStack.push({ index, align: html.divAlign });
+    }
+    if (html.divClose && divStack.length) {
+      hideIfEmpty(index);
+      const range = divStack.pop()!;
+      for (let i = range.index + 1; i < index; i += 1) addClass(i, `mdmeow-html-align-${range.align}`);
+    }
+
+    if (html.detailsOpen) {
+      section = { open: html.detailsOpen.open, summaryIndex: -1, summaryPos: -1 };
+      // A standalone opening marker hides its block; the summary follows later.
+      if (!html.detailsOpen.merged) {
+        hideIfEmpty(index);
+        return;
       }
     }
-
-    const close = markerIn(block, "details-close");
-    if (!close || openIndex < 0) return;
-    hideMarkerOnlyBlock(block, close);
-
-    if (summary && summaryIndex >= 0) {
-      const currentSummary = summary;
-      const currentSummaryIndex = summaryIndex;
-      const closeIndex = index;
-      const expanded = currentSummary.getAttribute("aria-expanded") === "true";
-      setDetailsExpanded(
-        blocks,
-        currentSummaryIndex,
-        closeIndex,
-        currentSummary,
-        expanded,
-      );
-
-      currentSummary.onclick = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const next = currentSummary.getAttribute("aria-expanded") !== "true";
-        setDetailsExpanded(
-          blocks,
-          currentSummaryIndex,
-          closeIndex,
-          currentSummary,
-          next,
-        );
-      };
-      currentSummary.onkeydown = (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        currentSummary.click();
-      };
+    if (section && section.summaryIndex < 0 && html.summaryPos !== null) {
+      section.summaryIndex = index;
+      section.summaryPos = html.summaryPos;
     }
+    if (!html.detailsClose || !section) return;
+    hideIfEmpty(index);
 
-    openIndex = -1;
-    summaryIndex = -1;
-    summary = null;
+    const { summaryIndex, summaryPos, open } = section;
+    section = null;
+    if (summaryIndex < 0) return;
+    const expanded = toggles.get(summaryPos) ?? open;
+    decorations.push(Decoration.node(summaryPos, summaryPos + 1, {
+      class: expanded ? "mdmeow-details-summary mdmeow-details-expanded" : "mdmeow-details-summary",
+      "aria-expanded": String(expanded),
+      "data-mdmeow-details-pos": String(summaryPos),
+    }));
+    if (!expanded) {
+      for (let i = summaryIndex + 1; i < index; i += 1) addClass(i, "mdmeow-details-collapsed");
+    }
   });
+
+  return DecorationSet.create(doc, decorations);
 }
 
-/** Apply the visual semantics for the safe structural HTML subset without
- * changing the ProseMirror document. This keeps Markdown round-tripping exact. */
-export function refreshSafeRawHtml(host: HTMLElement): void {
-  requestAnimationFrame(() => {
-    const root = host.querySelector<HTMLElement>(".ProseMirror");
-    if (!root) return;
-
-    for (const block of root.querySelectorAll<HTMLElement>(
-      ".mdmeow-html-marker-block, .mdmeow-html-align-left, .mdmeow-html-align-center, .mdmeow-html-align-right, .mdmeow-details-collapsed",
-    )) {
-      block.classList.remove(
-        "mdmeow-html-marker-block",
-        "mdmeow-html-align-left",
-        "mdmeow-html-align-center",
-        "mdmeow-html-align-right",
-        "mdmeow-details-collapsed",
-      );
-    }
-
-    applyDivRanges(root);
-    applyDetailsRanges(root);
-  });
+function detailsSummaryAt(view: EditorView, event: Event): HTMLElement | null {
+  const target = event.target instanceof Element ? event.target : null;
+  const summary = target?.closest<HTMLElement>(".mdmeow-details-summary[data-mdmeow-details-pos]");
+  return summary && view.dom.contains(summary) ? summary : null;
 }
+
+function toggleDetails(view: EditorView, summary: HTMLElement): void {
+  const toggle: DetailsToggle = {
+    pos: Number(summary.dataset.mdmeowDetailsPos),
+    expanded: summary.getAttribute("aria-expanded") !== "true",
+  };
+  view.dispatch(view.state.tr.setMeta(structureKey, toggle).setMeta("addToHistory", false));
+}
+
+export const safeHtmlStructurePlugin = $prose(
+  () =>
+    new Plugin<StructureState>({
+      key: structureKey,
+      state: {
+        init: (_, state) => ({
+          toggles: new Map(),
+          decorations: structureDecorations(state.doc, new Map()),
+        }),
+        apply(tr, previous) {
+          const toggle = tr.getMeta(structureKey) as DetailsToggle | undefined;
+          if (!tr.docChanged && !toggle) return previous;
+          let toggles = previous.toggles;
+          if (tr.docChanged) {
+            toggles = new Map();
+            for (const [pos, expanded] of previous.toggles) {
+              const mapped = tr.mapping.mapResult(pos, 1);
+              if (!mapped.deleted) toggles.set(mapped.pos, expanded);
+            }
+          }
+          if (toggle) {
+            toggles = new Map(toggles);
+            toggles.set(toggle.pos, toggle.expanded);
+          }
+          return { toggles, decorations: structureDecorations(tr.doc, toggles) };
+        },
+      },
+      props: {
+        decorations(state) {
+          return this.getState(state)?.decorations ?? DecorationSet.empty;
+        },
+        handleDOMEvents: {
+          // Toggle on press so the click never becomes a node selection.
+          mousedown: (view, event) => {
+            const summary = detailsSummaryAt(view, event);
+            if (!summary) return false;
+            event.preventDefault();
+            if (event.button === 0) toggleDetails(view, summary);
+            return true;
+          },
+          keydown: (view, event) => {
+            if (event.key !== "Enter" && event.key !== " ") return false;
+            const summary = detailsSummaryAt(view, event);
+            if (!summary) return false;
+            event.preventDefault();
+            toggleDetails(view, summary);
+            return true;
+          },
+        },
+      },
+    }),
+);
 
 /** Patch Milkdown's existing `html` schema after Crepe has created it. */
 export function patchHtmlMarkdown(crepe: Crepe): void {

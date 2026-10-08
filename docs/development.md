@@ -189,6 +189,16 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.1.4 发行构建（2026-10-08）
+
+- 发行源码提交 `96e002018c125563978a9bcf190e27f026c183ba`，基于 v0.1.3 文档提交 `a4287bd` 快进。改动为 Markdown 文件树筛选（`.md`／`.markdown`／`.mdx`，含扫描预算与 30 秒昂贵结果缓存）、可拖动侧栏宽度、Windows 右键“新建 MD 文件”及配套文档；四处应用版本统一为 0.1.4，更新公钥、签名构建脚本与发行工作流未改变。用户确认 `.md` 无文件类型时补充 `PaperNest.NewMarkdown` 的行为可接受，并要求筛选包含 `.markdown`／`.mdx`。
+- 从该提交验证：`pnpm test:code-text`、`pnpm test:tab-path` 通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 为 45 项通过、3 项显式忽略。pnpm 运行前依赖检查（无 TTY 时试图重装 node_modules）仅在当前命令环境关闭，锁文件未变。`pnpm release:windows` 前端类型检查与构建、MSI 关联生命周期检查通过，EXE 与 MSI 分别通过内嵌公钥验签及篡改拒绝测试；构建后无 tracked 改动。
+- 构建脚本的 MSI 检查不覆盖新增动作，另行查询实际 MSI：`PaperNestUnregisterNewMdAction` 类型 82（即 `Return="ignore"`）、命令 `--papernest-msi-unregister-new-md`、序号 3498，位于关联清理 3499 与 RemoveFiles 3500 之前，条件为 `REMOVE~="ALL" AND NOT UPGRADINGPRODUCTCODE`。未执行实际 MSI 安装／升级／卸载。
+- [v0.1.4 正式发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.4) 已公开为 latest，附注标签解引用为上述源码提交，main 与 `codex/windows-release-0.1.4` 均已快进推送。草稿阶段核对六项资产名称、uploaded 状态、大小与 GitHub digest 后公开；匿名下载六个文件，大小与 SHA-256 均与本地一致。匿名 latest-release API、latest/download/latest.json、元数据中的 MSI URL 与签名全部通过核对。latest.json 带 UTF-8 BOM，与 v0.1.3 已发布文件一致，SHA256SUMS.txt 为无 BOM、LF。
+- 便携 EXE SHA-256：`6c8dbf7fe9d21979c773bc5a25cb62f9b678bbd28c150d25bffbca1a274d1e47`；MSI SHA-256：`5e6002dbb4a3a2f2bcf69255eda29d001e0bc85e9fc54fd1adc505b58264cb83`。其余文件哈希见 Release 的 SHA256SUMS.txt。
+- 标签触发的 [release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37737572467) 在 `Require updater signing secret` 步骤因缺少 `TAURI_SIGNING_PRIVATE_KEY` 停止，publish 被跳过。本次通过现有本地密钥签名发布，没有上传私钥。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 发行源码提交的日常 CI 在 [main](https://github.com/baihejiangnan/PaperNest/actions/runs/37737572158) 和 [发行分支](https://github.com/baihejiangnan/PaperNest/actions/runs/37737572364) 均通过。
+
 ### Windows v0.1.3 发行构建（2026-10-08）
 
 - 接手时发行分支已有本地提交 `bf2730a5f4559a1372316867eaf91f54d2f374a8`，远端 main 仍为 `70d15ef7e995a546d3cf3611464b71a54a7718de`，不存在远端 v0.1.3 标签或 Release。审查该提交的 32 个文件，未发现删除已跟踪文件；改动属于文件树导航、导出与保存加固、设置备份提示、配套文档和 CI。额外的 `/.pnpm-store/` 忽略规则仅排除本地缓存，四处应用版本统一为 0.1.3；更新公钥、签名构建脚本与发行工作流均未改变。Git 与当前磁盘状态无法完整证明未跟踪文件的历史删除行为。

@@ -173,6 +173,16 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.1.3 发行构建（2026-10-08）
+
+- 接手时发行分支已有本地提交 `bf2730a5f4559a1372316867eaf91f54d2f374a8`，远端 main 仍为 `70d15ef7e995a546d3cf3611464b71a54a7718de`，不存在远端 v0.1.3 标签或 Release。审查该提交的 32 个文件，未发现删除已跟踪文件；改动属于文件树导航、导出与保存加固、设置备份提示、配套文档和 CI。额外的 `/.pnpm-store/` 忽略规则仅排除本地缓存，四处应用版本统一为 0.1.3；更新公钥、签名构建脚本与发行工作流均未改变。Git 与当前磁盘状态无法完整证明未跟踪文件的历史删除行为。
+- 从该干净提交重新验证：`pnpm test:code-text`、`pnpm test:tab-path` 通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 为 40 项通过、3 项显式忽略。仅对当前命令设置仓库内 TEMP/TMP，未修改系统目录权限；pnpm 运行前依赖检查仅在当前命令环境关闭，构建未改变锁文件。`pnpm release:windows` 前端类型检查与构建、MSI 关联生命周期检查均通过，EXE 与 MSI 分别通过内嵌公钥验签及篡改拒绝测试。
+- 文件树导航的实际 WebView2 17 项交互与布局检查见上文；导出、围栏保存与设置损坏提示沿用本轮已记录的桌面实测。发行构建不等同于重新安装／卸载检查；实际 PDF 输出、深色导出及 Linux/macOS 继续保留待办。
+- [v0.1.3 正式发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.3) 已公开为 latest，附注标签指向上述源码提交，main 与 `codex/windows-release-0.1.3` 均已快进推送。先上传草稿核对六项资产名称、uploaded 状态、大小与 GitHub digest，再公开发布；匿名下载六个文件，大小与 SHA-256 均与本地一致。匿名 latest-release API、latest/download/latest.json、元数据中的 MSI URL 与签名全部通过核对。
+- 便携 EXE SHA-256：`eb595623e34e91f4c9fb0796a565fe8b5b59fb9c8dfd4efc8d0ddf63a2e35e48`；MSI SHA-256：`1809dbd3af233b06231758d55e117b30d0e7454dac4dbdd1066e31b3cdcee9b6`。其余文件哈希见 Release 的 SHA256SUMS.txt。旧版本带版本号的本地产物保留，上传仅包含本次六项文件。
+- 标签触发的 [release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37722766645) 在 `Require updater signing secret` 步骤因缺少 `TAURI_SIGNING_PRIVATE_KEY` 停止，构建／发布步骤未运行。本次通过现有本地密钥签名发布，没有上传私钥到 GitHub。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 发行源码提交的日常 CI 在 [main](https://github.com/baihejiangnan/PaperNest/actions/runs/37722766727) 和 [发行分支](https://github.com/baihejiangnan/PaperNest/actions/runs/37722766730) 均通过：锁定依赖安装、前端类型检查与构建、两个前端逻辑脚本及 Rust 测试全部成功。此结果与缺密钥停止的 release 工作流分别记录。
+
 ### Windows v0.1.2 发行构建（2026-10-07）
 
 - 用户确认本轮界面检查没有问题并授权推送、发布。该确认与上述浏览器组件自动检查分别记录，不将其计为安装／卸载自动测试。设置界面桌面待确认项已关闭，其他明确列出的平台验证范围继续保留。

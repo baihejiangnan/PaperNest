@@ -1,88 +1,128 @@
+<div align="center">
+
+<img src="branding/icon-master.png" width="96" alt="纸间图标">
+
 # 纸间 PaperNest
 
-<img src="branding/icon-master.png" width="112" alt="纸间图标">
+面向本地文件的轻量桌面阅读与编辑工具。<br>
+打开 Markdown 即可阅读和修改，也能快速查看代码、配置、日志与图片。
 
-一个面向本地文件的轻量桌面阅读与编辑工具：打开 Markdown 即可阅读和修改，也能快速查看代码、配置、日志与图片。
+[![最新版本](https://img.shields.io/github/v/release/baihejiangnan/PaperNest?label=%E7%89%88%E6%9C%AC)](https://github.com/baihejiangnan/PaperNest/releases/latest)
+[![许可证](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
+[![平台](https://img.shields.io/badge/platform-Windows%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[简体中文](README.md) · [English](README.en.md)
+[下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
 
-> 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发。Windows 便携版和安装包见 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)。旧项目的安装包不包含这里的新增功能。
+</div>
 
-## 能做什么
+---
 
-| 场景 | 当前能力 |
+## 目录
+
+- [功能亮点](#功能亮点)
+- [下载与安装](#下载与安装)
+- [快速上手](#快速上手)
+- [快捷键](#快捷键)
+- [文件与数据](#文件与数据)
+- [从源码构建](#从源码构建)
+- [项目结构与文档](#项目结构与文档)
+- [致谢与许可](#致谢与许可)
+
+## 功能亮点
+
+| | |
 | --- | --- |
-| 阅读与编辑 Markdown | Milkdown/Crepe 所见即所得视图；一键切换带行号和语法高亮的源码视图；支持标题、列表、任务、表格、链接、脚注及数学公式。 |
-| 查看其他文件 | JSON、YAML、TOML、代码、日志和纯文本进入 Code 模式，支持查找、替换和轻量修改；图片在独立标签页预览。 |
-| 管理本地文档 | 多标签页、文件树、标题大纲、目录内搜索、最近查看的前进/后退、拖放打开和会话恢复。标题栏加号打开新标签页，可从空白页创建或打开文件；箭头菜单可切换、堆叠、收藏及关闭标签页。 |
-| 处理文件 | 保存、另存为、重命名、新建、复制和删除；文件或目录可从文件树菜单在系统文件管理器中定位。 |
-| 输出和自定义 | 导出 HTML，通过系统打印流程输出 PDF（导出时会移除文档中的脚本等可执行内容）；可调整字体、强调色、浅色/深色/跟随系统主题、快捷键和窗口行为。 |
+| **所见即所得的 Markdown** | Milkdown/Crepe 渲染标题、列表、任务、表格、链接、脚注和数学公式；一键切换到带行号与语法高亮的源码视图。 |
+| **不只是 Markdown** | JSON、YAML、TOML、代码、日志和纯文本进入 Code 模式，支持查找、替换与轻量修改；图片在独立标签页预览。 |
+| **文件树与多标签页** | 按需读取目录，默认聚焦 Markdown 文档；标签页可堆叠、收藏和恢复，配合大纲、目录内搜索、前进/后退和会话恢复。 |
+| **安全的文件操作** | 新建、重命名、复制、删除都在应用内完成；删除前显示引用情况，文件移入系统回收站，可随时恢复。 |
+| **导出 HTML 与 PDF** | 导出独立 HTML，或通过系统打印输出 PDF；导出时移除文档中的脚本等可执行内容。 |
+| **按习惯调整** | 浅色、深色或跟随系统；自定义强调色、字体和字号，快捷键可重新绑定，设置支持跨分类搜索。 |
 
-文件树按需读取目录；显示时定期同步根目录和已展开的子目录，返回应用窗口时立即刷新，折叠目录在再次展开时重新读取。以点号开头的项目和符号链接仍会被隐藏。Markdown 中的相对图片与本地链接以当前文档所在目录解析。点击图片可以放大预览，并可调整对齐和缩放。对于二进制文件，应用不会将其当作文本打开。不支持的文件格式或文本编码会在窗口上方居中显示琥珀色胶囊提示，4 秒后自动消失，可手动关闭，不中断当前阅读。
+## 下载与安装
 
-Windows 下，右键“在资源管理器中打开”会打开所选文件夹；右键文件时打开其所在目录并选中文件，在文件树空白处操作则打开当前根目录。
+当前正式发行 **Windows x64** 版本，在 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载：
 
-Windows 的**设置 → 文件关联 → Windows 资源管理器**提供“在右键‘新建’中显示 MD 文件”开关，默认关闭。启用后，即使 PaperNest 已关闭，也可以在系统“新建”菜单创建空白 `.md` 文件。现有默认打开程序与其他软件的新建项会保留；系统中 `.md` 尚无任何文件类型时，会补充由 PaperNest 打开的 MD 类型，关闭开关即撤销；已有其他 MD 新建项时会提示冲突。便携版删除前请先关闭此开关。
+| 包类型 | 文件 | 适合 |
+| --- | --- | --- |
+| 便携版 | `PaperNest-X.Y.Z.exe` | 免安装，放在任意目录或 U 盘中使用；数据可保存在程序旁的 `data/` 目录。 |
+| 安装版 | `PaperNest_X.Y.Z_x64.msi` | 安装到系统，配合文件关联和右键“新建 MD 文件”使用。 |
 
-默认使用 Obsidian 风格的中性色与紫色强调色。警告、确认与消息使用应用内弹窗；删除确认显示文件数量、引用来源和“不再询问”，可在常规设置中恢复删除前询问。文件和文件夹删除会移入系统回收站，可从回收站恢复；移入失败会提示错误，不会改为永久删除。全局组件规则见 [UI 规范](docs/design.md)。
+- 运行需要 **WebView2 Runtime**（Windows 10/11 通常已内置）。
+- 每个发行版附带 `.sig` 更新签名和 `SHA256SUMS.txt`，可用来核对文件。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
+- 自动检查更新默认关闭，可在设置中开启；只获取本项目发布并经签名验证的版本，下载和安装前仍需确认。
+- Linux 与 macOS 版本暂未发行。
 
-收藏标签页会保存当前有文件路径的标签页列表，之后可从标题栏箭头菜单恢复；未保存的新文件内容不会进入收藏。
-文件树顶部的 ↑ 显示上一级目录；往上走之后，路径栏会以淡色保留原来更深的文件夹，点击即可回到那一层。◎ 按钮把文件树切回当前文档所在目录并定位到该文件；右键文件夹选择“设为根目录”可直接进入任意子目录。
-路径段支持 Tab／Shift+Tab 遍历、Enter／空格进入，目录刷新时保持焦点。长路径自动换行，单个超长名称省略显示，悬停可查看完整路径。
+> 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发；原项目的安装包不包含这里的新增功能。
 
-文件树默认只显示 Markdown 文档（`.md`、`.markdown`、`.mdx`，不区分大小写）及其祖先文件夹；搜索下方的 MD 图标可关闭筛选，显示其他文件与空目录。搜索结果也遵循筛选；常规设置提供同一开关，状态会保存。筛选沿用文件树原有的隐藏项与符号链接排除规则，不改变文档打开方式。
-拖动侧栏与内容区域之间的分隔线可调整宽度，松开后保存；双击恢复默认。分隔线聚焦后支持左右方向键（Shift 加速）、Home／End。窄窗口自动限制侧栏宽度，为内容保留空间。
+## 快速上手
 
-在文件树中普通点击文件会复用预览标签页；要保留文件的独立标签页，请右键选择“在新标签页中打开”。切换有未保存修改的预览页前会先确认。
-右键打开独立标签页时会立即显示标签；读取较慢时显示“正在打开文件…”，完成后自动显示内容。加载期间可以切换或关闭标签页，后续读取结果不会抢回当前页面或重新打开已关闭的标签。
+1. **打开文件**：`Ctrl+O`、拖放文件到窗口，或在左侧文件树中点击。
+2. **切换视图**：`Ctrl+/` 在 Markdown 渲染视图和源码视图之间切换。
+3. **浏览目录**：文件树顶部的 ↑ 返回上一级，◎ 回到当前文档所在目录；右键文件夹可“设为根目录”。
+4. **保留标签页**：普通点击会复用预览标签页；右键选择“在新标签页中打开”保留独立标签页，“在新窗口中打开”打开单文档窗口。
+5. **调整外观**：`Ctrl+,` 打开设置，修改主题、强调色、字体和快捷键。
 
-“在新窗口中打开”使用同一应用进程中的单文档窗口，Windows 开发版已完成多窗口与资源管理器定位回归，记录见 [开发说明](docs/development.md)。Windows 候选发行包的剩余检查见 [TODO](TODO.md)；Linux 与 macOS 的发行和实机确认暂定。
+<details>
+<summary><b>文件树</b></summary>
 
-## 获取与运行
+- 默认只显示 Markdown 文档（`.md`、`.markdown`、`.mdx`，不区分大小写）及其祖先文件夹。搜索下方的 MD 图标可关闭筛选，常规设置提供同一开关。
+- 目录按需读取；显示时定期同步根目录和已展开的子目录，返回窗口时立即刷新。以点号开头的项目和符号链接会被隐藏。
+- 往上一级后，路径栏以淡色保留原来更深的文件夹，点击即可回到那一层。路径段支持 Tab／Shift+Tab 遍历、Enter／空格进入。
+- 拖动侧栏分隔线调整宽度，双击恢复默认；聚焦后可用方向键（Shift 加速）和 Home／End。
+- Windows 下右键“在资源管理器中打开”会打开所选文件夹，或打开文件所在目录并选中该文件。
 
-Windows x64 用户可从 [最新发行版](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载便携 EXE 或 MSI 安装包，运行需要 WebView2 Runtime。
+</details>
 
-从源码构建需要 Node.js 20+、pnpm 与 Rust stable（最低 1.85）；Windows 还需要 Visual C++ Build Tools、Windows SDK 和 WebView2。
+<details>
+<summary><b>标签页与窗口</b></summary>
 
-```bash
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
+- 标题栏加号打开新标签页，可从空白页创建或打开文件；箭头菜单可切换、堆叠、收藏及关闭标签页。
+- 收藏会保存有文件路径的标签页列表，之后可从箭头菜单恢复；未保存的新文件不会进入收藏。
+- 右键打开独立标签页时立即显示标签，读取较慢时显示“正在打开文件…”；加载期间可以切换或关闭标签页。
+- 切换有未保存修改的预览页前会先确认。
+- “在新窗口中打开”在同一应用进程中创建只显示单个文档的窗口，不附带文件树、大纲或标签栏。
 
-检查前端构建：
+</details>
 
-```bash
-pnpm build
-```
+<details>
+<summary><b>编辑与右键菜单</b></summary>
 
-本机打包可运行 `pnpm tauri build`；`pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。发布工作流以 `vX.Y.Z` 标签构建 Windows 产物，需配置 `TAURI_SIGNING_PRIVATE_KEY`；Linux/macOS 发行暂定。更新签名用于应用内验签，当前没有 Windows Authenticode 证书签名。自动检查更新默认关闭，可在设置中开启以获取本项目发布的签名版本。
+- 正文右键菜单可添加或编辑链接、查找文字、设置文本格式、转换标题与列表，以及插入表格、图片、分隔线、代码块和数学块；Shift+F10 可从键盘打开。
+- “添加链接／编辑链接”在选区附近打开轻量浮层，可输入网址或本地路径，也可搜索当前文档的同级文件并插入相对链接。
+- 点击图片可放大预览，并调整对齐和缩放。相对图片与本地链接以当前文档所在目录解析。
+- 二进制文件不会按文本打开；不支持的格式或编码会在窗口顶部显示一条 4 秒后消失的提示，不打断阅读。
 
-## 常用操作
+</details>
+
+<details>
+<summary><b>设置</b></summary>
+
+- 设置使用左侧分类导航；顶部“搜索设置”可跨分类查找名称、配置键名和文件扩展名。
+- “编辑器 → 字体”中的“预览当前文档”会淡化设置遮罩，直接查看背后文档的排版；按 Esc 返回。
+- 删除确认显示文件数量和引用来源，勾选“不再询问”后可在“常规 → 删除文件前询问”恢复。
+- Windows 的“文件关联 → Windows 资源管理器”提供“在右键‘新建’中显示 MD 文件”开关，默认关闭，即使应用未运行也能在系统“新建”菜单创建 `.md` 文件。不会覆盖现有默认打开程序；便携版删除前请先关闭此开关。
+
+</details>
+
+## 快捷键
 
 | 操作 | 默认快捷键 |
 | --- | --- |
-| 新建标签页；在新标签页中创建文件 | `Ctrl/Cmd+N` |
-| 打开文件 | `Ctrl/Cmd+O` |
-| 保存 / 另存为 | `Ctrl/Cmd+S` / `Ctrl/Cmd+Shift+S` |
-| 关闭标签页 | `Ctrl/Cmd+W` |
-| 导出 HTML / PDF | `Ctrl/Cmd+E` |
-| Markdown 渲染 / 源码 | `Ctrl/Cmd+/` |
-| 查找 / 替换 | `Ctrl/Cmd+F` / `Ctrl/Cmd+H` |
-| 设置 | `Ctrl/Cmd+,` |
+| 新建标签页 | `Ctrl+N` |
+| 打开文件 | `Ctrl+O` |
+| 保存 / 另存为 | `Ctrl+S` / `Ctrl+Shift+S` |
+| 关闭标签页 | `Ctrl+W` |
+| 导出 HTML / PDF | `Ctrl+E` |
+| 渲染 / 源码视图 | `Ctrl+/` |
+| 查找 / 替换 | `Ctrl+F` / `Ctrl+H` |
+| 设置 | `Ctrl+,` |
 
-应用级快捷键可以在设置中重新绑定。文件树右键菜单提供新建、复制路径、重命名和删除等操作；**删除会移入系统回收站**，默认操作前会弹出确认。
+macOS 使用 `Cmd` 代替 `Ctrl`。应用级快捷键可在设置中重新绑定。
 
-设置使用左侧分类导航。进入“编辑器 → 字体”，点击“预览当前文档”可淡化设置遮罩，只保留字体控件，直接查看背后文档的排版；字体和字号输入时即时生效并保存。点击“返回设置”或按一次 Esc 恢复完整设置，再按 Esc 关闭。小窗口将预览控件放在底部并支持滚动。
+## 文件与数据
 
-顶部“搜索设置”可跨分类查找名称、配置键名与文件扩展名，点击结果跳转并聚焦对应控件；Enter 打开首项，方向键浏览结果，Esc 先清除搜索。更新页显示当前版本、更新来源和自动检查偏好；启动时的自动检查与上次尝试至少间隔 24 小时，下载和安装仍需用户确认。
-
-正文右键菜单使用应用主题，可对选区添加或编辑链接、查找文字、设置文本格式、转换标题与列表，以及插入表格、图片、分隔线、代码块和数学块。支持撤销、重做、剪切、复制、粘贴、纯文本粘贴及全选；源码、普通文本与正文中的代码块使用对应的纯文本编辑菜单。子菜单支持鼠标悬停和方向键，Esc 关闭并恢复选区，Shift+F10 可从键盘打开。
-
-“添加链接／编辑链接”在选区附近打开轻量浮层，可直接输入网址或本地路径，也可搜索并选择当前文档的同级文件。点击文件或用方向键与 Enter 插入相对链接，保留所选文字；无选区时使用文件名作为链接文字。Esc、关闭按钮或点击外部取消，不写入临时内容。尚未保存的文档可直接输入链接，保存后才能列出同级文件。
-
-## 文件格式与数据
-
-纸间直接读写本地文件，不要求导入到专用项目。Markdown 保持普通文本格式，标准图片链接与常见 HTML `<img>` 均可显示。例如：
+**普通文件，原样读写。** 纸间直接读写本地文件，不需要导入专用库或项目。Markdown 保持普通文本，标准图片链接和常见 HTML `<img>` 都能显示：
 
 ```md
 ![示意图](./assets/diagram.png)
@@ -90,21 +130,44 @@ pnpm build
 <img src="./assets/diagram.png" alt="示意图" style="zoom:50%;" data-align="center">
 ```
 
-设置和会话状态保存在 `settings.toml`，修改设置后会即时保存。手动编辑后如果文件无法解析，启动时会提示错误，并把原文件另存为同目录下的 `settings.invalid-<时间>.toml`，再以默认设置运行。便携版的数据可位于程序旁的 `data/` 目录；安装版使用系统用户数据目录。应用不会自动同步文档到云端，换电脑时请另行备份自己的文件与设置。
+**设置保存在本地。** 设置和会话状态保存在 `settings.toml`，修改后即时保存。便携版可使用程序旁的 `data/` 目录，安装版使用系统用户数据目录。手动编辑导致无法解析时，启动会提示错误，原文件另存为 `settings.invalid-<时间>.toml`，并以默认设置运行。
 
-## 项目结构
+**删除可以撤回。** 文件和文件夹删除会移入系统回收站；移入失败时只提示错误，不会改为永久删除。
 
-| 路径 | 用途 |
+**不上传、不同步。** 应用不会把文档同步到云端，换电脑时请自行备份文件与设置。
+
+## 从源码构建
+
+需要 Node.js 20+、pnpm 和 Rust stable（最低 1.85）；Windows 还需要 Visual C++ Build Tools、Windows SDK 和 WebView2。
+
+```bash
+pnpm install --frozen-lockfile
+pnpm tauri dev        # 启动开发版
+pnpm build            # 检查前端类型与构建
+pnpm tauri build      # 本机打包
+```
+
+`pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。调试方法和回归清单见 [开发说明](docs/development.md)，正式发行流程见 [推送与发行规则](docs/release-rules.md)。
+
+## 项目结构与文档
+
+| 路径 | 内容 |
 | --- | --- |
-| `src/` | 前端界面、Markdown 与 Code 模式、标签页和文件树。 |
-| `src-tauri/` | Rust 文件操作、窗口、设置、平台集成和打包。 |
-| `docs/development.md` | 本地命令与手动回归步骤。 |
-| `ARCHITECTURE.md` | 前后端边界与数据流。 |
-| `docs/design.md` | 界面设计约束。 |
-| `TODO.md` | 当前待验证事项。 |
+| `src/` | 前端界面、Markdown 与 Code 模式、标签页和文件树 |
+| `src-tauri/` | Rust 文件操作、窗口、设置、平台集成和打包 |
+| `docs/index.html` | [项目介绍页](https://baihejiangnan.github.io/PaperNest/)（GitHub Pages） |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 前后端边界、状态归属与数据流 |
+| [docs/design.md](docs/design.md) | 全局 UI 规范与配色 |
+| [docs/development.md](docs/development.md) | 本地命令、调试与回归记录 |
+| [docs/release-rules.md](docs/release-rules.md) | 推送与发行规则 |
+| [TODO.md](TODO.md) | 待验证和待完成事项 |
 
-技术栈为 Tauri v2、Rust、TypeScript、Milkdown/Crepe、CodeMirror 和 KaTeX。代码与图片图标均随仓库提供；项目采用 [MIT License](LICENSE.md)。
+技术栈：Tauri v2 · Rust · TypeScript · Milkdown/Crepe · CodeMirror · KaTeX
 
-## 致谢上游
+> 多窗口和资源管理器定位已在 Windows 开发版完成回归；Windows 候选发行包的剩余检查见 [TODO](TODO.md)。Linux 与 macOS 的发行和实机确认暂定。
 
-感谢 [zakee039 的 MDmeow](https://github.com/zakee039/MDmeow) 提供了本项目的直接基础，也感谢更早的 [Ali Naderi / Mowl](https://github.com/naderi/mowl)。纸间在这些工作之上扩展了本地文件阅读、文件树、图片预览与界面体验。原有版权与 MIT 许可文本保留在 [LICENSE.md](LICENSE.md)。
+## 致谢与许可
+
+感谢 [zakee039 的 MDmeow](https://github.com/zakee039/MDmeow) 提供了本项目的直接基础，也感谢更早的 [Ali Naderi / Mowl](https://github.com/naderi/mowl)。纸间在这些工作之上扩展了本地文件阅读、文件树、图片预览与界面体验。
+
+本项目采用 [MIT License](LICENSE.md)，原有版权与许可文本保留在其中。

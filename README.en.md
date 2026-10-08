@@ -1,64 +1,128 @@
+<div align="center">
+
+<img src="branding/icon-master.png" width="96" alt="PaperNest icon">
+
 # PaperNest
 
-<img src="branding/icon-master.png" width="112" alt="PaperNest icon">
+A lightweight desktop app for reading and editing local documents.<br>
+Open Markdown to read or edit it, and quickly inspect code, configuration, logs, and images.
 
-A lightweight desktop app for local documents. Open Markdown to read or edit it, and quickly inspect code, configuration, logs, and images.
+[![Latest release](https://img.shields.io/github/v/release/baihejiangnan/PaperNest?label=release)](https://github.com/baihejiangnan/PaperNest/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[简体中文](README.md) · [English](README.en.md)
+[Download](https://github.com/baihejiangnan/PaperNest/releases/latest) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
 
-> PaperNest is developed on top of [MDmeow](https://github.com/zakee039/MDmeow). Windows portable and installer downloads are available in [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest). Upstream installers do not include this repository's additions.
+</div>
 
-## What it does
+---
 
-| Task | Current capability |
+## Contents
+
+- [Highlights](#highlights)
+- [Download and install](#download-and-install)
+- [Getting started](#getting-started)
+- [Shortcuts](#shortcuts)
+- [Files and data](#files-and-data)
+- [Build from source](#build-from-source)
+- [Project map and docs](#project-map-and-docs)
+- [Acknowledgments and license](#acknowledgments-and-license)
+
+## Highlights
+
+| | |
 | --- | --- |
-| Read and edit Markdown | Milkdown/Crepe WYSIWYG view and a source view with line numbers and syntax highlighting. Headings, lists, tasks, tables, links, footnotes, and math are supported. |
-| Inspect other files | JSON, YAML, TOML, source code, logs, and plain text open in Code mode with find, replace, and light editing. Images open in their own tabs. |
-| Navigate local documents | Multiple tabs, a file tree, heading outline, folder search, back/forward navigation, drag and drop, and session restore. |
-| Work with files | Save, Save As, rename, create, duplicate, and delete. File tree actions can reveal files and folders in the system file manager. |
-| Export and customize | Export HTML or print to PDF (scripts and other executable content in a document are removed on export); adjust fonts, accent color, light/dark/system theme, shortcuts, and window behavior. |
+| **WYSIWYG Markdown** | Milkdown/Crepe renders headings, lists, tasks, tables, links, footnotes, and math. Switch to a source view with line numbers and syntax highlighting in one keystroke. |
+| **More than Markdown** | JSON, YAML, TOML, source code, logs, and plain text open in Code mode with find, replace, and light editing. Images open in their own tabs. |
+| **File tree and tabs** | Directories load on demand and focus on Markdown by default. Tabs can be stacked, favorited, and restored, alongside an outline, folder search, back/forward, and session restore. |
+| **Safe file operations** | Create, rename, duplicate, and delete inside the app. Delete shows where a file is referenced and moves it to the system recycle bin. |
+| **HTML and PDF export** | Export standalone HTML or print to PDF. Scripts and other executable content are removed on export. |
+| **Make it yours** | Light, dark, or system theme; custom accent color, fonts, and size; rebindable shortcuts and searchable settings. |
 
-The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. ↑ shows the parent folder; after going up, the path bar keeps the deeper folders you came from (dimmed) so one click returns there. ◎ switches the tree back to the current document's folder and highlights the file, and “Show as root folder” in a folder's context menu enters any subfolder directly. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text. Unsupported file formats or text encodings show an amber capsule centered near the top of the window. It disappears after four seconds, can be dismissed manually, and lets you keep reading.
+## Download and install
 
-Use Tab/Shift+Tab to move between return-path buttons and Enter/Space to enter a folder; directory refreshes retain focus. Long paths wrap, individual overlong names are ellipsized, and hovering shows the full path.
+The current release targets **Windows x64**. Download it from [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest):
 
-On Windows, “Open in File Explorer” opens the selected folder, or opens a file's parent folder with that file selected. Using the menu in the tree's blank area opens its current root folder.
+| Package | File | Best for |
+| --- | --- | --- |
+| Portable | `PaperNest-X.Y.Z.exe` | No installation. Run from any folder or USB drive; data can live in a `data/` folder next to the executable. |
+| Installer | `PaperNest_X.Y.Z_x64.msi` | System install with file associations and the Explorer “New → MD File” entry. |
 
-Ordinary file-tree clicks reuse a preview tab. Choose “Open in new tab” from a file's context menu to keep a separate tab: it appears immediately and shows “Opening file…” while reading. You can switch or close it during loading; completion keeps your current selection and never reopens a closed tab. Replacing an edited preview requires confirmation.
+- **WebView2 Runtime** is required (usually preinstalled on Windows 10/11).
+- Each release includes `.sig` updater signatures and `SHA256SUMS.txt` for verification. Windows Authenticode certificate signing is not configured, so Windows may warn about an unknown publisher on first run.
+- Automatic update checks are off by default. When enabled, the app only accepts this project's signed releases and asks before downloading or installing.
+- Linux and macOS releases are not available yet.
 
-Opening a file in a new window uses a single-document window in the same app process. Multiple windows and Explorer location actions passed Windows development-build checks; see [development notes](docs/development.md). Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux and macOS releases and on-device checks are deferred.
+> PaperNest is developed on top of [MDmeow](https://github.com/zakee039/MDmeow). Upstream installers do not include this repository's additions.
 
-## Get started
+## Getting started
 
-Windows x64 users can download the portable EXE or MSI installer from the [latest release](https://github.com/baihejiangnan/PaperNest/releases/latest). WebView2 Runtime is required.
+1. **Open a file** with `Ctrl+O`, by dragging it onto the window, or from the file tree.
+2. **Switch views** with `Ctrl+/` between rendered Markdown and source.
+3. **Browse folders**: ↑ goes to the parent folder, ◎ returns to the current document's folder, and “Show as root folder” in a folder's context menu enters any subfolder.
+4. **Keep tabs**: a normal click reuses a preview tab. Use “Open in new tab” to keep a separate tab, or “Open in new window” for a single-document window.
+5. **Adjust the look** with `Ctrl+,` for theme, accent color, fonts, and shortcuts.
 
-To build from source, you need Node.js 20+, pnpm, and stable Rust (1.85 or newer). Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
+<details>
+<summary><b>File tree</b></summary>
 
-```bash
-pnpm install --frozen-lockfile
-pnpm tauri dev
-```
+- By default only Markdown documents (`.md`, `.markdown`, `.mdx`, case-insensitive) and their parent folders are shown. The MD icon below search turns the filter off; General settings has the same switch.
+- Folders load on demand. While visible, the tree syncs the root and expanded folders and refreshes when the window regains focus. Dot-prefixed entries and symbolic links stay hidden.
+- After going up, the path bar keeps the deeper folders you came from (dimmed) so one click returns there. Path segments support Tab/Shift+Tab and Enter/Space.
+- Drag the sidebar divider to resize it and double-click to reset. When focused, use the arrow keys (Shift for larger steps) and Home/End.
+- On Windows, “Open in File Explorer” opens the selected folder, or a file's parent folder with the file selected.
 
-Check the frontend build with `pnpm build`. Package locally with `pnpm tauri build`, or run `pnpm release:windows` for the Windows x64 portable EXE, MSI, updater signatures, `latest.json` and `SHA256SUMS.txt`. The release workflow builds Windows artifacts for a `vX.Y.Z` tag and requires `TAURI_SIGNING_PRIVATE_KEY`; Linux/macOS releases are deferred. Updater signatures are verified by the app; Windows Authenticode certificate signing is not configured. Automatic update checks are off by default and can be enabled in settings to receive this project's signed releases.
+</details>
 
-## Common shortcuts
+<details>
+<summary><b>Tabs and windows</b></summary>
+
+- The plus button opens a new tab where you can create or open a file. The arrow menu switches, stacks, favorites, and closes tabs.
+- Favorites save the list of tabs that have file paths and can be restored from the arrow menu. Unsaved new files are not included.
+- “Open in new tab” shows the tab immediately with “Opening file…” while reading. You can switch or close it during loading.
+- Replacing an edited preview tab asks for confirmation first.
+- “Open in new window” creates a single-document window in the same app process, without the file tree, outline, or tab bar.
+
+</details>
+
+<details>
+<summary><b>Editing and context menus</b></summary>
+
+- The editor context menu adds or edits links, finds text, formats text, converts headings and lists, and inserts tables, images, rules, code blocks, and math blocks. Shift+F10 opens it from the keyboard.
+- “Add link / Edit link” opens a small popover near the selection. Type a URL or local path, or search sibling files of the current document to insert a relative link.
+- Click an image to enlarge it, and adjust its alignment and size. Relative images and local links resolve from the current document's folder.
+- Binary files are never opened as text. Unsupported formats or encodings show a short notice at the top of the window that disappears after four seconds.
+
+</details>
+
+<details>
+<summary><b>Settings</b></summary>
+
+- Settings use category navigation on the left. “Search settings” finds names, config keys, and file extensions across categories.
+- “Editor → Font → Preview current document” fades the settings overlay so you can see the document behind it. Press Esc to return.
+- Delete confirmation shows file counts and referencing documents. “Do not ask again” can be reset in General settings.
+- On Windows, “File associations → Windows Explorer” offers a “Show MD File in Explorer's New menu” switch (off by default). It works even when the app is closed and never replaces your default app. Turn it off before deleting a portable copy.
+
+</details>
+
+## Shortcuts
 
 | Action | Default |
 | --- | --- |
-| New tab | `Ctrl/Cmd+N` |
-| Open file | `Ctrl/Cmd+O` |
-| Save / Save As | `Ctrl/Cmd+S` / `Ctrl/Cmd+Shift+S` |
-| Close tab | `Ctrl/Cmd+W` |
-| Export HTML / PDF | `Ctrl/Cmd+E` |
-| Markdown render / source | `Ctrl/Cmd+/` |
-| Find / Replace | `Ctrl/Cmd+F` / `Ctrl/Cmd+H` |
-| Settings | `Ctrl/Cmd+,` |
+| New tab | `Ctrl+N` |
+| Open file | `Ctrl+O` |
+| Save / Save As | `Ctrl+S` / `Ctrl+Shift+S` |
+| Close tab | `Ctrl+W` |
+| Export HTML / PDF | `Ctrl+E` |
+| Rendered / source view | `Ctrl+/` |
+| Find / Replace | `Ctrl+F` / `Ctrl+H` |
+| Settings | `Ctrl+,` |
 
-App shortcuts can be rebound in Settings. The file tree menu offers create, copy path, rename, and delete actions. **Deletion moves files and folders to the system recycle bin** and asks for confirmation by default. Recycling errors never fall back to permanent deletion.
+macOS uses `Cmd` instead of `Ctrl`. App shortcuts can be rebound in Settings.
 
 ## Files and data
 
-PaperNest reads and writes ordinary local files without importing them into a proprietary project. Markdown remains plain text. Standard image links and common HTML `<img>` tags can both render:
+**Plain files, read and written as-is.** PaperNest works with ordinary local files and never imports them into a proprietary library. Markdown stays plain text, and both standard image links and common HTML `<img>` tags render:
 
 ```md
 ![Diagram](./assets/diagram.png)
@@ -66,23 +130,44 @@ PaperNest reads and writes ordinary local files without importing them into a pr
 <img src="./assets/diagram.png" alt="Diagram" style="zoom:50%;" data-align="center">
 ```
 
-Preferences and session state are stored in `settings.toml` and saved as settings change. If a hand edit leaves the file unreadable, the app reports the error at startup, keeps the original as `settings.invalid-<time>.toml` in the same folder, and runs with default settings. Portable data can live in a `data/` folder next to the executable; installed builds use the system user-data directory. The app does not sync documents to a cloud service, so back up your files and settings separately when moving computers.
+**Settings stay local.** Preferences and session state are saved to `settings.toml` as they change. Portable builds can use a `data/` folder next to the executable; installed builds use the system user-data directory. If a hand edit makes the file unreadable, the app reports it at startup, keeps the original as `settings.invalid-<time>.toml`, and runs with defaults.
 
-## Project map
+**Deletes can be undone.** Files and folders go to the system recycle bin. If recycling fails, the app reports the error and never falls back to permanent deletion.
 
-| Path | Purpose |
+**No upload, no sync.** Documents are never synced to a cloud service, so back up your files and settings yourself when moving computers.
+
+## Build from source
+
+You need Node.js 20+, pnpm, and stable Rust (1.85 or newer). Windows also needs Visual C++ Build Tools, Windows SDK, and WebView2.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm tauri dev        # run the development build
+pnpm build            # type-check and build the frontend
+pnpm tauri build      # package locally
+```
+
+`pnpm release:windows` produces the Windows x64 portable EXE, MSI, updater signatures, `latest.json`, and `SHA256SUMS.txt`. See [development notes](docs/development.md) for debugging and regression checks, and [release rules](docs/release-rules.md) for the publishing process.
+
+## Project map and docs
+
+| Path | Contents |
 | --- | --- |
-| `src/` | Frontend, Markdown and Code modes, tabs, and file tree. |
-| `src-tauri/` | Rust file operations, windows, settings, platform integration, and packaging. |
-| `docs/development.md` | Local commands and manual regression steps. |
-| `ARCHITECTURE.md` | Frontend/backend boundaries and data flow. |
-| `docs/design.md` | Interface design constraints. |
-| `TODO.md` | Items awaiting verification. |
+| `src/` | Frontend, Markdown and Code modes, tabs, and file tree |
+| `src-tauri/` | Rust file operations, windows, settings, platform integration, and packaging |
+| `docs/index.html` | [Project website](https://baihejiangnan.github.io/PaperNest/) (GitHub Pages) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Frontend/backend boundaries, state ownership, and data flow |
+| [docs/design.md](docs/design.md) | Global UI specification and colors |
+| [docs/development.md](docs/development.md) | Local commands, debugging, and regression records |
+| [docs/release-rules.md](docs/release-rules.md) | Push and release rules |
+| [TODO.md](TODO.md) | Items awaiting verification |
 
-The stack includes Tauri v2, Rust, TypeScript, Milkdown/Crepe, CodeMirror, and KaTeX. The project is distributed under the [MIT License](LICENSE.md).
+Stack: Tauri v2 · Rust · TypeScript · Milkdown/Crepe · CodeMirror · KaTeX
 
-## Upstream acknowledgments
+> Multiple windows and Explorer location actions passed Windows development-build checks. Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux and macOS releases and on-device checks are deferred.
 
-Thanks to [zakee039's MDmeow](https://github.com/zakee039/MDmeow), the direct foundation for this project, and to the earlier [Ali Naderi / Mowl](https://github.com/naderi/mowl). PaperNest builds on their work with local file reading, a file tree, image previews, and interface changes. The original copyright and MIT license notice remain in [LICENSE.md](LICENSE.md).
+## Acknowledgments and license
 
-The default theme uses Obsidian-style neutral surfaces and a purple accent. Confirmations and messages are in-app dialogs. Delete confirmation shows file counts and saved Markdown references; “Do not ask again” can be reset in General settings. Deleted files and folders can be restored from the system recycle bin. See the [global UI specification](docs/design.md).
+Thanks to [zakee039's MDmeow](https://github.com/zakee039/MDmeow), the direct foundation for this project, and to the earlier [Ali Naderi / Mowl](https://github.com/naderi/mowl). PaperNest builds on their work with local file reading, a file tree, image previews, and interface changes.
+
+PaperNest is distributed under the [MIT License](LICENSE.md), which keeps the original copyright and license notice.

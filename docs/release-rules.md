@@ -64,6 +64,7 @@ pnpm test:code-text
 pnpm test:tab-path
 pnpm test:details-html
 pnpm test:markdown-serializer
+pnpm test:update-ui
 cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
 pnpm release:windows
 ```
@@ -101,14 +102,14 @@ pnpm release:windows
 | `PaperNest-X.Y.Z.exe.sig` | 便携程序更新签名 |
 | `PaperNest_X.Y.Z_x64.msi` | Windows x64 安装包 |
 | `PaperNest_X.Y.Z_x64.msi.sig` | 安装包更新签名 |
-| `latest.json` | 版本、windows-x86_64 MSI 下载 URL 与对应签名 |
+| `latest.json` | 版本、说明、日期、MSI 与便携 EXE 的下载 URL、各自签名与大小 |
 | `SHA256SUMS.txt` | 前五项文件的 SHA-256，不包含自身 |
 
-应用检查更新读取 `https://api.github.com/repos/baihejiangnan/PaperNest/releases/latest`，按便携／安装模式寻找上表精确文件名及对应 `.sig`，下载后用内嵌公钥验证。latest.json 也必须发布并保持一致，但当前应用不是仅靠该文件判断更新；只更新 JSON 而漏发 EXE/MSI 或签名会破坏更新能力。
+应用检查及下载前复查均读取 `https://github.com/baihejiangnan/PaperNest/releases/latest/download/latest.json`，不调用 GitHub REST API，也不需要 Token。按便携／安装模式选取对应资产，下载后用内嵌公钥验证。六个文件仍需完整发布，不能只更新 JSON。v0.1.6 及更早的客户端仍使用旧 API，需手动升级到包含此修复的版本。
 
-latest.json 的 version 为 `X.Y.Z`，windows-x86_64 的 URL 必须指向 `https://github.com/baihejiangnan/PaperNest/releases/download/vX.Y.Z/PaperNest_X.Y.Z_x64.msi`，signature 与 MSI 的 `.sig` 文本一致。SHA256SUMS.txt 使用脚本生成的 UTF-8 无 BOM、LF 格式，每个条目均需实际重新计算核对。
+latest.json 的 version 为 `X.Y.Z`；`platforms.windows-x86_64` 的 URL 必须指向 `https://github.com/baihejiangnan/PaperNest/releases/download/vX.Y.Z/PaperNest_X.Y.Z_x64.msi`，`platforms.windows-x86_64-portable` 指向同一标签下的 `PaperNest-X.Y.Z.exe`。各自的 signature 必须与对应 `.sig` 文本一致，size 必须与程序文件字节数一致。客户端兼容旧的仅 MSI 元数据：便携更新按既有文件名下载 EXE 及其独立 `.sig`，仍执行验签。`pub_date` 由构建脚本生成 UTC 时间；需要在应用显示更新说明时，构建前准备 UTF-8 说明文件，使用 `pnpm release:windows -NotesFile <说明文件>` 写入 `notes`，并将同一说明用于 Release。未传入时 notes 为空，用户仍可打开版本页面查看说明。SHA256SUMS.txt 使用脚本生成的 UTF-8 无 BOM、LF 格式，每个条目均需实际重新计算核对。
 
-latest.json 由脚本生成，开头带 UTF-8 BOM（自 v0.1.3 起各版本一致，应用可正常读取）。核对时用能处理 BOM 的方式解析，例如 PowerShell 的 `Get-Content -Raw | ConvertFrom-Json` 或 Python 的 `encoding='utf-8-sig'`；不要把 BOM 当成文件损坏，也不要手动改写这个文件。
+latest.json 由脚本生成，Windows PowerShell 输出可带 UTF-8 BOM（v0.1.3～v0.1.6 已发布文件均有 BOM），PowerShell 7 可输出无 BOM UTF-8；客户端兼容两者。核对时用能处理 BOM 的方式解析，例如 PowerShell 的 `Get-Content -Raw | ConvertFrom-Json` 或 Python 的 `encoding='utf-8-sig'`；不要把 BOM 当成文件损坏，也不要手动改写这个文件。
 
 本地 release/ 会保留旧版本带版本号的文件，而 latest.json 与 SHA256SUMS.txt 会更新。上传时只能使用本次版本的明确六文件列表，不能直接 `release/*`。GitHub 自动附带的 Source code 压缩包不计入这六项资产。
 
@@ -182,7 +183,7 @@ gh release edit $releaseTag --repo baihejiangnan/PaperNest --draft=false --prere
 
 以下各项全部完成，才能报告“正式发行完成”：
 
-1. Release 为公开、非草稿、非预发布，并标记为 latest。匿名访问 `https://api.github.com/repos/baihejiangnan/PaperNest/releases/latest`，确认 tag_name 是本次版本。
+1. Release 为公开、非草稿、非预发布，并标记为 latest。用认证后的管理 API 确认 latest 的 tag_name 是本次版本，再按第 3 项匿名核验客户端使用的公开更新入口。旧版客户端使用的匿名 REST latest-release API 可额外检查；若受限流影响，如实记录，不能以它替代新版的公开元数据验证。
 2. 以未带 GitHub 认证信息的普通 HTTP 请求，下载全部六个公开资产到 output/tmp/ 下独立核验目录。逐项对比本地构建文件的 SHA-256 和大小；只查看 GitHub 资产列表不足以替代下载核验。
 3. 匿名下载 `https://github.com/baihejiangnan/PaperNest/releases/latest/download/latest.json`，确认内容、版本、MSI URL 与签名匹配；并确认其中 MSI 入口可下载且哈希正确。PowerShell 可能把 application/octet-stream 响应当字节数组，应先保存文件再 `Get-Content -Raw | ConvertFrom-Json`，不要把解析方式错误误判为发行内容损坏。
 4. 核对标签解引用后的源码提交与本次构建一致，main 和发行分支包含该提交。更新 [开发记录](development.md) 与 [TODO](../TODO.md)，写明 Release 链接、源码提交、测试范围、哈希、公开下载／更新入口结果和 CI 实际状态。新的验证记录可做文档提交，再正常推送 main 和发行分支；不重新构建或移动原标签。

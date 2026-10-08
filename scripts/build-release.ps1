@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([string]$NotesFile = "")
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -9,6 +9,7 @@ $ReleaseDir = Join-Path $Root "release"
 $StageDir = Join-Path $Root "release.__staging"
 $TargetRelease = Join-Path $Root "src-tauri\target\release"
 $TargetBundle = Join-Path $TargetRelease "bundle"
+$releaseNotes = if ($NotesFile) { Get-Content -LiteralPath $NotesFile -Raw -Encoding UTF8 } else { "" }
 
 function Read-CargoVersion {
     $match = Select-String -Path (Join-Path $Root "src-tauri\Cargo.toml") -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
@@ -227,10 +228,18 @@ try {
     $releaseBase = "https://github.com/baihejiangnan/PaperNest/releases/download/v$version"
     $latest = @{
         version = $version
+        notes = $releaseNotes
+        pub_date = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
         platforms = @{
             "windows-x86_64" = @{
                 url = "$releaseBase/$msiName"
                 signature = (Get-Content -LiteralPath "$msiPath.sig" -Raw).Trim()
+                size = (Get-Item -LiteralPath $msiPath).Length
+            }
+            "windows-x86_64-portable" = @{
+                url = "$releaseBase/$portableName"
+                signature = (Get-Content -LiteralPath "$portablePath.sig" -Raw).Trim()
+                size = (Get-Item -LiteralPath $portablePath).Length
             }
         }
     }

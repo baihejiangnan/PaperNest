@@ -873,8 +873,9 @@ settingsPanel.onSetDefaultAssociations = async (extensions) => {
   await openUrl("ms-settings:defaultapps?registeredAppUser=PaperNest");
 };
 settingsPanel.onCheckUpdates = async () => {
-  await checkVersion(false);
-  if (!versionInfo) return t("update.failed", { err: "" }).trim();
+  await checkVersion();
+  if (versionError) return t("update.failed", { err: versionError });
+  if (!versionInfo) return t("update.checking");
   return versionInfo.updateAvailable
     ? t("update.available", { version: versionInfo.latestVersion })
     : t("update.latest");
@@ -1638,8 +1639,10 @@ const updatePrimaryButton = document.getElementById(
   "about-update-primary-action",
 ) as HTMLButtonElement;
 let versionInfo: VersionInfo | null = null;
+let versionError: string | null = null;
 let preparedVersion: PreparedVersion | null = null;
 let versionBusy = false;
+let versionCheckTask: Promise<void> | null = null;
 let updatePrimaryAction: (() => void | Promise<void>) | null = null;
 let updateSecondaryAction: (() => void | Promise<void>) | null = null;
 
@@ -1679,6 +1682,15 @@ function setUpdateProgress(downloaded = 0, total = 0): void {
 function renderVersionInfo(): void {
   updateCheckButton.disabled = versionBusy;
   updateCheckButton.textContent = versionBusy ? t("update.checking") : t("update.check");
+
+  if (versionError) {
+    updateDot.hidden = true;
+    updateStatusEl.hidden = false;
+    updateStatusEl.textContent = t("update.failed", { err: versionError });
+    updateNotesEl.hidden = true;
+    setUpdateActions(null, null);
+    return;
+  }
 
   if (!versionInfo) {
     updateStatusEl.hidden = true;
@@ -1762,12 +1774,25 @@ function renderVersionInfo(): void {
   );
 }
 
-async function checkVersion(silent: boolean): Promise<void> {
+async function checkVersion(): Promise<void> {
+  // A manual check joins an automatic check already in progress, so the
+  // settings panel receives its result rather than stale version information.
+  if (versionCheckTask) return versionCheckTask;
   if (versionBusy) return;
+  versionCheckTask = runVersionCheck();
+  try {
+    await versionCheckTask;
+  } finally {
+    versionCheckTask = null;
+  }
+}
+
+async function runVersionCheck(): Promise<void> {
   versionBusy = true;
+  versionError = null;
   preparedVersion = null;
   setUpdateProgress();
-  if (!silent) renderVersionInfo();
+  renderVersionInfo();
   settings.last_update_check = Math.floor(Date.now() / 1000);
   persistSoon();
   try {
@@ -1777,16 +1802,11 @@ async function checkVersion(silent: boolean): Promise<void> {
     });
     renderVersionInfo();
   } catch (err) {
-    if (!silent) {
-      versionInfo = null;
-      updateStatusEl.hidden = false;
-      updateStatusEl.textContent = t("update.failed", { err: String(err) });
-      updateNotesEl.hidden = true;
-      setUpdateActions(null, null);
-    }
+    versionInfo = null;
+    versionError = String(err);
   } finally {
     versionBusy = false;
-    if (!silent || versionInfo?.updateAvailable) renderVersionInfo();
+    renderVersionInfo();
   }
 }
 
@@ -1878,12 +1898,12 @@ function maybeCheckVersionInBackground(): void {
   const now = Math.floor(Date.now() / 1000);
   const last = Number(settings.last_update_check) || 0;
   if (now - last < 24 * 60 * 60) return;
-  void checkVersion(true);
+  void checkVersion();
 }
 
 function wireAbout(): void {
   document.getElementById("btn-about")?.addEventListener("click", openAbout);
-  updateCheckButton.addEventListener("click", () => void checkVersion(false));
+  updateCheckButton.addEventListener("click", () => void checkVersion());
   updatePrimaryButton.addEventListener("click", () => {
     if (updatePrimaryAction) void updatePrimaryAction();
   });

@@ -193,6 +193,8 @@ pnpm build            # type-check and build the frontend
 pnpm tauri build      # package locally
 ```
 
+Update checks read public Release metadata without a GitHub login or token. Connection failures remain visible so you can retry; downloaded packages still require a valid updater signature.
+
 `pnpm release:windows` produces the Windows x64 portable EXE, MSI, updater signatures, `latest.json`, and `SHA256SUMS.txt`. See [development notes](docs/development.md) for debugging and regression checks, and [release rules](docs/release-rules.md) for the publishing process.
 
 ## Project map and docs

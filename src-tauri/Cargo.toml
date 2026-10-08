@@ -1,6 +1,6 @@
 [package]
 name = "papernest"
-version = "0.1.6"
+version = "0.2.0"
 description = "PaperNest - a minimalist WYSIWYG Markdown editor"
 authors = ["baihejiangnan"]
 edition = "2021"

@@ -50,6 +50,7 @@ jobs:
           pnpm test:tab-path
           pnpm test:details-html
           pnpm test:markdown-serializer
+          pnpm test:update-ui
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml

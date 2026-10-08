@@ -95,6 +95,7 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 - 运行需要 **WebView2 Runtime**（Windows 10/11 通常已内置）。
 - 每个发行版附带 `.sig` 更新签名和 `SHA256SUMS.txt`，可用来核对文件。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
 - 自动检查更新默认关闭，可在设置中开启；只获取本项目发布并经签名验证的版本，下载和安装前仍需确认。
+- 检查更新直接读取 Release 的公开元数据，无需 GitHub 登录或 Token；连接失败时会显示具体错误，可再次检查。
 - Linux 与 macOS 版本暂未发行。
 
 > 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发；原项目的安装包不包含这里的新增功能。

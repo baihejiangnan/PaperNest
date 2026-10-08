@@ -255,6 +255,14 @@ searching never constructs inactive controls or invokes system/network actions.
 Results select a category, refresh from the current settings and focus the target.
 The update card keeps its asynchronous status separate from the content renderer,
 so completion cannot reset a preference or replace active search results.
+`update.rs` checks and rechecks the public Release `latest/download/latest.json`,
+without calling the GitHub REST API. The manifest carries version, optional notes
+and publication date, and separate signed MSI/portable entries with optional
+sizes. Downloads are restricted to this repository's versioned asset URLs and
+verified with the embedded public key before writing or launching. Older MSI-only
+manifests use the published EXE and its own `.sig` for portable updates. `main.ts`
+retains check failures across rendering and shares an in-flight check between
+automatic and manual requests; checking never opens a modal on its own.
 
 ### Opening files from the OS
 `file_arg(argv)` finds the first existing file in the command line. Text-vs-

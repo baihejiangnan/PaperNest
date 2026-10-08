@@ -15,9 +15,11 @@
 - `pnpm test:details-html`：检查 `<details>` 开始标记的识别，包括 `open` 属性及与 `<summary>` 合并在同一 HTML 块的 GitHub 写法；其他 HTML 保持原样显示。
 - `pnpm test:markdown-serializer`：用 Milkdown 自带的 remark 包与默认处理器，加上 `src/markdown-serializer.ts` 的配置，往返序列化样例 Markdown：单词内下划线不加转义、列表符号、链接／图片／邮件地址写法，以及保存后重新解析得到相同文档树。ProseMirror 与 mdast 之间的转换需要 DOM，不在此测试内。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：快速检查 Rust。
+- `pnpm test:update-ui`：运行实际更新协调与渲染函数，验证错误在 finally／重新打开后仍显示、设置页保留原因、失败重试、后台检查释放按钮，以及手动检查复用进行中的请求。
+- `cargo test --manifest-path src-tauri/Cargo.toml --locked --lib update::tests::public_metadata_downloads_and_verifies_both_windows_packages -- --ignored --nocapture`：联网读取公开 latest.json，下载 MSI 和便携 EXE，用内嵌公钥验签并检查篡改拒绝；不安装、不启动程序。常规 CI 默认跳过。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
-- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、四个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
+- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、五个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
 - `pnpm release:windows`：Windows x64 EXE/MSI、更新签名、元数据及 SHA-256 清单。脚本检查 MSI 实际关联动作与执行顺序，并通过应用内嵌公钥检查两个产物的有效签名及篡改拒绝；CI 再核对完整六文件集合和校验和。当前 [工作流](../.github/workflows/release.yml) 仅发行 Windows，Linux/macOS 的现有本地脚本暂定。
 
 如果已经有开发实例占用 Vite 端口或单实例锁，先确认该实例及未保存内容，再重启开发命令。不要用旧的 `target/debug` 可执行文件来判断新改动是否生效；Rust 改动需要完成重新编译。
@@ -25,6 +27,13 @@
 在受限执行环境中，工作区生成的 EXE 可能继承低完整性标记，即使窗口能正常显示，也无法调用正常桌面权限下的资源管理器；目录打开会返回错误码 5，文件定位会返回 `0x80070005`。这时先核对应用与 Explorer 的完整性等级。桌面验证应将最新已编译程序复制到独立的普通临时目录，在该目录使用测试配置启动；不修改工作区或系统目录的权限。已有下载版、安装版或开发版可能占用同一应用标识的单实例锁，检查进程时也应包括版本化的 EXE 名称，不能只检查 `PaperNest.exe`。
 
 ## 修改位置
+
+### 更新查询与错误反馈修复（2026-10-08）
+
+- 旧客户端查询 GitHub REST latest-release API，在共享出口的匿名配额耗尽时返回 403；关于页在 finally 重新渲染时隐藏了失败原因。检查和下载前复查改用公开 `latest/download/latest.json`，支持 UTF-8 BOM；MSI 与便携 EXE 分别使用自己的签名，并继续按内嵌公钥验签。旧 MSI-only 元数据的便携更新读取独立 EXE `.sig`。下载 URL 限定为本项目对应版本的 Release 文件。
+- 前端保留具体错误，设置页与关于页均可读取；后台检查不弹窗，完成后始终释放按钮。手动检查复用进行中的后台请求。构建脚本生成两个 Windows 入口、大小、签名与 UTC 时间，可用 `-NotesFile` 附带说明；CI 增加更新 UI 逻辑测试。
+- `pnpm build`、五项 `pnpm test:*` 通过。系统 TEMP 的权限问题通过仅为测试进程指定 `output/tmp/update-fix` 解决；工作区 Rust 测试剩余一项 HKCU 拒绝访问，将同一最新测试 EXE 复制到普通系统临时目录后运行全套，49 项通过、4 项默认忽略。没有修改目录权限。
+- 显式运行联网集成测试通过：实际公开 v0.1.6 的 BOM 元数据、MSI 内联签名、便携 EXE 独立签名均可读取；两个实际程序下载验签通过，篡改均被拒绝。另从构建脚本 AST 执行真实元数据生成语句，核对两个入口、签名、大小、说明与日期。未安装或启动下载程序，未覆盖真实 WebView2 操作。此项为开发阶段验证，v0.2.0 发行证据另行记录。
 
 ### 保存确认、自动保存与 Markdown 保存格式（2026-10-08）
 

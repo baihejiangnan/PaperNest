@@ -40,6 +40,7 @@ output/tmp/
 .vscode/*
 !.vscode/extensions.json
 .idea
+.workbuddy-ai/
 .DS_Store
 Thumbs.db
 ehthumbs.db

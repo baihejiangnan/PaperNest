@@ -215,6 +215,16 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.2.1 更新检查测试发行（2026-10-08）
+
+- 按仓库所有者要求发布用于验证 0.2.0 → 0.2.1 更新流程的版本。发行源码提交 `b4bd36115f64005610b575e61b76423c60416ffd` 仅同步四处应用版本为 0.2.1，没有功能或依赖改动，沿用原更新公钥。为让 0.2.0 更新器发现新版，[v0.2.1](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.1) 作为公开、非预发布的 latest 发行，说明明确标注测试用途。
+- 五项前端逻辑测试通过；最新 Rust 测试程序在普通临时目录运行，49 项通过、4 项默认忽略。`pnpm release:windows -NotesFile output/tmp/release-notes-0.2.1.md` 从已提交源码完成前端类型检查、构建、MSI 生命周期检查、签名构建及两个产物的验签／篡改拒绝测试，退出码 0、`Result: PASS`；构建后 tracked 文件无变化。
+- 附注标签 `ef49aefc8bfb43c8c90b8e49f68dc7eb5b080488` 解引用为上述源码提交，源码和标签已推送 origin/main、`codex/windows-release-0.2.1` 与 v0.2.1。草稿中核对恰好六个资产的名称、uploaded 状态、大小和 GitHub digest 后正式公开。
+- 全部六个公开资产匿名下载到独立目录后，大小与 SHA-256 均与本地相同，校验清单通过。匿名 `latest/download/latest.json` 与本地逐字节一致，版本为 0.2.1；MSI 与便携 EXE 的 URL、各自签名、大小、中文说明和 UTC 日期均一致。latest.json 为 2444 字节，带 UTF-8 BOM。
+- 使用保留的 0.2.0 Rust 测试程序运行真实更新客户端的联网集成测试：读取 0.2.1 公开元数据，分别下载 MSI 和便携 EXE，原文件验签通过、篡改均被拒绝，测试通过（81.15 秒）。未安装或启动下载程序；本次未重新执行桌面界面回归，保留用户自行测试的 0.2.0 环境。
+- 便携 EXE SHA-256：`1970c550cb878c21906a4411c24916195281be1db30e0ed406809f190bb3166a`；MSI SHA-256：`28e70292be6a2e8d83b5db07765a4b92e7e7dd7dc9336049845bea0016718d37`。其余哈希见 Release 的 SHA256SUMS.txt。
+- 发行源码的 [main 日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37804260096) 通过；[发行分支日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37804260456) 通过。[release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37804260030) 在 `Require updater signing secret` 因未配置 `TAURI_SIGNING_PRIVATE_KEY` 停止，publish 跳过；本次由本机现有密钥完成签名并发布，没有上传私钥。产物具有应用更新签名，没有 Authenticode 证书签名。完整 MSI 安装／升级／卸载仍待用户测试，Linux/macOS 未发行。
+
 ### Windows v0.2.0 发行构建（2026-10-08）
 
 - 发行源码提交 `8ca7757deea3141fa1aae439a3fdcfdba20ddb89`，四处应用版本统一为 0.2.0。改动为公开元数据更新查询、错误保留、后台检查按钮释放、并发检查复用，以及长错误 URL 换行。构建脚本补充 MSI／便携 EXE 各自的元数据、大小与说明，处理 Windows PowerShell 字符串附带的 provider 属性，并限制元数据不超过客户端的 1 MiB 上限。更新公钥保持不变。

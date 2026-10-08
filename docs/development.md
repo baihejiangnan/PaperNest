@@ -197,6 +197,15 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.1.5 发行构建（2026-10-08）
+
+- 发行源码提交 `1f792a136955cef94cffc3facd9dbf4d2cb4dcb3`，从 v0.1.4 后的 main（`cd2e35c`）快进。改动为 Markdown 折叠区块（GitHub 合并写法、`<details open>`，折叠／`<div align>` 改由 ProseMirror 装饰呈现）、移除关于页 Miku 彩蛋并将 `miku-cream.ts` 改名为 `editor-theme.ts`、中英文 README 重构与项目介绍页重设计；四处应用版本统一为 0.1.5，更新公钥、签名构建脚本与发行工作流未改变。
+- 从该提交验证：`pnpm test:code-text`、`pnpm test:tab-path`、`pnpm test:details-html` 通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 为 45 项通过、3 项显式忽略。pnpm 运行前依赖检查仅在当前命令环境关闭，锁文件未变。`pnpm release:windows` 前端类型检查与构建、MSI 关联生命周期检查通过，EXE 与 MSI 分别通过内嵌公钥验签及篡改拒绝测试；构建后无 tracked 改动。折叠区块仅完成浏览器组件检查，未在 WebView2 桌面窗口中核对。
+- [v0.1.5 正式发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.1.5) 已公开为 latest，附注标签解引用为上述源码提交，main 与 `codex/windows-release-0.1.5` 均已推送。草稿阶段核对六项资产名称、uploaded 状态、大小与 GitHub digest 后公开；匿名下载六个文件，大小与 SHA-256 均与本地一致，公开副本通过 SHA256SUMS.txt 校验。匿名 latest-release API、latest/download/latest.json、元数据中的 MSI URL 与签名全部通过核对。latest.json 带 UTF-8 BOM，与 v0.1.4 已发布文件一致。
+- 便携 EXE SHA-256：`f3c918e60d43fcb19bbf6146087929a6d115bef42fa3789824a50d19bf47b853`；MSI SHA-256：`b41fbb2a49964ee4f9256c295a5ba742f326a96bb7631992d19677880708b7c5`。其余文件哈希见 Release 的 SHA256SUMS.txt。
+- 标签触发的 [release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37754489626) 在 `Require updater signing secret` 步骤因缺少 `TAURI_SIGNING_PRIVATE_KEY` 停止，publish 被跳过。本次通过现有本地密钥签名发布，没有上传私钥。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 发行源码提交的日常 CI 在 [main](https://github.com/baihejiangnan/PaperNest/actions/runs/37754489795) 和 [发行分支](https://github.com/baihejiangnan/PaperNest/actions/runs/37754489614) 均通过。
+
 ### Windows v0.1.4 发行构建（2026-10-08）
 
 - 发行源码提交 `96e002018c125563978a9bcf190e27f026c183ba`，基于 v0.1.3 文档提交 `a4287bd` 快进。改动为 Markdown 文件树筛选（`.md`／`.markdown`／`.mdx`，含扫描预算与 30 秒昂贵结果缓存）、可拖动侧栏宽度、Windows 右键“新建 MD 文件”及配套文档；四处应用版本统一为 0.1.4，更新公钥、签名构建脚本与发行工作流未改变。用户确认 `.md` 无文件类型时补充 `PaperNest.NewMarkdown` 的行为可接受，并要求筛选包含 `.markdown`／`.mdx`。

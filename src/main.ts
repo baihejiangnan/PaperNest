@@ -26,6 +26,7 @@ import { activateModal, deactivateModal, hasActiveModal } from "./modal";
 import { isListMarker, type ListMarker } from "./markdown-serializer";
 import type { BlockActionId } from "./block-menu";
 import { countTextUnits } from "./text-stats";
+import { printHtml } from "./print-view";
 import {
   formatShortcut,
   matchesShortcut,
@@ -94,6 +95,7 @@ interface SettingsPayload {
   location: string;
   open_with: string | null;
   version: string;
+  load_error: { error: string; backup: string | null } | null;
 }
 
 interface OpenWithStatus {
@@ -1301,6 +1303,7 @@ async function exportHtml(): Promise<void> {
       markdown: readView(),
       title: stem(tab?.path ?? null),
       docPath: tab?.path ?? null,
+      forPrint: false,
     });
     await invoke("write_document", { path: dest, contents: html });
     await message(t("dialog.htmlExported"), { title: "PaperNest" });
@@ -1312,24 +1315,17 @@ async function exportHtml(): Promise<void> {
 async function exportPdf(): Promise<void> {
   const tab = tabBar.active;
   if (tab?.imageUrl || tab?.loading) return;
-  const html = await invoke<string>("render_html", {
-    markdown: readView(),
-    title: stem(tab?.path ?? null),
-    docPath: tab?.path ?? null,
-  });
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText =
-    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
-  frame.srcdoc = html;
-  frame.onload = () => {
-    window.setTimeout(() => {
-      frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true });
-      frame.contentWindow?.focus();
-      frame.contentWindow?.print();
-    }, 350);
-  };
-  document.body.appendChild(frame);
+  try {
+    const html = await invoke<string>("render_html", {
+      markdown: readView(),
+      title: stem(tab?.path ?? null),
+      docPath: tab?.path ?? null,
+      forPrint: true,
+    });
+    await printHtml(html);
+  } catch (e) {
+    await message(String(e), { title: "PaperNest", kind: "error" });
+  }
 }
 
 // --- source view --------------------------------------------------------
@@ -2086,10 +2082,18 @@ async function quitApp(): Promise<void> {
   }
   window.clearTimeout(geometryCaptureTimer);
   if (!secondaryWindow) {
-    await captureGeometry();
+    try {
+      await captureGeometry();
+    } catch (e) {
+      console.error("cannot capture window geometry", e); // still quit
+    }
     await flushSettings();
   }
-  await win.destroy();
+  try {
+    await win.destroy();
+  } finally {
+    closing = false; // if destroy failed the window is still open; allow a retry
+  }
 }
 
 async function wireWindowState(): Promise<void> {
@@ -2437,6 +2441,18 @@ async function bootstrap(): Promise<void> {
   if (!secondaryWindow) {
     void initializeOpenWithIntegration();
     maybeCheckVersionInBackground();
+  }
+
+  // settings.toml could not be used, so defaults are active and the next save
+  // replaces it; Rust copied the original aside first.
+  if (!secondaryWindow && payload.load_error) {
+    const { error, backup } = payload.load_error;
+    void message(
+      backup
+        ? t("dialog.settingsInvalid", { error, backup })
+        : t("dialog.settingsInvalidNoBackup", { error }),
+      { title: "PaperNest", kind: "warning" },
+    );
   }
 }
 

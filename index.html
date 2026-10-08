@@ -42,7 +42,8 @@
             <div id="workspace-root-row">
               <button id="workspace-up" type="button" title="Parent folder">↑</button>
               <span class="workspace-folder-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2z"/></svg></span>
-              <span id="workspace-root-name"></span>
+              <nav id="workspace-root-name" aria-label="Folder path"></nav>
+              <button id="workspace-reveal" type="button" title="Show current document" aria-label="Show current document"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
               <button id="workspace-search-toggle" type="button" title="Search">⌕</button>
             </div>
             <input id="workspace-search" type="search" hidden />

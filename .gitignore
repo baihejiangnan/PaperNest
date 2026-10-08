@@ -16,6 +16,7 @@ dist-ssr
 /release.__staging/
 /.playwright-cli/
 /.build-tmp/
+/.pnpm-store/
 coverage/
 output/playwright/
 output/tmp/

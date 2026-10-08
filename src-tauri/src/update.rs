@@ -329,22 +329,8 @@ fn write_atomic(path: &Path, data: &[u8]) -> Result<(), String> {
         .ok_or_else(|| format!("invalid update path: {}", path.display()))?;
     std::fs::create_dir_all(parent)
         .map_err(|e| format!("cannot create update directory {}: {e}", parent.display()))?;
-
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "invalid update file name".to_string())?;
-    let partial = parent.join(format!("{file_name}.part"));
-    let _ = std::fs::remove_file(&partial);
-    std::fs::write(&partial, data)
-        .map_err(|e| format!("cannot write update file {}: {e}", partial.display()))?;
-
-    if path.exists() {
-        std::fs::remove_file(path)
-            .map_err(|e| format!("cannot replace existing update {}: {e}", path.display()))?;
-    }
-    std::fs::rename(&partial, path)
-        .map_err(|e| format!("cannot finalize update file {}: {e}", path.display()))
+    crate::fs_util::write_atomic(path, data)
+        .map_err(|e| format!("cannot write update file {}: {e}", path.display()))
 }
 
 fn verify_local_update(version: &str, mode: &str) -> Result<PathBuf, String> {

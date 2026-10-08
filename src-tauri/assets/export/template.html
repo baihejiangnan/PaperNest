@@ -17,6 +17,15 @@
 <script>{{HLJS_JS}}</script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    // comrak emits $...$ / $$...$$ as spans without the delimiters.
+    if (window.katex) {
+      document.querySelectorAll("[data-math-style]").forEach(function (el) {
+        window.katex.render(el.textContent, el, {
+          displayMode: el.getAttribute("data-math-style") === "display",
+          throwOnError: false
+        });
+      });
+    }
     if (window.renderMathInElement) {
       window.renderMathInElement(document.body, {
         delimiters: [

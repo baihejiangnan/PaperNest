@@ -3,7 +3,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::settings::Settings;
+use crate::settings::{LoadIssue, Settings};
 use crate::windows_integration::OpenWithStatus;
 use crate::{assets, export, file_arg, mdfmt, windows_integration, AppState};
 
@@ -21,18 +21,23 @@ pub struct SettingsPayload {
     pub open_with: Option<String>,
     /// App version (`CARGO_PKG_VERSION`), for the About panel.
     pub version: String,
+    /// Set when `settings.toml` existed but could not be used; defaults were
+    /// loaded and the original was copied aside.
+    pub load_error: Option<LoadIssue>,
 }
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> SettingsPayload {
     let store = state.store.lock().unwrap();
+    let (settings, load_error) = store.load();
     SettingsPayload {
-        settings: store.load(),
+        settings,
         portable: store.portable,
         fallback: store.fallback,
         location: store.path.display().to_string(),
         open_with: file_arg(&std::env::args().collect::<Vec<_>>()),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        load_error,
     }
 }
 
@@ -159,7 +164,8 @@ pub fn write_document(path: String, contents: String) -> Result<String, String> 
     } else {
         contents
     };
-    std::fs::write(&path, &formatted).map_err(|e| format!("Cannot write {path}: {e}"))?;
+    crate::fs_util::write_atomic(std::path::Path::new(&path), formatted.as_bytes())
+        .map_err(|e| format!("Cannot write {path}: {e}"))?;
     Ok(formatted)
 }
 
@@ -204,8 +210,13 @@ pub fn rename_document(path: String, new_name: String) -> Result<String, String>
 /// file being exported) is the base for resolving relative image paths, which
 /// are inlined as `data:` URLs so the HTML / print output is self-contained.
 #[tauri::command]
-pub fn render_html(markdown: String, title: String, doc_path: Option<String>) -> String {
-    export::render_html(&markdown, &title, doc_path.as_deref())
+pub fn render_html(
+    markdown: String,
+    title: String,
+    doc_path: Option<String>,
+    for_print: bool,
+) -> String {
+    export::render_html(&markdown, &title, doc_path.as_deref(), for_print)
 }
 
 /// Read a local image referenced by a document and return it as a `data:` URL.

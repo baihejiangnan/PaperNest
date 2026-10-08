@@ -14,9 +14,21 @@ pub fn format_tables(md: &str) -> String {
     let lines: Vec<&str> = md.split('\n').collect();
     let mut out: Vec<String> = Vec::with_capacity(lines.len());
     let mut i = 0;
+    let mut fence: Option<(char, usize)> = None;
 
     while i < lines.len() {
-        if i + 1 < lines.len()
+        // Lines inside fenced code are content, even when they look like a table.
+        if let Some((ch, len)) = fence {
+            if closes_fence(lines[i], ch, len) {
+                fence = None;
+            }
+            out.push(lines[i].to_string());
+            i += 1;
+        } else if let Some(open) = opening_fence(lines[i]) {
+            fence = Some(open);
+            out.push(lines[i].to_string());
+            i += 1;
+        } else if i + 1 < lines.len()
             && looks_like_row(lines[i])
             && is_delimiter_row(lines[i + 1])
         {
@@ -39,7 +51,30 @@ pub fn format_tables(md: &str) -> String {
 
 fn looks_like_row(line: &str) -> bool {
     let t = line.trim();
-    !t.is_empty() && t.contains('|') && !t.starts_with("```")
+    !t.is_empty() && t.contains('|') && opening_fence(line).is_none()
+}
+
+/// A CommonMark fence run: up to three spaces of indent, then three or more
+/// backticks or tildes. Returns the fence character, run length and the rest.
+fn fence_run(line: &str) -> Option<(char, usize, &str)> {
+    let indent = line.len() - line.trim_start_matches(' ').len();
+    if indent > 3 {
+        return None;
+    }
+    let rest = &line[indent..];
+    let ch = rest.chars().next().filter(|c| *c == '`' || *c == '~')?;
+    let len = rest.len() - rest.trim_start_matches(ch).len();
+    (len >= 3).then(|| (ch, len, &rest[len..]))
+}
+
+fn opening_fence(line: &str) -> Option<(char, usize)> {
+    let (ch, len, info) = fence_run(line)?;
+    // A backtick fence's info string cannot itself contain backticks.
+    (ch == '~' || !info.contains('`')).then_some((ch, len))
+}
+
+fn closes_fence(line: &str, ch: char, len: usize) -> bool {
+    matches!(fence_run(line), Some((c, l, rest)) if c == ch && l >= len && rest.trim().is_empty())
 }
 
 fn is_delimiter_row(line: &str) -> bool {
@@ -205,6 +240,24 @@ mod tests {
         assert!(out.ends_with("\n\nafter"));
         assert!(out.contains("| x   | y   |"));
         assert!(out.contains("| --- | --- |"));
+    }
+
+    #[test]
+    fn leaves_tables_inside_code_fences_untouched() {
+        let md = "```text\n|a|b|\n|-|-|\n|1|2|\n```\n\n~~~~\n|c|d|\n|-|-|\n~~~\n|e|f|\n~~~~\n";
+        assert_eq!(format_tables(md), md);
+    }
+
+    #[test]
+    fn formats_tables_after_a_closed_fence() {
+        let md = "```\ncode\n```\n|a|b|\n|-|-|\n";
+        assert_eq!(format_tables(md), "```\ncode\n```\n| a   | b   |\n| --- | --- |\n");
+    }
+
+    #[test]
+    fn crlf_fences_are_recognised() {
+        let md = "```\r\n|a|b|\r\n|-|-|\r\n```\r\n";
+        assert_eq!(format_tables(md), md);
     }
 
     #[test]

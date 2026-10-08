@@ -23,6 +23,10 @@ pub fn is_external(src: &str) -> bool {
 
 /// Resolve `src` (a raw Markdown image target) against `doc_path`'s folder,
 /// read the file and return it as `data:<mime>;base64,<…>`.
+///
+/// Only files with an image extension whose bytes also look like that kind of
+/// image are accepted, so a document cannot inline (and leak into an export)
+/// an arbitrary local file such as a key or a config file.
 pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> {
     let decoded = percent_decode(src.trim().trim_start_matches("./"));
     let target = PathBuf::from(&decoded);
@@ -37,6 +41,9 @@ pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> 
         base.join(target)
     };
 
+    let Some(mime) = image_mime(&resolved) else {
+        return Err(format!("{} is not a supported image type", resolved.display()));
+    };
     let file = std::fs::File::open(&resolved)
         .map_err(|e| format!("cannot read image {}: {e}", resolved.display()))?;
     let size = file
@@ -63,15 +70,15 @@ pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> 
         ));
     }
 
-    Ok(format!(
-        "data:{};base64,{}",
-        image_mime(&resolved),
-        base64_encode(&bytes)
-    ))
+    if !content_matches(mime, &bytes) {
+        return Err(format!("{} is not a valid image file", resolved.display()));
+    }
+
+    Ok(format!("data:{mime};base64,{}", base64_encode(&bytes)))
 }
 
-fn image_mime(path: &Path) -> &'static str {
-    match path
+fn image_mime(path: &Path) -> Option<&'static str> {
+    let mime = match path
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase)
@@ -86,8 +93,28 @@ fn image_mime(path: &Path) -> &'static str {
         Some("bmp") => "image/bmp",
         Some("avif") => "image/avif",
         Some("ico") => "image/x-icon",
-        _ => "application/octet-stream",
+        _ => return None,
+    };
+    Some(mime)
+}
+
+/// Check the file signature. Raster formats are often saved with the wrong
+/// extension (a PNG named `.jpg`), so any raster signature is accepted for any
+/// raster extension; SVG must be text that contains an `<svg` element.
+fn content_matches(mime: &str, bytes: &[u8]) -> bool {
+    if mime == "image/svg+xml" {
+        let head = &bytes[..bytes.len().min(64 * 1024)];
+        return String::from_utf8_lossy(head).to_ascii_lowercase().contains("<svg");
     }
+    let starts = |sig: &[u8]| bytes.starts_with(sig);
+    starts(b"\x89PNG\r\n\x1a\n")
+        || starts(&[0xFF, 0xD8, 0xFF])
+        || starts(b"GIF87a")
+        || starts(b"GIF89a")
+        || (starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP"))
+        || starts(b"BM")
+        || starts(&[0, 0, 1, 0])
+        || bytes.get(4..8) == Some(b"ftyp")
 }
 
 /// Minimal `%XX` decoder for Markdown image targets (spaces, parentheses, …).
@@ -170,10 +197,30 @@ mod tests {
 
     #[test]
     fn mime_by_extension() {
-        assert_eq!(image_mime(Path::new("x.PNG")), "image/png");
-        assert_eq!(image_mime(Path::new("x.jpeg")), "image/jpeg");
-        assert_eq!(image_mime(Path::new("x.svg")), "image/svg+xml");
-        assert_eq!(image_mime(Path::new("x.unknown")), "application/octet-stream");
+        assert_eq!(image_mime(Path::new("x.PNG")), Some("image/png"));
+        assert_eq!(image_mime(Path::new("x.jpeg")), Some("image/jpeg"));
+        assert_eq!(image_mime(Path::new("x.svg")), Some("image/svg+xml"));
+        assert_eq!(image_mime(Path::new("x.unknown")), None);
+        assert_eq!(image_mime(Path::new("id_rsa")), None);
+    }
+
+    #[test]
+    fn only_real_images_are_inlined() {
+        let dir = tempfile::tempdir().unwrap();
+        let doc = dir.path().join("doc.md");
+        let write = |name: &str, bytes: &[u8]| std::fs::write(dir.path().join(name), bytes).unwrap();
+        write("secret.txt", b"password");
+        write("fake.png", b"password");
+        write("real.png", b"\x89PNG\r\n\x1a\nrest");
+        write("misnamed.jpg", b"\x89PNG\r\n\x1a\nrest");
+        write("icon.svg", b"<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg'/>");
+        let read = |src: &str| to_data_url(doc.to_str(), src);
+
+        assert!(read("secret.txt").unwrap_err().contains("not a supported image type"));
+        assert!(read("fake.png").unwrap_err().contains("not a valid image"));
+        assert!(read("real.png").unwrap().starts_with("data:image/png;base64,"));
+        assert!(read("misnamed.jpg").unwrap().starts_with("data:image/jpeg;base64,"));
+        assert!(read("icon.svg").unwrap().starts_with("data:image/svg+xml;base64,"));
     }
 
     #[test]

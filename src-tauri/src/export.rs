@@ -23,9 +23,33 @@ fn markdown_options() -> Options<'static> {
     opts.extension.footnotes = true;
     opts.extension.superscript = true;
     opts.extension.math_dollars = true;
-    opts.render.r#unsafe = true; // the document is the user's own content
+    // Raw HTML is kept so documents using <details>, <kbd>, sized <img> etc.
+    // export faithfully; `sanitize` then removes anything executable.
+    opts.render.r#unsafe = true;
     opts.render.github_pre_lang = true;
     opts
+}
+
+/// Strip scripts, event handlers, `javascript:` URLs and other active content
+/// from the rendered body. Documents may come from anyone, and the export is
+/// opened in a browser or printed inside the app.
+fn sanitize(html: &str) -> String {
+    ammonia::Builder::default()
+        .add_tags(["input", "section"])
+        .add_tag_attributes("input", ["type", "checked", "disabled"])
+        .add_tag_attributes("img", ["data-align"])
+        .add_tag_attributes("pre", ["lang"])
+        .add_generic_attributes([
+            "class",
+            "id",
+            "data-math-style",
+            "data-footnotes",
+            "data-footnote-ref",
+            "data-footnote-backref",
+        ])
+        .link_rel(None)
+        .clean(html)
+        .to_string()
 }
 
 fn escape_html(input: &str) -> String {
@@ -39,10 +63,22 @@ fn escape_html(input: &str) -> String {
 /// `doc_path`, when given, is the base for resolving relative image paths —
 /// they are read and inlined as `data:` URLs so the output stands alone
 /// (needed for HTML export and printing).
-pub fn render_html(markdown: &str, title: &str, doc_path: Option<&str>) -> String {
-    let body = inline_images(&markdown_to_html(markdown, &markdown_options()), doc_path);
+///
+/// `for_print` omits the embedded scripts: the print view runs in a sandboxed
+/// frame where scripts are disabled, and the app renders math and code
+/// highlighting into it from outside.
+pub fn render_html(markdown: &str, title: &str, doc_path: Option<&str>, for_print: bool) -> String {
+    let body = inline_images(&sanitize(&markdown_to_html(markdown, &markdown_options())), doc_path);
+    let template = if for_print {
+        let (head, _scripts) = TEMPLATE
+            .split_once("<script>")
+            .expect("export template has scripts");
+        format!("{head}</body>\n</html>\n")
+    } else {
+        TEMPLATE.to_string()
+    };
 
-    TEMPLATE
+    template
         .replace("{{TITLE}}", &escape_html(title))
         .replace("{{DOC_CSS}}", DOC_CSS)
         .replace("{{KATEX_CSS}}", KATEX_CSS)
@@ -95,7 +131,7 @@ mod tests {
 
     #[test]
     fn renders_basic_markdown() {
-        let out = render_html("# Hello\n\n- a\n- b\n", "Doc", None);
+        let out = render_html("# Hello\n\n- a\n- b\n", "Doc", None, false);
         assert!(out.contains("<h1>Hello</h1>"));
         assert!(out.contains("<title>Doc</title>"));
         assert!(out.contains("data:font/woff2;base64"));
@@ -103,14 +139,57 @@ mod tests {
 
     #[test]
     fn keeps_math_delimiters_for_katex() {
-        let out = render_html("Euler: $e^{i\\pi}+1=0$\n", "Doc", None);
+        let out = render_html("Euler: $e^{i\\pi}+1=0$\n", "Doc", None, false);
         assert!(out.contains("renderMathInElement"));
+    }
+
+    #[test]
+    fn print_variant_has_no_scripts() {
+        let out = render_html("Euler: $e^{i\\pi}+1=0$\n", "Doc", None, true);
+        assert!(!out.contains("<script"));
+        assert!(out.contains("Euler"));
+        assert!(out.contains("data:font/woff2;base64"));
+        assert!(out.trim_end().ends_with("</html>"));
+    }
+
+    #[test]
+    fn active_content_is_removed_and_markup_kept() {
+        let md = concat!(
+            "<script>alert(1)</script>\n\n",
+            "<img src=\"https://example.com/x.png\" onerror=\"alert(2)\" width=\"40\">\n\n",
+            "[bad](javascript:alert(3)) <a href=\"javascript:alert(4)\">raw</a>\n\n",
+            "<iframe src=\"https://example.com\"></iframe>\n\n",
+            "<details><summary>More</summary><kbd>Ctrl</kbd></details>\n\n",
+            "- [x] done\n\n",
+            "Note[^1]\n\n[^1]: Footnote.\n\n",
+            "```rust\nfn main() {}\n```\n",
+        );
+        let out = render_html(md, "t", None, false);
+        let body = &out[out.find("<article").unwrap()..out.find("</article>").unwrap()];
+
+        for banned in ["<script", "onerror", "javascript:", "<iframe", "alert(1)"] {
+            assert!(!body.contains(banned), "{banned} survived: {body}");
+        }
+        for kept in [
+            "width=\"40\"",
+            "<details>",
+            "<summary>More</summary>",
+            "<kbd>Ctrl</kbd>",
+            "type=\"checkbox\"",
+            "checked",
+            "href=\"#fn-1\"",
+            "id=\"fn-1\"",
+            "<section class=\"footnotes\"",
+            "<pre lang=\"rust\">",
+        ] {
+            assert!(body.contains(kept), "{kept} missing: {body}");
+        }
     }
 
     #[test]
     fn table_extension_active() {
         let md = "| a | b |\n|---|---|\n| 1 | 2 |\n";
-        assert!(render_html(md, "t", None).contains("<table>"));
+        assert!(render_html(md, "t", None, false).contains("<table>"));
     }
 
     #[test]
@@ -118,11 +197,11 @@ mod tests {
         let dir = std::env::temp_dir().join("mdmeow-export-test");
         std::fs::create_dir_all(&dir).unwrap();
         let img = dir.join("pic.png");
-        std::fs::write(&img, [1u8, 2, 3, 4]).unwrap();
+        std::fs::write(&img, b"\x89PNG\r\n\x1a\n").unwrap();
         let doc = dir.join("doc.md");
 
         let md = "![local](pic.png)\n\n![remote](https://example.com/x.png)\n";
-        let out = render_html(md, "t", doc.to_str());
+        let out = render_html(md, "t", doc.to_str(), false);
 
         assert!(out.contains("src=\"data:image/png;base64,"));
         assert!(out.contains("src=\"https://example.com/x.png\""));

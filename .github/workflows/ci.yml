@@ -1,0 +1,53 @@
+name: ci
+
+# Everyday checks for pushes and pull requests. Releases are handled by
+# release.yml; this workflow builds nothing for distribution and needs no secrets.
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type-check and build frontend
+        run: pnpm build
+
+      - name: Frontend logic tests
+        run: |
+          pnpm test:code-text
+          pnpm test:tab-path
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml

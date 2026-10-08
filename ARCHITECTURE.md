@@ -45,7 +45,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/editor.ts` | Thin wrapper over one Crepe instance (`init` / `setContent` / `getMarkdown` / `setSpellcheck` / `setDocPath` / `runBlockAction` / `insertText` / `retranslate`). Also the image `proxyDomURL` hook — see §4, `.use(emojiInputRule)`, and the translated `Placeholder` feature text. |
 | `src/tabs.ts` | `Tab` model + `TabBar` for Markdown, Code and image tabs. |
 | `src/code-editor.ts`, `src/file-types.ts` | CodeMirror text editor and extension-to-mode/language classification. Unknown readable text falls back to Plain Text. |
-| `src/workspace-sidebar.ts` | Lazy file tree, outline, search and context menus; calls `workspace.rs` for filesystem operations. |
+| `src/workspace-sidebar.ts` | Lazy file tree, outline, search and context menus; calls `workspace.rs` for filesystem operations. Root navigation: ↑ (parent), ◎ `revealCurrent` (current document's folder), folder menu “set as root”, and a breadcrumb that keeps the deepest folder of the current branch (`trail`) after going up. The trail is frontend-only and not persisted; switching to another branch replaces it, rename/delete keeps it valid. |
 | `src/image-preview.ts`, `src/image-toolbar.ts`, `src/html-markdown.ts`, `src/image-block-markdown.ts` | Read-only image lightbox, image actions and Markdown/HTML image round-tripping. |
 | `src/text-context-menu.ts`, `src/text-context-actions.ts` | The themed document context menu, body-mounted submenu panels, keyboard navigation and selection-preserving ProseMirror/CodeMirror actions. |
 | `src/link-picker.ts` | Non-modal selection-anchored link input, sibling-file filtering through existing directory IPC and relative link choices. |
@@ -70,7 +70,9 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions, Windows Explorer integration and same-process secondary-window creation. |
 | `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
 | `src-tauri/src/portable.rs` | Resolves the portable data dir (next to exe; on macOS next to the `.app`); writability check + OS‑config fallback. |
-| `src-tauri/src/export.rs` | `render_html`: Markdown → GFM HTML (comrak) wrapped in a self‑contained page. |
+| `src-tauri/src/export.rs` | `render_html`: Markdown → GFM HTML (comrak), sanitized with ammonia, wrapped in a self‑contained page (a script‑free variant for printing). |
+| `src-tauri/src/fs_util.rs` | `write_atomic`: temp file in the target directory → fsync → rename over the target. Used by document saves, settings and update downloads. |
+| `src/print-view.ts` | `printHtml`: the sandboxed print frame; renders KaTeX and highlight.js into it from the app. |
 | `src-tauri/src/mdfmt.rs` | `format_tables`: pretty‑prints GFM tables in a Markdown string. |
 | `src-tauri/assets/export/` | Bundled (offline) KaTeX + highlight.js + Obsidian-style light export CSS/template, `include_str!`‑ed by `export.rs`. |
 | `src-tauri/tauri.conf.json`, `src-tauri/tauri.*.conf.json` | Shared and platform-specific window/bundle settings, including drag/drop and decorations. |
@@ -94,7 +96,12 @@ a read-only portable directory falls back there and shows a hint.
   **external** edits and emits `settings-changed` → `main.ts` re‑applies
   appearance without a restart. The watcher skips the app's own
   writes by comparing a size+mtime signature (`AppState.last_write`).
-  Text editing does **not** trigger a settings write.
+  Text editing does **not** trigger a settings write. If the file exists but
+  cannot be read or parsed at startup, `Store::load` copies it to
+  `settings.invalid-<unix-seconds>.toml` beside it, the app runs on defaults,
+  and the frontend shows a one-time warning with the error and backup path
+  (`SettingsPayload.load_error`). A broken hand edit while running is logged by
+  the watcher and ignored.
 - **WebView2 data** (Windows) — `lib.rs` configures the main WebView's data
   directory before startup. Secondary windows use separate `workspace-webviews/`
   directories beside that profile: portable mode stays under the executable's
@@ -162,6 +169,11 @@ a read-only portable directory falls back there and shows a hint.
   refresh. Expanding a cached folder rereads it. Per-directory request IDs
   keep older reads from overwriting newer results, and unchanged listings do
   not rebuild the tree. This refreshes names and paths, not open document text.
+  Each successful directory reread trims a remembered breadcrumb branch if its
+  next folder no longer exists. Breadcrumb redraw restores focus by path; an
+  activated return button becomes the current-location span with `tabIndex=-1`,
+  retaining focus without adding a redundant Tab stop. Separators wrap with
+  their destination buttons, and individual overlong names keep a full-path title.
   The secondary window skips sidebar/session restore and hides those controls.
 - The file tree's `open_workspace_location` command uses a fresh COM STA off the
   desktop event loop. On Windows, `ShellExecuteW` opens the selected directory
@@ -173,7 +185,9 @@ a read-only portable directory falls back there and shows a hint.
 
 ### Save
 `saveDoc` → `invoke("write_document", …)`. Rust pretty‑prints GFM tables
-(`mdfmt`) and **returns the text it actually wrote**; the frontend resyncs the
+(`mdfmt`, which leaves lines inside ``` / ~~~ code fences untouched), writes
+through `fs_util::write_atomic` so a failed save never truncates the file, and
+**returns the text it actually wrote**; the frontend resyncs the
 view if it changed in Code mode. In preview mode, Crepe's serialization remains
 the clean baseline so replacing the view does not erase undo history. When
 editing continues during the asynchronous write, the completed save updates
@@ -234,7 +248,10 @@ takes a `proxyDomURL(src)` hook (set in `Editor.init` via `featureConfigs`), whi
 pass straight through; anything else is sent to the `read_image_data_url` Rust
 command, which resolves it against the active document's folder (`Editor.docPath`,
 kept current by `main.ts` on tab activate / open / save‑as), reads the file, and
-returns a `data:` URL (≤ 24 MiB). Results are memo‑cached per `docPath + src`.
+returns a `data:` URL (≤ 24 MiB). Only image extensions whose file signature
+matches an image format (SVG: text containing `<svg`) are accepted, so a
+document cannot inline arbitrary local files into the view or an export.
+Results are memo‑cached per `docPath + src`.
 The Rust loader checks file metadata and bounds the read to 24 MiB + 1 byte
 before encoding, including when a file grows after the metadata check.
 HTML `<img>` and Markdown image forms are handled by the image conversion
@@ -247,10 +264,19 @@ receives an image source event and never changes the document. Opening an image
 file directly creates an image tab rather than loading binary data as text.
 
 ### Export
-`render_html(markdown, title, doc_path)` → comrak GFM → `template.html` with all
-CSS/JS/fonts inlined (KaTeX renders `$…$` on load, highlight.js colours code).
-Frontend writes it via `write_document` (HTML path ⇒ table formatter skipped) or,
-for PDF, loads it into a hidden `<iframe>` and calls `print()`.
+`render_html(markdown, title, doc_path, for_print)` → comrak GFM (raw HTML kept)
+→ ammonia sanitizing (scripts, event handlers, `javascript:` URLs, iframes and
+other active content removed; `details`/`kbd`/sized images, task lists, footnotes
+and math spans kept) → local images inlined → `template.html` with all CSS
+inlined. The HTML export also inlines KaTeX + highlight.js and renders on load;
+comrak emits math as `[data-math-style]` spans without delimiters.
+
+PDF uses the `for_print` variant, which has no scripts. `printHtml` loads it as
+`srcdoc` into a hidden iframe with `sandbox="allow-same-origin allow-modals"`
+(no `allow-scripts`), so nothing in a document can run with the app's origin or
+reach IPC. The app imports `katex` and `highlight.js/lib/common` on demand,
+renders math and code into the frame, then calls `print()`; `afterprint`
+removes the frame.
 
 ---
 
@@ -357,8 +383,18 @@ Keep everything inlined so exports stay offline.
 - **Markdown source view shows Crepe‑normalised Markdown**, not the original file bytes,
   because that normalised form is the baseline for the dirty check and is what
   gets written on save.
-- **CSP is `null`** (`tauri.conf.json`). Fine for a local editor; tighten if the
-  app ever loads remote content.
+- **CSP** (`tauri.conf.json`): scripts only from the app (`script-src 'self'`,
+  no eval); styles allow `'unsafe-inline'` because KaTeX, CodeMirror and
+  ProseMirror write `style` attributes; images allow `data:`/`blob:`/http(s) for
+  local data URLs and remote images; IPC via `ipc:`/`http://ipc.localhost`.
+  `devCsp` additionally allows the Vite HMR websocket. Adding a worker, remote
+  script, `eval`-based library or new fetch target needs a CSP change and a
+  check of the DevTools console for violations.
+- **Exports are untrusted.** Documents may come from anyone. Keep the ammonia
+  pass in `export.rs`, keep the print frame without `allow-scripts`, and keep
+  local image inlining limited to real images.
+- **File commands are not path-scoped yet.** `read_document`, `write_document`
+  and the workspace commands accept any path the frontend passes (see TODO).
 - **Keep the reading path light.** New features should avoid eagerly traversing
   whole directory trees or loading CodeMirror language packages before they are
   needed. Measure startup and long-document behavior before claiming an

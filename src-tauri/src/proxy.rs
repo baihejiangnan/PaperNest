@@ -121,7 +121,7 @@ pub async fn fetch_remote_image_data_url(
     }
 
     let client = network_client(true, &proxy_url, Duration::from_secs(20))?;
-    let response = client
+    let mut response = client
         .get(parsed)
         .header(USER_AGENT, USER_AGENT_VALUE)
         .send()
@@ -147,15 +147,17 @@ pub async fn fetch_remote_image_data_url(
         .get(CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
-    let bytes = response
-        .bytes()
+    // Content-Length is optional (chunked responses), so bound the read itself.
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|e| format!("cannot read remote image: {e}"))?;
-    if bytes.len() > MAX_IMAGE_BYTES {
-        return Err(format!(
-            "remote image is too large ({} MiB)",
-            bytes.len() / (1024 * 1024)
-        ));
+        .map_err(|e| format!("cannot read remote image: {e}"))?
+    {
+        if bytes.len() + chunk.len() > MAX_IMAGE_BYTES {
+            return Err("remote image is too large".to_string());
+        }
+        bytes.extend_from_slice(&chunk);
     }
 
     Ok(format!(

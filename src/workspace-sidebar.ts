@@ -16,6 +16,7 @@ type Label = keyof typeof EN;
 
 const EN = {
   files: "Files", outline: "Outline", parent: "Parent folder", search: "Search files",
+  reveal: "Show current document", setRoot: "Show as root folder", path: "Folder path",
   newWindow: "Open in new window", newTab: "Open in new tab", newFile: "New file",
   newFolder: "New folder", duplicate: "Create copy", copyRelative: "Copy relative path",
   copyAbsolute: "Copy absolute path", location: "Open in File Explorer",
@@ -27,6 +28,7 @@ const EN = {
 };
 const ZH: typeof EN = {
   files: "文件", outline: "大纲", parent: "上级目录", search: "搜索文件",
+  reveal: "定位当前文档", setRoot: "设为根目录", path: "目录路径",
   newWindow: "在新窗口中打开", newTab: "在新标签页中打开", newFile: "新建文件",
   newFolder: "新建文件夹", duplicate: "创建副本", copyRelative: "复制相对路径",
   copyAbsolute: "复制绝对路径", location: "在资源管理器中打开",
@@ -38,6 +40,7 @@ const ZH: typeof EN = {
 };
 const DE: typeof EN = {
   files: "Dateien", outline: "Gliederung", parent: "Übergeordneter Ordner", search: "Dateien suchen",
+  reveal: "Aktuelles Dokument anzeigen", setRoot: "Als Stammordner anzeigen", path: "Ordnerpfad",
   newWindow: "In neuem Fenster öffnen", newTab: "In neuem Tab öffnen", newFile: "Neue Datei",
   newFolder: "Neuer Ordner", duplicate: "Kopie erstellen", copyRelative: "Relativen Pfad kopieren",
   copyAbsolute: "Absoluten Pfad kopieren", location: "Im Explorer öffnen",
@@ -49,6 +52,7 @@ const DE: typeof EN = {
 };
 const JA: typeof EN = {
   files: "ファイル", outline: "アウトライン", parent: "親フォルダー", search: "ファイル検索",
+  reveal: "現在のドキュメントを表示", setRoot: "ルートフォルダーとして表示", path: "フォルダーのパス",
   newWindow: "新しいウィンドウで開く", newTab: "新しいタブで開く", newFile: "新しいファイル",
   newFolder: "新しいフォルダー", duplicate: "コピーを作成", copyRelative: "相対パスをコピー",
   copyAbsolute: "絶対パスをコピー", location: "エクスプローラーで開く",
@@ -72,6 +76,18 @@ function parentOf(path: string): string {
   return trimmed.slice(0, /^[A-Za-z]:/.test(trimmed) ? Math.max(index, 2) : index) + (index === 2 && /^[A-Za-z]:/.test(trimmed) ? "\\" : "");
 }
 function nameOf(path: string): string { return path.split(/[\\/]/).filter(Boolean).pop() ?? path; }
+/** Folders strictly below `root` down to `deep`, shallowest first, as real paths. */
+function descendantsTo(root: string, deep: string): string[] {
+  const separator = root.includes("\\") ? "\\" : "/";
+  const names = deep.slice(root.replace(/[\\/]$/, "").length).split(/[\\/]/).filter(Boolean);
+  const paths: string[] = [];
+  let cursor = root;
+  for (const name of names) {
+    cursor = /[\\/]$/.test(cursor) ? cursor + name : cursor + separator + name;
+    paths.push(cursor);
+  }
+  return paths;
+}
 function pathKey(path: string): string { return path.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase(); }
 function within(path: string, root: string): boolean {
   const a = pathKey(path);
@@ -96,6 +112,10 @@ export class WorkspaceSidebar {
   onHeading: (index: number) => void = () => {};
 
   private root: Directory | null = null;
+  /** Deepest folder visited on the current branch. Going up keeps it so the
+   * breadcrumb can lead back down; switching to another branch replaces it. */
+  private trail: string | null = null;
+  private pendingRoot: string | null = null;
   private deleteBusy = false;
   private cache = new Map<string, Directory>();
   private expanded = new Set<string>();
@@ -126,8 +146,13 @@ export class WorkspaceSidebar {
     document.getElementById("workspace-files-tab")?.addEventListener("click", () => this.setMode("files"));
     document.getElementById("workspace-outline-tab")?.addEventListener("click", () => this.setMode("outline"));
     document.getElementById("workspace-up")?.addEventListener("click", () => {
-      if (this.root?.parent) void this.setRoot(this.root.parent);
+      // While a folder is still loading, go up from it so quick repeated
+      // clicks climb one level each instead of re-requesting the same parent.
+      const from = this.rootLoading ? this.pendingRoot : null;
+      const parent = from ? parentOf(from) : this.root?.parent;
+      if (parent && (!from || pathKey(parent) !== pathKey(from))) void this.setRoot(parent);
     });
+    document.getElementById("workspace-reveal")?.addEventListener("click", () => void this.revealCurrent());
     document.getElementById("workspace-search-toggle")?.addEventListener("click", () => this.toggleSearch());
     this.searchInput.addEventListener("input", () => {
       this.queueSearch();
@@ -158,6 +183,9 @@ export class WorkspaceSidebar {
     (document.getElementById("workspace-files-tab") as HTMLElement).textContent = label("files");
     (document.getElementById("workspace-outline-tab") as HTMLElement).textContent = label("outline");
     (document.getElementById("workspace-up") as HTMLElement).title = label("parent");
+    (document.getElementById("workspace-reveal") as HTMLElement).title = label("reveal");
+    (document.getElementById("workspace-reveal") as HTMLElement).setAttribute("aria-label", label("reveal"));
+    (document.getElementById("workspace-root-name") as HTMLElement).setAttribute("aria-label", label("path"));
     (document.getElementById("workspace-search-toggle") as HTMLElement).title = label("search");
     (document.getElementById("btn-sidebar") as HTMLElement).title = `${label("files")} / ${label("outline")}`;
     for (const [id, key] of [["rail-files", "files"], ["rail-outline", "outline"], ["rail-search", "search"]] as const) {
@@ -240,6 +268,7 @@ export class WorkspaceSidebar {
   async setRoot(path: string): Promise<void> {
     this.invalidateSearch();
     this.rootLoading = true;
+    this.pendingRoot = path;
     window.clearTimeout(this.treeSyncTimer);
     this.tree.hidden = false;
     this.searchResults.hidden = true;
@@ -248,6 +277,7 @@ export class WorkspaceSidebar {
       const dir = await invoke<Directory>("list_workspace_dir", { path });
       if (token !== this.loadToken) return;
       this.root = dir;
+      this.trail = this.trail && within(this.trail, dir.path) ? this.trail : dir.path;
       this.cache.clear();
       this.directoryReads.clear();
       this.expanded.clear();
@@ -262,6 +292,11 @@ export class WorkspaceSidebar {
     } catch (error) {
       if (token === this.loadToken) {
         this.rootLoading = false;
+        // A remembered deeper folder may have been moved or deleted meanwhile.
+        if (this.trail && this.root && within(this.trail, path)) {
+          this.trail = this.root.path;
+          this.renderTree();
+        }
         this.scheduleTreeSync();
         await this.report(error);
       }
@@ -284,7 +319,12 @@ export class WorkspaceSidebar {
     this.directoryReads.set(key, readId);
     const dir = await invoke<Directory>("list_workspace_dir", { path });
     if (this.root?.path !== rootPath || this.directoryReads.get(key) !== readId) return false;
-    const changed = !sameDirectory(this.cache.get(path), dir);
+    // A directory changed outside the app may invalidate the remembered branch.
+    // Keep its last known parent rather than offering a stale breadcrumb button.
+    const next = this.trail && within(this.trail, dir.path) ? descendantsTo(dir.path, this.trail)[0] : undefined;
+    const trimmedTrail = Boolean(next && !dir.entries.some((entry) => entry.is_dir && pathKey(entry.path) === pathKey(next)));
+    if (trimmedTrail) this.trail = dir.path;
+    const changed = trimmedTrail || !sameDirectory(this.cache.get(path), dir);
     this.cache.set(dir.path, dir);
     if (key === pathKey(rootPath)) this.root = dir;
     return changed;
@@ -334,6 +374,25 @@ export class WorkspaceSidebar {
     }
   }
 
+  /** The opposite of "Parent folder": show the current document's folder as
+   * the root and bring the document's row into view. */
+  private async revealCurrent(): Promise<void> {
+    const path = this.currentPath;
+    if (!path) return;
+    const folder = parentOf(path);
+    if (this.root && pathKey(this.root.path) === pathKey(folder)) {
+      this.tree.hidden = false;
+      this.searchResults.hidden = true;
+      this.renderTree();
+    } else {
+      await this.setRoot(folder);
+    }
+    if (this.currentPath !== path) return;
+    const row = Array.from(this.tree.querySelectorAll<HTMLElement>(".workspace-row.active"))[0];
+    row?.scrollIntoView({ block: "nearest" });
+    row?.focus({ preventScroll: true });
+  }
+
   private async revealPath(path: string): Promise<void> {
     if (!this.root || !within(path, this.root.path)) return;
     const parent = parentOf(path);
@@ -365,10 +424,9 @@ export class WorkspaceSidebar {
       ? (document.activeElement as HTMLElement).closest<HTMLElement>(".workspace-row[data-path]")?.dataset.path
       : undefined;
     this.tree.replaceChildren();
-    const rootName = document.getElementById("workspace-root-name") as HTMLElement;
-    rootName.textContent = this.root ? nameOf(this.root.path) : "";
-    rootName.title = this.root?.path ?? "";
+    this.renderBreadcrumb();
     (document.getElementById("workspace-up") as HTMLButtonElement).disabled = !this.root?.parent;
+    (document.getElementById("workspace-reveal") as HTMLButtonElement).disabled = !this.currentPath;
     if (!this.root) return;
     if (!this.root.entries.length) {
       const empty = document.createElement("div"); empty.className = "workspace-empty"; empty.textContent = label("empty"); this.tree.append(empty);
@@ -379,6 +437,49 @@ export class WorkspaceSidebar {
       const row = Array.from(this.tree.querySelectorAll<HTMLElement>(".workspace-row[data-path]"))
         .find((candidate) => candidate.dataset.path === focused);
       row?.focus({ preventScroll: true });
+    }
+  }
+
+  /** Current root, then any remembered deeper folders (dimmed) to return to. */
+  private renderBreadcrumb(): void {
+    const crumbs = document.getElementById("workspace-root-name") as HTMLElement;
+    const focusedPath = crumbs.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement).dataset.path
+      : undefined;
+    crumbs.replaceChildren();
+    if (!this.root) return;
+    const current = document.createElement("span");
+    current.className = "workspace-crumb current";
+    current.dataset.path = this.root.path;
+    // The current location is not an action, but can retain focus when a
+    // breadcrumb button becomes the root after Enter/Space navigation.
+    current.tabIndex = -1;
+    current.textContent = nameOf(this.root.path);
+    current.title = this.root.path;
+    current.setAttribute("aria-current", "location");
+    crumbs.append(current);
+    const deeper = this.trail && within(this.trail, this.root.path) ? descendantsTo(this.root.path, this.trail) : [];
+    for (const path of deeper) {
+      const step = document.createElement("span");
+      step.className = "workspace-crumb-step";
+      const separator = document.createElement("span");
+      separator.className = "workspace-crumb-separator";
+      separator.textContent = "›";
+      separator.setAttribute("aria-hidden", "true");
+      const crumb = document.createElement("button");
+      crumb.type = "button";
+      crumb.className = "workspace-crumb";
+      crumb.dataset.path = path;
+      crumb.textContent = nameOf(path);
+      crumb.title = path;
+      crumb.addEventListener("click", () => void this.setRoot(path));
+      step.append(separator, crumb);
+      crumbs.append(step);
+    }
+    if (focusedPath) {
+      const target = Array.from(crumbs.querySelectorAll<HTMLElement>(".workspace-crumb"))
+        .find((crumb) => pathKey(crumb.dataset.path!) === pathKey(focusedPath));
+      (target ?? document.getElementById("workspace-up"))?.focus({ preventScroll: true });
     }
   }
 
@@ -512,6 +613,7 @@ export class WorkspaceSidebar {
     const divider = () => this.menu.append(document.createElement("hr"));
     if ((!isDir && !isImagePath(path)) || (isDir && this.currentPath)) item("newWindow", () => void this.run("open_workspace_window", { path: isDir ? this.currentPath : path }));
     if (!blank && !isDir) item("newTab", () => void this.onOpenInNewTab(path));
+    if (!blank && isDir) item("setRoot", () => void this.setRoot(path));
     if (blank || isDir) {
       item("newFile", () => void this.create(path, false));
       item("newFolder", () => void this.create(path, true));
@@ -580,6 +682,7 @@ export class WorkspaceSidebar {
     if (!name || name === nameOf(path)) return;
     const renamed = await this.run<string>("rename_workspace_entry", { path, name });
     if (!renamed) return;
+    if (this.trail && within(this.trail, path)) this.trail = renamed + this.trail.slice(path.length);
     this.onRename(path, renamed);
     await this.refresh(parentOf(path));
   }
@@ -640,6 +743,7 @@ export class WorkspaceSidebar {
       const done = await this.run<void>("delete_workspace_entry", { path });
       if (done === null) return;
       if (remember) this.onConfirmDeleteChange(false);
+      if (this.trail && this.root && within(this.trail, path)) this.trail = this.root.path;
       this.onDelete(path);
       await this.refresh(parentOf(path));
     } finally { this.deleteBusy = false; }

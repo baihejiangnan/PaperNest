@@ -2,6 +2,7 @@ mod assets;
 mod commands;
 mod delete_info;
 mod export;
+mod fs_util;
 mod mdfmt;
 mod portable;
 mod proxy;

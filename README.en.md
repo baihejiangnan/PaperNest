@@ -16,9 +16,11 @@ A lightweight desktop app for local documents. Open Markdown to read or edit it,
 | Inspect other files | JSON, YAML, TOML, source code, logs, and plain text open in Code mode with find, replace, and light editing. Images open in their own tabs. |
 | Navigate local documents | Multiple tabs, a file tree, heading outline, folder search, back/forward navigation, drag and drop, and session restore. |
 | Work with files | Save, Save As, rename, create, duplicate, and delete. File tree actions can reveal files and folders in the system file manager. |
-| Export and customize | Export HTML or print to PDF; adjust fonts, accent color, light/dark/system theme, shortcuts, and window behavior. |
+| Export and customize | Export HTML or print to PDF (scripts and other executable content in a document are removed on export); adjust fonts, accent color, light/dark/system theme, shortcuts, and window behavior. |
 
-The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text. Unsupported file formats or text encodings show an amber capsule centered near the top of the window. It disappears after four seconds, can be dismissed manually, and lets you keep reading.
+The file tree loads directories on demand. While visible, it periodically refreshes the root and expanded folders, refreshes when the app regains focus, and rereads collapsed folders when reopened. Dot-prefixed entries and symbolic links remain hidden. ↑ shows the parent folder; after going up, the path bar keeps the deeper folders you came from (dimmed) so one click returns there. ◎ switches the tree back to the current document's folder and highlights the file, and “Show as root folder” in a folder's context menu enters any subfolder directly. Relative images and local links in Markdown resolve from the current document. Images can be enlarged, aligned, and resized. Binary files are not opened as text. Unsupported file formats or text encodings show an amber capsule centered near the top of the window. It disappears after four seconds, can be dismissed manually, and lets you keep reading.
+
+Use Tab/Shift+Tab to move between return-path buttons and Enter/Space to enter a folder; directory refreshes retain focus. Long paths wrap, individual overlong names are ellipsized, and hovering shows the full path.
 
 On Windows, “Open in File Explorer” opens the selected folder, or opens a file's parent folder with that file selected. Using the menu in the tree's blank area opens its current root folder.
 
@@ -64,7 +66,7 @@ PaperNest reads and writes ordinary local files without importing them into a pr
 <img src="./assets/diagram.png" alt="Diagram" style="zoom:50%;" data-align="center">
 ```
 
-Preferences and session state are stored in `settings.toml` and saved as settings change. Portable data can live in a `data/` folder next to the executable; installed builds use the system user-data directory. The app does not sync documents to a cloud service, so back up your files and settings separately when moving computers.
+Preferences and session state are stored in `settings.toml` and saved as settings change. If a hand edit leaves the file unreadable, the app reports the error at startup, keeps the original as `settings.invalid-<time>.toml` in the same folder, and runs with default settings. Portable data can live in a `data/` folder next to the executable; installed builds use the system user-data directory. The app does not sync documents to a cloud service, so back up your files and settings separately when moving computers.
 
 ## Project map
 

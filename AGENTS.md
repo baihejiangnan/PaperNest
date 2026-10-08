@@ -7,6 +7,7 @@ PaperNest 是以快速阅读为优先的 Tauri v2 桌面文档应用。Markdown 
 - [README.md](README.md)：产品定位、用户功能、安装与简短构建说明。
 - [ARCHITECTURE.md](ARCHITECTURE.md)：前后端边界、状态归属、文件和窗口数据流。
 - [docs/development.md](docs/development.md)：本地命令、调试与回归清单。
+- [docs/release-rules.md](docs/release-rules.md)：**推送与发行规则**。执行提交、推送远端、版本升级、发行构建、打标签或 GitHub Releases 发布前必须阅读；规定目标仓库、发布流程、签名与下载核验、完成条件。
 - [docs/design.md](docs/design.md)：全局 UI 规范、Obsidian 配色与 HeroUI 语义约定。
 - [TODO.md](TODO.md)：当前待验证和待完成事项；以实际代码与用户反馈更新状态。
 - [CODE_MODE_REFACTOR_PLAN.md](CODE_MODE_REFACTOR_PLAN.md)：历史设计材料。它不是当前实现的权威说明，尤其“没有项目树”等早期设想已变化。
@@ -21,6 +22,7 @@ PaperNest 是以快速阅读为优先的 Tauri v2 桌面文档应用。Markdown 
 
 ## 工作与文档维护
 
+- 用户要求“推送更新”或“发布发行版”时，按 [推送与发行规则](docs/release-rules.md) 判断执行范围并完成对应核验；不能把推送源码、生成安装包或上传草稿等同于正式发行完成。
 - 保留工作区已有的未提交改动。修改前查看相关 diff 和当前源码，不把旧设计稿写成已实现事实。
 - 优先更新现有主题；没有真实缺口时不新增文件。文档区分“当前实现”“目标”和“已实测”；编译通过不等于界面回归通过。
 - 代码改变用户操作时检查 README；改变状态或 IPC 时检查架构；改变视觉规则时检查设计；改变命令或工具链时检查开发说明；待验证事项更新 TODO。

@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -209,11 +209,42 @@ impl Store {
         installed_store(false)
     }
 
-    pub fn load(&self) -> Settings {
-        std::fs::read_to_string(&self.path)
-            .ok()
-            .and_then(|raw| parse_settings(&raw).ok())
-            .unwrap_or_default()
+    /// Read settings. A missing file is a first run and yields defaults.
+    ///
+    /// A file that exists but cannot be read or parsed (usually a hand edit
+    /// with a typo) is copied aside before defaults are returned, because the
+    /// next save writes the whole struct back and would otherwise erase it.
+    pub fn load(&self) -> (Settings, Option<LoadIssue>) {
+        let error = match std::fs::read_to_string(&self.path) {
+            Ok(raw) => match parse_settings(&raw) {
+                Ok(settings) => return (settings, None),
+                Err(e) => e.to_string(),
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return (Settings::default(), None)
+            }
+            Err(e) => e.to_string(),
+        };
+        eprintln!("settings: cannot load {}: {error}", self.path.display());
+        (Settings::default(), Some(self.set_aside(error)))
+    }
+
+    fn set_aside(&self, error: String) -> LoadIssue {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let backup = self.path.with_file_name(format!("settings.invalid-{stamp}.toml"));
+        match std::fs::copy(&self.path, &backup) {
+            Ok(_) => LoadIssue {
+                error,
+                backup: Some(backup.display().to_string()),
+            },
+            Err(e) => {
+                eprintln!("settings: cannot back up to {}: {e}", backup.display());
+                LoadIssue { error, backup: None }
+            }
+        }
     }
 
     /// Write settings; returns the signature of the file just written.
@@ -222,9 +253,16 @@ impl Store {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.path, body)?;
-        Ok(signature(&self.path).unwrap_or((0, 0)))
+        crate::fs_util::write_atomic(&self.path, body.as_bytes())?;
+        signature(&self.path).ok_or_else(|| anyhow::anyhow!("cannot stat {}", self.path.display()))
     }
+}
+
+/// Why `settings.toml` could not be used, and where the original was copied.
+#[derive(Debug, Clone, Serialize)]
+pub struct LoadIssue {
+    pub error: String,
+    pub backup: Option<String>,
 }
 
 fn installed_store(fallback: bool) -> Store {
@@ -234,8 +272,9 @@ fn installed_store(fallback: bool) -> Store {
     if !path.exists() {
         let legacy = base.join("Mowl").join("settings.toml");
         if legacy.is_file() {
-            let _ = std::fs::create_dir_all(&dir);
-            let _ = std::fs::copy(&legacy, &path);
+            if let Err(e) = std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(&legacy, &path)) {
+                eprintln!("settings: cannot migrate {}: {e}", legacy.display());
+            }
         }
     }
     let _ = std::fs::create_dir_all(&dir);
@@ -286,10 +325,16 @@ pub fn watch(path: PathBuf, last_write: LastWrite, app: AppHandle) {
         if now.is_some() && *last_write.lock().unwrap() == now {
             continue; // this was our own save
         }
-        if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(settings) = parse_settings(&raw) {
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        match parse_settings(&raw) {
+            Ok(settings) => {
                 let _ = app.emit(SETTINGS_CHANGED_EVENT, settings);
             }
+            // Keep the live settings; the next save will still overwrite the
+            // broken edit, but a restart backs it up first (see `Store::load`).
+            Err(e) => eprintln!("settings: ignoring invalid edit of {}: {e}", path.display()),
         }
     }
 }
@@ -336,6 +381,29 @@ mod theme_tests {
             assert_eq!(roundtrip.code_alternate_row_color, settings.code_alternate_row_color);
             assert!(raw.contains(&format!("'{}'", settings.accent)));
         }
+    }
+
+    #[test]
+    fn invalid_file_is_backed_up_before_defaults_are_used() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store {
+            path: dir.path().join("settings.toml"),
+            portable: false,
+            fallback: false,
+        };
+        let (_, issue) = store.load();
+        assert!(issue.is_none(), "a missing file is a first run");
+
+        let broken = "accent = '#123456'\nfont_size = \"large\n";
+        std::fs::write(&store.path, broken).unwrap();
+        let (settings, issue) = store.load();
+        let issue = issue.expect("parse failure is reported");
+        assert_eq!(settings.accent, Settings::default().accent);
+        let backup = issue.backup.expect("original copied aside");
+        assert_eq!(std::fs::read_to_string(backup).unwrap(), broken);
+
+        store.save(&settings).unwrap();
+        assert!(store.load().1.is_none());
     }
 
     #[test]

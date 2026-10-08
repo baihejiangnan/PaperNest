@@ -25,6 +25,9 @@ const EN = {
   empty: "This folder is empty", noHeadings: "No headings in the current Markdown file",
   noResults: "No matching files", searchPlaceholder: "Search this folder and subfolders",
   error: "File operation failed: {error}",
+  markdownOnly: "Only show Markdown files (.md, .markdown, .mdx) and folders containing them",
+  noMarkdown: "No Markdown files in this folder or its subfolders",
+  resize: "Resize sidebar (arrow keys to adjust, double-click to reset)",
 };
 const ZH: typeof EN = {
   files: "文件", outline: "大纲", parent: "上级目录", search: "搜索文件",
@@ -37,6 +40,9 @@ const ZH: typeof EN = {
   empty: "此文件夹为空", noHeadings: "当前 Markdown 文件没有标题",
   noResults: "没有匹配的文件", searchPlaceholder: "搜索当前目录及子目录",
   error: "文件操作失败：{error}",
+  markdownOnly: "只显示 Markdown 文档（.md、.markdown、.mdx）及包含它们的文件夹",
+  noMarkdown: "当前目录及子目录中没有 Markdown 文档",
+  resize: "调整侧栏宽度（方向键调整，双击恢复默认）",
 };
 const DE: typeof EN = {
   files: "Dateien", outline: "Gliederung", parent: "Übergeordneter Ordner", search: "Dateien suchen",
@@ -49,6 +55,9 @@ const DE: typeof EN = {
   empty: "Dieser Ordner ist leer", noHeadings: "Keine Überschriften in der Markdown-Datei",
   noResults: "Keine passenden Dateien", searchPlaceholder: "Ordner und Unterordner durchsuchen",
   error: "Dateioperation fehlgeschlagen: {error}",
+  markdownOnly: "Nur Markdown-Dateien (.md, .markdown, .mdx) und zugehörige Ordner anzeigen",
+  noMarkdown: "Keine Markdown-Dateien in diesem Ordner oder Unterordnern",
+  resize: "Seitenleiste anpassen (Pfeiltasten, Doppelklick zum Zurücksetzen)",
 };
 const JA: typeof EN = {
   files: "ファイル", outline: "アウトライン", parent: "親フォルダー", search: "ファイル検索",
@@ -61,6 +70,9 @@ const JA: typeof EN = {
   empty: "このフォルダーは空です", noHeadings: "見出しがありません",
   noResults: "一致するファイルがありません", searchPlaceholder: "フォルダー内を検索",
   error: "ファイル操作に失敗しました: {error}",
+  markdownOnly: "Markdown ファイル（.md、.markdown、.mdx）とそれを含むフォルダーのみ表示",
+  noMarkdown: "このフォルダーとサブフォルダーに Markdown ファイルはありません",
+  resize: "サイドバーの幅を変更（矢印キーで調整、ダブルクリックでリセット）",
 };
 
 function label(key: Label, vars?: Record<string, string>): string {
@@ -102,6 +114,8 @@ function sameDirectory(a: Directory | undefined, b: Directory): boolean {
 }
 
 export class WorkspaceSidebar {
+  onMarkdownOnlyChange: (value: boolean) => void = () => {};
+  onWidthChange: (value: number) => void = () => {};
   onOpen: (path: string) => Promise<void> = async () => {};
   onOpenInNewTab: (path: string) => Promise<void> = async () => {};
   onRename: (oldPath: string, newPath: string) => void = () => {};
@@ -123,6 +137,9 @@ export class WorkspaceSidebar {
   private content = "";
   private mode: "files" | "outline" = "files";
   private visible = false;
+  private markdownOnly = true;
+  private preferredWidth = 0;
+  private finishResize: (() => void) | null = null;
   private loadToken = 0;
   private searchTimer = 0;
   private searchToken = 0;
@@ -131,6 +148,7 @@ export class WorkspaceSidebar {
   private nextDirectoryRead = 0;
   private directoryReads = new Map<string, number>();
   private readonly aside = document.getElementById("workspace-sidebar") as HTMLElement;
+  private readonly resizer = document.getElementById("workspace-resizer") as HTMLElement;
   private readonly tree = document.getElementById("workspace-tree") as HTMLElement;
   private readonly outline = document.getElementById("workspace-outline-view") as HTMLElement;
   private readonly menu = document.getElementById("workspace-menu") as HTMLElement;
@@ -143,6 +161,11 @@ export class WorkspaceSidebar {
     document.getElementById("rail-files")?.addEventListener("click", () => { this.show(true); this.setMode("files"); });
     document.getElementById("rail-outline")?.addEventListener("click", () => { this.show(true); this.setMode("outline"); });
     document.getElementById("rail-search")?.addEventListener("click", () => this.openSearch());
+    document.getElementById("rail-markdown-only")?.addEventListener("click", () => {
+      this.setMarkdownOnly(!this.markdownOnly);
+      this.onMarkdownOnlyChange(this.markdownOnly);
+    });
+    this.installResizer();
     document.getElementById("workspace-files-tab")?.addEventListener("click", () => this.setMode("files"));
     document.getElementById("workspace-outline-tab")?.addEventListener("click", () => this.setMode("outline"));
     document.getElementById("workspace-up")?.addEventListener("click", () => {
@@ -180,6 +203,11 @@ export class WorkspaceSidebar {
   }
 
   retranslate(): void {
+    const filter = document.getElementById("rail-markdown-only")!;
+    filter.title = label("markdownOnly");
+    filter.setAttribute("aria-label", label("markdownOnly"));
+    this.resizer.title = label("resize");
+    this.resizer.setAttribute("aria-label", label("resize"));
     (document.getElementById("workspace-files-tab") as HTMLElement).textContent = label("files");
     (document.getElementById("workspace-outline-tab") as HTMLElement).textContent = label("outline");
     (document.getElementById("workspace-up") as HTMLElement).title = label("parent");
@@ -202,6 +230,9 @@ export class WorkspaceSidebar {
     const wasVisible = this.visible;
     this.visible = value;
     this.aside.hidden = !value;
+    this.resizer.hidden = !value;
+    if (!value) this.finishResize?.();
+    this.applyWidth();
     const button = document.getElementById("btn-sidebar") as HTMLButtonElement;
     button.classList.toggle("active", value);
     button.setAttribute("aria-expanded", String(value));
@@ -210,6 +241,105 @@ export class WorkspaceSidebar {
     else if (!wasVisible && !this.searchInput.hidden && this.searchInput.value) this.queueSearch();
     if (!value) window.clearTimeout(this.treeSyncTimer);
     else if (!wasVisible) this.syncTreeNow();
+  }
+
+  setMarkdownOnly(value: boolean): void {
+    const changed = this.markdownOnly !== value;
+    this.markdownOnly = value;
+    const button = document.getElementById("rail-markdown-only")!;
+    button.classList.toggle("active", value);
+    button.setAttribute("aria-pressed", String(value));
+    if (changed) {
+      this.hideMenu();
+      this.invalidateSearch();
+      this.tree.replaceChildren();
+      this.searchResults.hidden = true;
+      const path = this.rootLoading ? this.pendingRoot : this.root?.path;
+      if (path) void this.setRoot(path, true);
+    }
+  }
+
+  setWidth(value: number): void {
+    this.preferredWidth = Number.isFinite(value) && value > 0 ? value : 0;
+    this.applyWidth();
+  }
+
+  private widthLimits(): { min: number; max: number } {
+    const available = document.getElementById("workspace-layout")!.clientWidth;
+    return { min: 160, max: Math.max(160, Math.min(600, available - 240)) };
+  }
+
+  private applyWidth(): void {
+    const { min, max } = this.widthLimits();
+    const desired = this.preferredWidth || Math.max(220, Math.min(290, innerWidth * .25));
+    const width = Math.round(Math.max(min, Math.min(max, desired)));
+    this.aside.style.flexBasis = `${width}px`;
+    this.resizer.setAttribute("aria-valuemin", String(min));
+    this.resizer.setAttribute("aria-valuemax", String(max));
+    this.resizer.setAttribute("aria-valuenow", String(width));
+  }
+
+  private installResizer(): void {
+    new ResizeObserver(() => this.applyWidth()).observe(document.getElementById("workspace-layout")!);
+    const commit = (width: number) => {
+      this.setWidth(width);
+      this.onWidthChange(this.preferredWidth);
+    };
+    this.resizer.addEventListener("dblclick", () => commit(0));
+    this.resizer.addEventListener("keydown", (event) => {
+      const { min, max } = this.widthLimits();
+      const width = this.aside.getBoundingClientRect().width;
+      let next: number;
+      if (event.key === "ArrowLeft") next = width - (event.shiftKey ? 40 : 10);
+      else if (event.key === "ArrowRight") next = width + (event.shiftKey ? 40 : 10);
+      else if (event.key === "Home") next = min;
+      else if (event.key === "End") next = max;
+      else return;
+      event.preventDefault();
+      commit(Math.max(min, Math.min(max, next)));
+    });
+    this.resizer.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || this.finishResize) return;
+      event.preventDefault();
+      this.hideMenu();
+      const startX = event.clientX;
+      const startWidth = this.aside.getBoundingClientRect().width;
+      const initialWidth = this.preferredWidth;
+      let moved = false;
+      this.resizer.setPointerCapture(event.pointerId);
+      this.resizer.focus({ preventScroll: true });
+      document.body.classList.add("resizing-sidebar");
+      const move = (next: PointerEvent) => {
+        if (next.pointerId !== event.pointerId) return;
+        const { min, max } = this.widthLimits();
+        moved ||= next.clientX !== startX;
+        this.setWidth(Math.max(min, Math.min(max, startWidth + next.clientX - startX)));
+      };
+      const finish = () => {
+        this.finishResize = null;
+        document.body.classList.remove("resizing-sidebar");
+        this.resizer.removeEventListener("pointermove", move);
+        this.resizer.removeEventListener("pointerup", end);
+        this.resizer.removeEventListener("pointercancel", cancel);
+        this.resizer.removeEventListener("lostpointercapture", finish);
+        window.removeEventListener("blur", finish);
+        if (this.resizer.hasPointerCapture(event.pointerId)) this.resizer.releasePointerCapture(event.pointerId);
+        if (moved) this.onWidthChange(this.preferredWidth);
+      };
+      const end = (next: PointerEvent) => { if (next.pointerId === event.pointerId) finish(); };
+      const cancel = (next: PointerEvent) => {
+        if (next.pointerId !== event.pointerId) return;
+        this.setWidth(initialWidth);
+        moved = false;
+        finish();
+      };
+      this.finishResize = finish;
+      this.resizer.addEventListener("pointermove", move);
+      this.resizer.addEventListener("pointerup", end);
+      this.resizer.addEventListener("pointercancel", cancel);
+      this.resizer.addEventListener("lostpointercapture", finish);
+      window.addEventListener("blur", finish);
+    });
   }
 
   openSearch(): void {
@@ -265,7 +395,7 @@ export class WorkspaceSidebar {
     if (this.mode === "outline") this.renderOutline();
   }
 
-  async setRoot(path: string): Promise<void> {
+  async setRoot(path: string, preserveExpanded = false): Promise<void> {
     this.invalidateSearch();
     this.rootLoading = true;
     this.pendingRoot = path;
@@ -274,19 +404,19 @@ export class WorkspaceSidebar {
     this.searchResults.hidden = true;
     const token = ++this.loadToken;
     try {
-      const dir = await invoke<Directory>("list_workspace_dir", { path });
+      const dir = await invoke<Directory>("list_workspace_dir", { path, markdownOnly: this.markdownOnly });
       if (token !== this.loadToken) return;
       this.root = dir;
       this.trail = this.trail && within(this.trail, dir.path) ? this.trail : dir.path;
       this.cache.clear();
       this.directoryReads.clear();
-      this.expanded.clear();
+      if (!preserveExpanded) this.expanded.clear();
       this.cache.set(dir.path, dir);
       if (this.currentPath && within(this.currentPath, dir.path)) await this.revealPath(this.currentPath);
       if (token !== this.loadToken) return;
       this.rootLoading = false;
       this.renderTree();
-      this.show(true);
+      if (!preserveExpanded) this.show(true);
       if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
       this.scheduleTreeSync();
     } catch (error) {
@@ -312,13 +442,14 @@ export class WorkspaceSidebar {
   }
 
   private async readDirectory(path: string): Promise<boolean> {
+    const loadToken = this.loadToken;
     const rootPath = this.root?.path;
     if (!rootPath || !within(path, rootPath)) return false;
     const key = pathKey(path);
     const readId = ++this.nextDirectoryRead;
     this.directoryReads.set(key, readId);
-    const dir = await invoke<Directory>("list_workspace_dir", { path });
-    if (this.root?.path !== rootPath || this.directoryReads.get(key) !== readId) return false;
+    const dir = await invoke<Directory>("list_workspace_dir", { path, markdownOnly: this.markdownOnly });
+    if (loadToken !== this.loadToken || this.root?.path !== rootPath || this.directoryReads.get(key) !== readId) return false;
     // A directory changed outside the app may invalidate the remembered branch.
     // Keep its last known parent rather than offering a stale breadcrumb button.
     const next = this.trail && within(this.trail, dir.path) ? descendantsTo(dir.path, this.trail)[0] : undefined;
@@ -429,7 +560,7 @@ export class WorkspaceSidebar {
     (document.getElementById("workspace-reveal") as HTMLButtonElement).disabled = !this.currentPath;
     if (!this.root) return;
     if (!this.root.entries.length) {
-      const empty = document.createElement("div"); empty.className = "workspace-empty"; empty.textContent = label("empty"); this.tree.append(empty);
+      const empty = document.createElement("div"); empty.className = "workspace-empty"; empty.textContent = label(this.markdownOnly ? "noMarkdown" : "empty"); this.tree.append(empty);
     }
     this.renderEntries(this.root.entries, this.tree);
     scrollHost.scrollTop = scrollTop;
@@ -580,7 +711,7 @@ export class WorkspaceSidebar {
   private async search(token: number, rootPath: string, query: string): Promise<void> {
     if (!this.searchIsCurrent(token, rootPath)) return;
     try {
-      const results = await invoke<Entry[]>("search_workspace", { root: rootPath, query });
+      const results = await invoke<Entry[]>("search_workspace", { root: rootPath, query, markdownOnly: this.markdownOnly });
       if (!this.searchIsCurrent(token, rootPath)) return;
       this.tree.hidden = true;
       this.searchResults.hidden = false;

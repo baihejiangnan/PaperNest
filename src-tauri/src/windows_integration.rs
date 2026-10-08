@@ -484,6 +484,7 @@ pub fn installer_cli_action() -> Option<anyhow::Result<()>> {
     match action.as_str() {
         "--papernest-msi-register" => Some(register_current_installed()),
         "--papernest-msi-unregister" => Some(unregister_current_installed()),
+        "--papernest-msi-unregister-new-md" => Some(crate::new_md::uninstall()),
         _ => None,
     }
 }

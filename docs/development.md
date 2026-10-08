@@ -24,13 +24,29 @@
 
 ## 修改位置
 
+### MD 文件树筛选与侧栏宽度（2026-10-08）
+
+- 文件树默认只显示 `.md`、`.markdown`、`.mdx`（大小写不敏感，与前端 Markdown 渲染类型一致）及包含可见 Markdown 文档的祖先目录；导航栏搜索下方的 MD 图标与常规设置共用 `markdown_only`。搜索遵循同一筛选。`sidebar_width` 保存拖动后的 CSS 宽度，0 表示响应式默认值；手动编辑配置即时应用。
+- 递归目录判断在 Rust 后台线程进行，排除隐藏项与符号链接；不读取文档内容，找到一份 MD 即停止扫描该子树。每次列目录或搜索共享 5 万条目／0.8 秒的扫描预算，预算耗尽的文件夹按“可能含 MD”显示，不会被隐藏；扫描超过 2000 条目的结果缓存 30 秒，避免 2.5 秒目录轮询反复全量遍历，因此大目录深处新增／移走 MD 最多延迟 30 秒反映，小目录仍即时刷新。预算与缓存有单元测试；超大目录／网络目录的实际耗时仍需按实际工作区观察。
+- 前端构建及文本序列化／标签路径脚本通过；Rust 43 项测试通过、3 项需要真实回收站或发行签名的既有测试未运行。新测试覆盖递归祖先、中文路径、大写后缀、非 MD 与空目录排除、隐藏项规则、最后一份 MD 新增／移走、搜索先筛选再限量，以及设置默认值与往返保存。
+- Edge 中 13 项组件交互检查通过：开关默认值、深层 MD、关闭后还原文件／空目录、展开状态、搜索联动、鼠标拖动和保存回调、方向键／Shift／Home／End、双击恢复默认、480×420 窄窗口正文空间与放大后恢复偏好、设置开关同步、过期请求拒绝、后代 MD 刷新，以及隐藏侧栏时变更筛选不自动打开。浅深及窄窗口截图已检查。组件使用真实 WorkspaceSidebar 与 SettingsPanel，目录 IPC 与持久化回调使用隔离数据；不能替代桌面重启验证。
+- 独立 debug 标识、独立便携配置的真实 WebView2 打包页面通过 8 项检查：默认 MD 筛选、中文深层 `.MD`、关闭筛选、真实搜索 IPC 联动、鼠标捕获拖动、双击及键盘、设置开关联动和实际 TOML 保存。正常关闭并重启后筛选关闭状态与 210 px 宽度均恢复；外部手改 TOML 后 MD 筛选开启与 360 px 宽度即时应用。循环 junction 不进入树或递归；空目录新增最后一份 MD 后自动出现，改为 TXT 后自动隐藏。页面／控制台错误为 0。测试未修改安装版配置或文件关联；使用回环 CDP 的测试实例在结束后正常关闭，没有生成 MSI 或发行版。
+
+### Windows 系统“新建 MD 文件”（2026-10-08）
+
+- 当前实现见 [交互与注册规则](design.md#windows-右键新建-md-文件)。配置键 `windows_new_md` 默认 false，设置面板、前端、Rust 和配置示例已同步；注册操作与普通“打开方式”分离。
+- 前端类型检查／构建、文本序列化和标签路径脚本通过；Rust 默认测试 44 项通过、3 项既有集成测试显式跳过。新增隔离注册表测试覆盖默认类型保留、重复开关、第三方后写入保留、冲突拒绝、无类型时补足与撤销、写前日志中断恢复和日志路径校验。工作区测试 EXE 直接执行时注册表访问被执行环境拒绝；将同一已编译测试 EXE 复制到普通临时目录后完整运行通过，未修改系统权限。
+- 使用独立 debug 标识、临时便携配置和实际 WebView2 打包页面验证开关默认关闭、启停与 TOML 保存、正常关闭后重启、设置搜索定位，以及已有第三方 ShellNew 时禁用控件／后端拒绝覆盖。最新构建还通过了已启用配置在注册被移除后启动修复，以及带过期 false 的普通设置保存仍保持实际启用状态的检查。测试路径包含中文、空格和逗号。现有 `.md` 默认 ProgID 与 `UserChoice` 在前后检查中一致。
+- 通过 Windows 原生 NewMenu COM 处理器枚举实际菜单，显示“MD 文件”；调用同一处理器的菜单命令创建了 0 字节的 `MD 文件.md`，应用关闭后菜单仍有效。最初纯文本 MenuText 被系统忽略，改为本地化间接资源后生效；更新资源引用版本修饰符后旧 MUI 缓存得到刷新。此项验证真实 Shell 处理器，没有替换注册或文件创建逻辑；尚未人工操作 Explorer 的创建后重命名界面。
+- 开启后正常关闭测试应用，再执行 `--papernest-msi-unregister-new-md` 清理入口，退出成功；自建 ShellNew 与所有权日志均已撤销，原默认程序保持不变。MSI 清理动作失败时不阻止卸载（`Return="ignore"`，与关联清理一致）。MSI fragment XML 已解析检查，尚未构建新 MSI 或执行完整升级／卸载。Windows 10、便携程序跨目录移动和 MSI 生命周期仍需实机检查。测试实例及回环调试端口已关闭，安装版与原配置未替换。
+
 | 需求 | 主要入口 |
 | --- | --- |
 | 文档/标签页/窗口协调 | `src/main.ts`、`src/tabs.ts` |
 | Markdown 与图片 | `src/editor.ts`、`src/html-markdown.ts`、`src/image-block-markdown.ts`、`src/image-preview.ts` |
 | Code 模式与文件类型 | `src/code-editor.ts`、`src/file-types.ts` |
 | 文件树、大纲和菜单 | `src/workspace-sidebar.ts`、`src-tauri/src/workspace.rs` |
-| 文件读写、设置与文件关联 | `src-tauri/src/commands.rs`、`src-tauri/src/settings.rs`、`src-tauri/src/windows_integration.rs` |
+| 文件读写、设置与文件关联 | `src-tauri/src/commands.rs`、`src-tauri/src/settings.rs`、`src-tauri/src/windows_integration.rs`、`src-tauri/src/new_md.rs` |
 | 视觉与文案 | `src/styles.css`、`src/miku-cream.ts`、`src/i18n.ts`、`index.html` |
 
 自定义 Rust IPC 命令须在 `src-tauri/src/lib.rs` 注册；前端新增 Tauri 窗口或插件 API 时检查 `src-tauri/capabilities/default.json`。数据流细节见 [ARCHITECTURE.md](../ARCHITECTURE.md)。

@@ -1,7 +1,7 @@
 //! Tauri commands exposed to the frontend.
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::settings::{LoadIssue, Settings};
 use crate::windows_integration::OpenWithStatus;
@@ -42,15 +42,15 @@ pub fn get_settings(state: State<AppState>) -> SettingsPayload {
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<AppState>, settings: Settings) -> Result<(), String> {
-    let sig = state
-        .store
-        .lock()
-        .unwrap()
-        .save(&settings)
-        .map_err(|e| e.to_string())?;
-    *state.last_write.lock().unwrap() = Some(sig);
-    Ok(())
+pub async fn save_settings(app: tauri::AppHandle, mut settings: Settings) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::new_md::with_status(|status| {
+        // A stale window must not undo system integration when saving fonts/tabs.
+        if let Ok(status) = status { settings.windows_new_md = status.enabled; }
+        let state=app.state::<AppState>();
+        let sig = state.store.lock().unwrap().save(&settings).map_err(|e| e.to_string())?;
+        *state.last_write.lock().unwrap() = Some(sig);
+        Ok(())
+    })).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

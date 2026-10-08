@@ -4,6 +4,7 @@ mod delete_info;
 mod export;
 mod fs_util;
 mod mdfmt;
+mod new_md;
 mod portable;
 mod proxy;
 mod recycle;
@@ -112,6 +113,8 @@ pub fn run() {
             commands::register_open_with,
             commands::register_file_associations,
             commands::unregister_open_with,
+            new_md::get_new_md_menu_status,
+            new_md::set_new_md_menu,
             commands::read_document,
             commands::write_document,
             commands::rename_document,

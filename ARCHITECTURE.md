@@ -70,6 +70,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions, Windows Explorer integration and same-process secondary-window creation. |
 | `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
 | `src-tauri/src/portable.rs` | Resolves the portable data dir (next to exe; on macOS next to the `.app`); writability check + OS‑config fallback. |
+| `src-tauri/src/new_md.rs`, `src-tauri/build.rs` | Per-user Windows ShellNew registration, ownership journal, rollback and uninstall cleanup; localized menu-name resources embedded in the EXE. |
 | `src-tauri/src/export.rs` | `render_html`: Markdown → GFM HTML (comrak), sanitized with ammonia, wrapped in a self‑contained page (a script‑free variant for printing). |
 | `src-tauri/src/fs_util.rs` | `write_atomic`: temp file in the target directory → fsync → rename over the target. Used by document saves, settings and update downloads. |
 | `src/print-view.ts` | `printHtml`: the sandboxed print frame; renders KaTeX and highlight.js into it from the app. |
@@ -194,9 +195,35 @@ editing continues during the asynchronous write, the completed save updates
 the baseline without overwriting the newer view and leaves the tab dirty.
 
 ### Settings
+Workspace preferences include `markdown_only` (default true) and app-managed
+`sidebar_width` (CSS pixels, 0 = responsive default). The navigation-rail toggle
+and general-settings checkbox share the same preference and debounced save.
+The separator uses pointer capture, keyboard adjustment and a layout observer;
+window resizing clamps the displayed width without losing the preferred width.
+Tree and search commands accept optional `markdown_only`; omitted remains false
+for other callers such as the link picker. Filtered directory reads retain only
+`.md`/`.markdown`/`.mdx` files (the frontend's Markdown types) and directories
+with visible Markdown descendants. Directory traversal runs in `spawn_blocking`,
+skips hidden entries and links, and never reads document contents. Each request
+shares a scan budget; folders left undecided stay visible, and expensive answers
+are cached for 30 seconds so polling does not repeat full walks. Existing polling picks up descendant changes; root and per-directory
+request generations reject responses from an earlier filter or root selection.
+
 `get_settings` returns settings plus mode, location and startup-file metadata.
 `save_settings` persists the whole `Settings` struct and records its signature.
 External edits arrive as a `settings-changed` event.
+
+`windows_new_md` defaults to false and controls Windows Explorer's New submenu.
+`get_new_md_menu_status` and `set_new_md_menu` run off the UI thread; the latter
+holds a per-user cross-process lock across registry mutation, verification and
+settings save, with rollback on failure. `new-md-menu-changed` synchronizes windows;
+opening settings or returning focus rechecks the actual registry state. Main-window
+startup repairs enabled registrations after an update or move. Ordinary settings
+saves mirror actual registration state to prevent stale windows from undoing it.
+The ownership journal is under `HKCU\\Software\\PaperNest\\NewMarkdownMenu`;
+it restores only values that still match our writes. Existing default applications,
+UserChoice and third-party ShellNew entries are preserved. The MSI uninstall CLI
+cleans only the current executable's registration and skips major-upgrade removal.
 
 `SettingsPanel` uses a category sidebar and owns a transient font-preview state.
 Preview clears the overlay and card backgrounds, retaining an opaque font-control

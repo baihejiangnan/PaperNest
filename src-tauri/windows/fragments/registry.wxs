@@ -103,6 +103,12 @@
                   Execute="immediate"
                   Impersonate="yes"
                   Return="ignore" />
+    <CustomAction Id="PaperNestUnregisterNewMdAction"
+                  FileKey="Path"
+                  ExeCommand="--papernest-msi-unregister-new-md"
+                  Execute="immediate"
+                  Impersonate="yes"
+                  Return="ignore" />
 
     <InstallExecuteSequence>
       <!-- An immediate type-18 action needs the installed EXE to exist;
@@ -111,6 +117,8 @@
               After="InstallFinalize">NOT REMOVE~="ALL"</Custom>
       <Custom Action="PaperNestUnregisterAssociationsAction"
               Before="RemoveFiles">REMOVE~="ALL"</Custom>
+      <Custom Action="PaperNestUnregisterNewMdAction"
+              Before="PaperNestUnregisterAssociationsAction">REMOVE~="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
     </InstallExecuteSequence>
   </Fragment>
 </Wix>

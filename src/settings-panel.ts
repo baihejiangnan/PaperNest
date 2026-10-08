@@ -25,6 +25,7 @@ export interface PanelSettings {
   spellcheck: boolean;
   quit_on_escape: boolean;
   always_show_tabbar: boolean;
+  markdown_only: boolean;
   open_last_session: boolean;
   show_path: boolean;
   list_marker: string;
@@ -36,6 +37,7 @@ export interface PanelSettings {
   code_alternate_row_color: string;
   remember_window_position: boolean;
   file_associations: string[];
+  windows_new_md: boolean;
   accent: string;
   color_scheme: string;
   confirm_delete: boolean;
@@ -46,6 +48,12 @@ export interface PanelSettings {
 }
 
 export type SettingKey = keyof PanelSettings;
+export interface NewMdMenuStatus {
+  available: boolean;
+  enabled: boolean;
+  can_modify: boolean;
+  conflict: string | null;
+}
 type SettingValue = string | number | boolean | string[];
 type SettingsTab = "general" | "editor" | "shortcuts" | "associations" | "updates";
 
@@ -155,6 +163,7 @@ const SECTIONS: Section[] = [
     tab: "general",
     title: "settings.section.behavior",
     fields: [
+      { key: "markdown_only", kind: "checkbox", label: "settings.markdownOnly" },
       { key: "confirm_delete", kind: "checkbox", label: "settings.confirmDelete" },
       { key: "quit_on_escape", kind: "checkbox", label: "settings.quitOnEscape" },
       {
@@ -292,6 +301,9 @@ export class SettingsPanel {
   #associationAvailable = false;
   #associationBusy = false;
   #registeredExtensions = new Set<string>();
+  #newMdStatus: NewMdMenuStatus = { available: false, enabled: false, can_modify: false, conflict: null };
+  #newMdBusy = false;
+  #newMdError = "";
   #appVersion = "";
   #updateBusy = false;
   #updateStatus = "";
@@ -303,6 +315,8 @@ export class SettingsPanel {
   onOpenWithToggle: () => void | Promise<void> = () => {};
   onRegisterAssociations: (extensions: string[]) => Promise<void> = async () => {};
   onSetDefaultAssociations: (extensions: string[]) => Promise<void> = async () => {};
+  onNewMdMenuToggle: (enabled: boolean) => Promise<void> = async () => {};
+  onOpen: () => void = () => {};
   onCheckUpdates: () => Promise<string> = async () => "";
   onProxyTest: (proxyUrl: string) => Promise<void> = async () => {};
   /** Return focus to the editor after closing. */
@@ -366,6 +380,34 @@ export class SettingsPanel {
     if (this.#activeTab === "associations") this.#renderActiveTab();
   }
 
+  setNewMdMenuStatus(status: NewMdMenuStatus, error = ""): void {
+    this.#newMdStatus = status;
+    this.#newMdError = error;
+    this.#refreshNewMdControls();
+  }
+
+  #refreshNewMdControls(): void {
+    const box = this.#el.querySelector<HTMLElement>("[data-new-md-menu]");
+    if (!box) return;
+    box.hidden = !this.#newMdStatus.available;
+    const toggle = box.querySelector<HTMLInputElement>("input")!;
+    if (!this.#newMdBusy) toggle.checked = this.#newMdStatus.enabled;
+    toggle.disabled = this.#newMdBusy || !this.#newMdStatus.can_modify;
+    const note = box.querySelector<HTMLElement>("[data-new-md-status]")!;
+    note.classList.toggle("error", Boolean(this.#newMdError));
+    note.textContent = this.#newMdStatusText();
+    note.setAttribute("role", this.#newMdError ? "alert" : "status");
+  }
+
+  #newMdStatusText(): string {
+    const conflict = this.#newMdStatus.conflict;
+    return this.#newMdError || t(this.#newMdBusy ? "settings.newMd.busy"
+      : conflict === "existing" ? "settings.newMd.existing"
+      : conflict === "other_installation" ? "settings.newMd.otherInstallation"
+      : conflict === "modified" ? "settings.newMd.modified"
+      : this.#newMdStatus.enabled ? "settings.newMd.enabled" : "settings.newMd.disabled");
+  }
+
   setVersion(version: string): void {
     this.#appVersion = version;
     if (this.#activeTab === "updates") this.#renderActiveTab();
@@ -392,6 +434,7 @@ export class SettingsPanel {
     this.#el.hidden = false;
     if (this.#query) this.#setSearch("");
     this.refresh();
+    this.onOpen();
     activateModal(this.#el, () => this.#dismiss(), this.#el.querySelector<HTMLElement>(".settings-tab.active") ?? undefined);
     // next frame so the transition runs from the hidden state
     requestAnimationFrame(() => {
@@ -518,6 +561,7 @@ export class SettingsPanel {
     add("updates", "update.check", "settings.tab.updates", "check_updates", t("settings.updateSource"));
     add("editor", "settings.fontPreview.start", "settings.section.fonts", "font_preview", t("settings.fontPreview.hint"));
     add("associations", "settings.tab.associations", "settings.tab.associations", "file_associations", "file_associations " + t("settings.associations.register") + " " + t("settings.associations.setDefault"));
+    if (this.#newMdStatus.available) add("associations", "settings.newMd.label", "settings.newMd.section", "windows_new_md", "windows_new_md ShellNew MD " + t("settings.newMd.hint"));
     for (const category of FILE_CATEGORY_ORDER) {
       for (const ext of associationExtensionsByCategory(category)) {
         results.push({ tab: "associations", label: ext, section: t(ASSOCIATION_LABELS[category]), target: `association${ext}`, terms: ext });
@@ -809,6 +853,7 @@ export class SettingsPanel {
     if (searching) { this.#renderSearch(content); return; }
 
     if (this.#activeTab === "associations") {
+      content.appendChild(this.#newMdControls());
       content.appendChild(this.#associationControls());
     }
     if (this.#activeTab === "updates") {
@@ -843,6 +888,47 @@ export class SettingsPanel {
       }
       content.appendChild(fs);
     }
+  }
+
+  #newMdControls(): HTMLElement {
+    const box = document.createElement("fieldset");
+    box.dataset.newMdMenu = "";
+    box.hidden = !this.#newMdStatus.available;
+    const legend = document.createElement("legend");
+    legend.textContent = t("settings.newMd.section");
+    const row = document.createElement("label");
+    row.className = "settings-row settings-row--checkbox";
+    row.dataset.setting = "windows_new_md";
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-describedby", "settings-new-md-hint settings-new-md-status");
+    toggle.checked = this.#newMdStatus.enabled;
+    toggle.disabled = this.#newMdBusy || !this.#newMdStatus.can_modify;
+    toggle.addEventListener("change", async () => {
+      const enabled = toggle.checked;
+      this.#newMdBusy = true;
+      this.#newMdError = "";
+      this.#refreshNewMdControls();
+      try { await this.onNewMdMenuToggle(enabled); }
+      catch (error) { this.#newMdError = t("settings.newMd.failed", { error: String(error) }); }
+      finally { this.#newMdBusy = false; this.#refreshNewMdControls(); }
+    });
+    const text = document.createElement("span");
+    text.textContent = t("settings.newMd.label");
+    row.append(toggle, text);
+    const hint = document.createElement("p");
+    hint.id = "settings-new-md-hint";
+    hint.className = "settings-association-note";
+    hint.textContent = t("settings.newMd.hint");
+    const status = document.createElement("p");
+    status.id = "settings-new-md-status";
+    status.dataset.newMdStatus = "";
+    status.className = "settings-association-note";
+    status.setAttribute("aria-live", "polite");
+    status.textContent = this.#newMdStatusText();
+    box.append(legend, row, hint, status);
+    return box;
   }
 
   #associationControls(): HTMLElement {

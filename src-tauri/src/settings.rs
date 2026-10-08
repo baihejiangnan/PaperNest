@@ -95,6 +95,8 @@ pub struct Settings {
     pub open_last_session: bool,
     /// Keep the tab bar visible even when only one file is open.
     pub always_show_tabbar: bool,
+    /// Only show Markdown (.md/.markdown/.mdx) files and directories containing them in the workspace tree.
+    pub markdown_only: bool,
     /// WYSIWYG editor font family ("" = built-in default).
     pub editor_font: String,
     /// Base editor font size in px (headings scale from this).
@@ -110,6 +112,8 @@ pub struct Settings {
     pub remember_window_position: bool,
     /// File extensions the user wants PaperNest registered to open on Windows.
     pub file_associations: Vec<String>,
+    /// Windows Explorer New > MD File, independent of default applications.
+    pub windows_new_md: bool,
     /// Accent colour. PaperNest defaults to Obsidian purple (#8A5CF5).
     pub accent: String,
     /// Base colour scheme: system, light or dark.
@@ -134,6 +138,8 @@ pub struct Settings {
     pub open_files: Vec<PathBuf>,
     /// Index into `open_files` of the tab that was active.
     pub active_tab: usize,
+    /// Preferred workspace sidebar width in CSS pixels (0 = responsive default).
+    pub sidebar_width: f64,
     pub window: WindowState,
 }
 
@@ -147,6 +153,7 @@ impl Default for Settings {
             show_path: false,
             open_last_session: true,
             always_show_tabbar: false,
+            markdown_only: true,
             editor_font: String::new(),
             editor_font_size: 16,
             source_font: String::new(),
@@ -159,6 +166,7 @@ impl Default for Settings {
                 ".markdown".to_string(),
                 ".mdx".to_string(),
             ],
+            windows_new_md: false,
             accent: "#8A5CF5".to_string(),
             color_scheme: "system".to_string(),
             confirm_delete: true,
@@ -170,6 +178,7 @@ impl Default for Settings {
             last_update_check: 0,
             open_files: Vec::new(),
             active_tab: 0,
+            sidebar_width: 0.0,
             window: WindowState::default(),
         }
     }
@@ -409,8 +418,20 @@ mod theme_tests {
     #[test]
     fn absent_settings_use_new_defaults() {
         let settings = parse_settings("").unwrap();
+        assert!(settings.markdown_only);
+        assert!(!settings.windows_new_md);
+        assert_eq!(settings.sidebar_width, 0.0);
         assert_eq!(settings.accent, "#8A5CF5");
         assert_eq!(settings.color_scheme, "system");
         assert!(settings.code_alternate_row_color.is_empty());
+    }
+
+    #[test]
+    fn workspace_preferences_survive_roundtrip() {
+        let settings = parse_settings("markdown_only = false\nsidebar_width = 350.0\nwindows_new_md = true").unwrap();
+        let restored = parse_settings(&toml::to_string(&settings).unwrap()).unwrap();
+        assert!(!restored.markdown_only);
+        assert!(restored.windows_new_md);
+        assert_eq!(restored.sidebar_width, 350.0);
     }
 }

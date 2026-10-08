@@ -21,7 +21,7 @@ import { isImagePath, isMarkdownPath, knownExtensions } from "./file-types";
 import { installMikuCreamRendering } from "./miku-cream";
 import { FindBar, type FindTarget } from "./find-bar";
 import { EmojiPicker } from "./emoji";
-import { SettingsPanel, type SettingKey } from "./settings-panel";
+import { SettingsPanel, type SettingKey, type NewMdMenuStatus } from "./settings-panel";
 import { activateModal, deactivateModal, hasActiveModal } from "./modal";
 import { isListMarker, type ListMarker } from "./markdown-serializer";
 import type { BlockActionId } from "./block-menu";
@@ -66,6 +66,7 @@ interface Settings {
   open_last_session: boolean;
   /** Keep the tab bar visible even when only one file is open. */
   always_show_tabbar: boolean;
+  markdown_only: boolean;
   editor_font: string;
   editor_font_size: number;
   source_font: string;
@@ -74,6 +75,7 @@ interface Settings {
   code_alternate_row_color: string;
   remember_window_position: boolean;
   file_associations: string[];
+  windows_new_md: boolean;
   accent: string;
   color_scheme: string;
   confirm_delete: boolean;
@@ -85,6 +87,7 @@ interface Settings {
   last_update_check: number;
   open_files: string[];
   active_tab: number;
+  sidebar_width: number;
   window: WindowState;
 }
 
@@ -627,6 +630,8 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
 };
 
 workspace.onOpen = openPreviewPath;
+workspace.onMarkdownOnlyChange = (value) => { settings.markdown_only = value; settingsPanel.refresh(); persistSoon(); };
+workspace.onWidthChange = (value) => { settings.sidebar_width = value; persistSoon(); };
 workspace.onOpenInNewTab = (path) => openPath(path, true);
 workspace.getConfirmDelete = () => settings.confirm_delete !== false;
 workspace.onConfirmDeleteChange = (value) => { settings.confirm_delete = value; settingsPanel.refresh(); persistSoon(); };
@@ -769,6 +774,9 @@ settingsPanel.onChange = (key: SettingKey, value) => {
     case "always_show_tabbar":
       tabBar.setAlwaysShow(settings.always_show_tabbar);
       break;
+    case "markdown_only":
+      workspace.setMarkdownOnly(settings.markdown_only);
+      break;
     case "list_marker":
       if (isListMarker(settings.list_marker)) {
         editor.setListMarker(settings.list_marker);
@@ -808,6 +816,38 @@ settingsPanel.onShortcutChange = (action, value) => {
   settingsPanel.refresh();
   persistSoon();
 };
+let newMdMenuBusy = false;
+let newMdMenuStatus: NewMdMenuStatus = { available: navigator.userAgent.includes("Windows"), enabled: false, can_modify: false, conflict: null };
+function reportNewMdMenuError(error: unknown): void {
+  settingsPanel.setNewMdMenuStatus(newMdMenuStatus, t("settings.newMd.failed", { error: String(error) }));
+}
+async function refreshNewMdMenu(): Promise<NewMdMenuStatus> {
+  const status = await invoke<NewMdMenuStatus>("get_new_md_menu_status");
+  newMdMenuStatus = status;
+  settings.windows_new_md = status.enabled;
+  settingsPanel.setNewMdMenuStatus(status);
+  return status;
+}
+async function applyNewMdMenu(enabled: boolean): Promise<void> {
+  if (newMdMenuBusy) return;
+  newMdMenuBusy = true;
+  try {
+    const status = await invoke<NewMdMenuStatus>("set_new_md_menu", { enabled });
+    newMdMenuStatus = status;
+    settings.windows_new_md = status.enabled;
+    settingsPanel.setNewMdMenuStatus(status);
+    persistSoon();
+  } catch (error) {
+    try { await refreshNewMdMenu(); } catch { /* Keep the last verified state. */ }
+    throw error;
+  } finally { newMdMenuBusy = false; }
+}
+settingsPanel.onNewMdMenuToggle = applyNewMdMenu;
+settingsPanel.onOpen = () => { void refreshNewMdMenu().catch(reportNewMdMenuError); };
+window.addEventListener("focus", () => {
+  if (settings && !newMdMenuBusy) void refreshNewMdMenu().catch(() => {});
+});
+
 settingsPanel.onOpenWithToggle = async () => {
   if (!openWithStatus.can_modify) return;
   await setOpenWithRegistration(!openWithStatus.registered);
@@ -2321,6 +2361,8 @@ async function restoreTabs(): Promise<void> {
 async function bootstrap(): Promise<void> {
   const payload = await invoke<SettingsPayload>("get_settings");
   settings = payload.settings;
+  workspace.setMarkdownOnly(settings.markdown_only !== false);
+  workspace.setWidth(settings.sidebar_width ?? 0);
   settings.shortcuts = withDefaultShortcuts(settings.shortcuts);
   if (!isListMarker(settings.list_marker)) settings.list_marker = "*";
 
@@ -2344,6 +2386,10 @@ async function bootstrap(): Promise<void> {
     settings.show_path = ext.show_path;
     settings.open_last_session = ext.open_last_session;
     settings.always_show_tabbar = ext.always_show_tabbar;
+    settings.markdown_only = ext.markdown_only !== false;
+    workspace.setMarkdownOnly(settings.markdown_only);
+    settings.sidebar_width = ext.sidebar_width ?? 0;
+    workspace.setWidth(settings.sidebar_width);
     tabBar.setAlwaysShow(ext.always_show_tabbar);
     settings.editor_font = ext.editor_font;
     settings.editor_font_size = ext.editor_font_size;
@@ -2353,6 +2399,9 @@ async function bootstrap(): Promise<void> {
     settings.code_alternate_row_color = ext.code_alternate_row_color;
     settings.remember_window_position = ext.remember_window_position;
     settings.file_associations = ext.file_associations;
+    if (!secondaryWindow && ext.windows_new_md !== settings.windows_new_md) {
+      void applyNewMdMenu(ext.windows_new_md === true).catch(reportNewMdMenuError);
+    }
     settings.accent = ext.accent;
     settings.color_scheme = ext.color_scheme;
     settings.confirm_delete = ext.confirm_delete;
@@ -2402,6 +2451,18 @@ async function bootstrap(): Promise<void> {
   // stuck hidden in the taskbar.
   if (secondaryWindow) await win.show();
   else await restoreWindow();
+
+  void listen<NewMdMenuStatus>("new-md-menu-changed", event => {
+    newMdMenuStatus = event.payload;
+    settings.windows_new_md = event.payload.enabled;
+    settingsPanel.setNewMdMenuStatus(event.payload);
+  });
+  if (!secondaryWindow && settings.windows_new_md) {
+    try { await applyNewMdMenu(true); }
+    catch (error) { reportNewMdMenuError(error); }
+  } else {
+    await refreshNewMdMenu().catch(reportNewMdMenuError);
+  }
 
   await restoreTabs();
 

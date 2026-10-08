@@ -1,5 +1,8 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -54,9 +57,70 @@ fn entry(path: &Path) -> Result<WorkspaceEntry, String> {
     })
 }
 
-#[tauri::command]
-pub fn list_workspace_dir(path: String) -> Result<WorkspaceDirectory, String> {
+// Same Markdown extensions the frontend renders (src/file-types.ts).
+fn is_md(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| {
+        ["md", "markdown", "mdx"].iter().any(|md| ext.eq_ignore_ascii_case(md))
+    })
+}
+
+// One listing or search shares this budget. A folder whose scan runs out is
+// shown: an empty folder in the tree is safer than hiding documents.
+const MD_SCAN_ENTRIES: usize = 50_000;
+const MD_SCAN_TIME: Duration = Duration::from_millis(800);
+// The tree re-lists every few seconds; reuse only expensive answers briefly so
+// small folders still update immediately.
+const MD_CACHE_COST: usize = 2_000;
+const MD_CACHE_TTL: Duration = Duration::from_secs(30);
+static MD_CACHE: LazyLock<Mutex<HashMap<PathBuf, (bool, Instant)>>> = LazyLock::new(Default::default);
+
+struct MdScan {
+    entries_left: usize,
+    deadline: Instant,
+}
+
+impl MdScan {
+    fn new() -> Self {
+        Self::with_limits(MD_SCAN_ENTRIES, MD_SCAN_TIME)
+    }
+    fn with_limits(entries: usize, time: Duration) -> Self {
+        Self { entries_left: entries, deadline: Instant::now() + time }
+    }
+}
+
+/// Match the tree's visibility rules. Never follow directory links/junctions,
+/// including links back to ancestors; stop as soon as an MD file is found.
+fn contains_md(root: &Path, scan: &mut MdScan) -> bool {
+    if let Some(&(found, at)) = MD_CACHE.lock().unwrap().get(root) {
+        if at.elapsed() < MD_CACHE_TTL { return found; }
+    }
+    let mut cost = 0usize;
+    let mut pending = vec![root.to_path_buf()];
+    let found = 'scan: loop {
+        let Some(dir) = pending.pop() else { break false; };
+        let Ok(items) = fs::read_dir(dir) else { continue; };
+        for item in items.flatten() {
+            if scan.entries_left == 0 || Instant::now() >= scan.deadline { break 'scan true; }
+            scan.entries_left -= 1;
+            cost += 1;
+            if item.file_name().to_string_lossy().starts_with('.') { continue; }
+            let Ok(kind) = item.file_type() else { continue; };
+            if kind.is_symlink() { continue; }
+            if kind.is_file() && is_md(&item.path()) { break 'scan true; }
+            if kind.is_dir() { pending.push(item.path()); }
+        }
+    };
+    if cost >= MD_CACHE_COST {
+        let mut cache = MD_CACHE.lock().unwrap();
+        if cache.len() >= 4_096 { cache.clear(); }
+        cache.insert(root.to_path_buf(), (found, Instant::now()));
+    }
+    found
+}
+
+fn list_directory(path: String, markdown_only: bool) -> Result<WorkspaceDirectory, String> {
     let dir = checked_dir(&path)?;
+    let mut scan = MdScan::new();
     let mut entries = Vec::new();
     for item in fs::read_dir(&dir).map_err(|e| e.to_string())? {
         let item = item.map_err(|e| e.to_string())?;
@@ -65,6 +129,9 @@ pub fn list_workspace_dir(path: String) -> Result<WorkspaceDirectory, String> {
             continue;
         }
         if let Ok(value) = entry(&item.path()) {
+            if markdown_only && !(if value.is_dir { contains_md(&item.path(), &mut scan) } else { is_md(&item.path()) }) {
+                continue;
+            }
             entries.push(value);
         }
     }
@@ -77,12 +144,18 @@ pub fn list_workspace_dir(path: String) -> Result<WorkspaceDirectory, String> {
 }
 
 #[tauri::command]
-pub fn search_workspace(root: String, query: String) -> Result<Vec<WorkspaceEntry>, String> {
+pub async fn list_workspace_dir(path: String, markdown_only: Option<bool>) -> Result<WorkspaceDirectory, String> {
+    tauri::async_runtime::spawn_blocking(move || list_directory(path, markdown_only.unwrap_or(false)))
+        .await.map_err(|e| e.to_string())?
+}
+
+fn search_directory(root: String, query: String, markdown_only: bool) -> Result<Vec<WorkspaceEntry>, String> {
     let root = checked_dir(&root)?;
     let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
     }
+    let mut scan = MdScan::new();
     let mut found = Vec::new();
     let mut pending = vec![root];
     let mut visited = 0usize;
@@ -96,7 +169,8 @@ pub fn search_workspace(root: String, query: String) -> Result<Vec<WorkspaceEntr
             let Ok(kind) = item.file_type() else { continue; };
             if kind.is_symlink() { continue; }
             let path = item.path();
-            if name.to_lowercase().contains(&query) {
+            if name.to_lowercase().contains(&query)
+                && (!markdown_only || (if kind.is_dir() { contains_md(&path, &mut scan) } else { kind.is_file() && is_md(&path) })) {
                 if let Ok(value) = entry(&path) { found.push(value); }
                 if found.len() >= 200 { break; }
             }
@@ -105,6 +179,12 @@ pub fn search_workspace(root: String, query: String) -> Result<Vec<WorkspaceEntr
     }
     found.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     Ok(found)
+}
+
+#[tauri::command]
+pub async fn search_workspace(root: String, query: String, markdown_only: Option<bool>) -> Result<Vec<WorkspaceEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || search_directory(root, query, markdown_only.unwrap_or(false)))
+        .await.map_err(|e| e.to_string())?
 }
 
 /// Resolve a Markdown link beside its source document and return an ordinary
@@ -290,6 +370,86 @@ pub async fn open_workspace_window(app: AppHandle, path: String) -> Result<(), S
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod filter_tests {
+    use super::*;
+
+    #[test]
+    fn md_tree_keeps_deep_ancestors_and_matches_extension_case() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("文档/deep")).unwrap();
+        fs::create_dir_all(root.join("empty")).unwrap();
+        fs::create_dir_all(root.join("text-only")).unwrap();
+        fs::create_dir_all(root.join("hidden-only/.hidden")).unwrap();
+        fs::write(root.join("文档/deep/NOTE.MD"), "# note").unwrap();
+        fs::write(root.join("readme.md"), "").unwrap();
+        fs::write(root.join("text-only/note.txt"), "").unwrap();
+        fs::write(root.join("hidden-only/.hidden/note.md"), "").unwrap();
+        for name in ["note.markdown", "note.mdx", "note.md.bak", ".hidden.md"] {
+            fs::write(root.join(name), "").unwrap();
+        }
+        let filtered = list_directory(display(root), true).unwrap();
+        let names: Vec<_> = filtered.entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["文档", "note.markdown", "note.mdx", "readme.md"]);
+        let results = search_directory(display(root), "note".into(), true).unwrap();
+        let names: Vec<_> = results.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["note.markdown", "NOTE.MD", "note.mdx"]);
+        assert_eq!(search_directory(display(root), "文档".into(), true).unwrap().len(), 1);
+        assert!(search_directory(display(root), "empty".into(), true).unwrap().is_empty());
+        let all = list_directory(display(root), false).unwrap();
+        assert_eq!(all.entries.len(), 8);
+        assert!(search_directory(display(root), "note".into(), false).unwrap().len() > 1);
+
+        // Adding/removing the last MD descendant must change the parent listing.
+        fs::write(root.join("empty/new.md"), "").unwrap();
+        assert!(list_directory(display(root), true).unwrap().entries.iter().any(|e| e.name == "empty"));
+        fs::rename(root.join("empty/new.md"), root.join("empty/new.txt")).unwrap();
+        assert!(!list_directory(display(root), true).unwrap().entries.iter().any(|e| e.name == "empty"));
+    }
+
+    #[test]
+    fn md_search_filters_before_result_limit() {
+        let temp = tempfile::tempdir().unwrap();
+        for n in 0..250 { fs::write(temp.path().join(format!("match{n:03}.txt")), "").unwrap(); }
+        fs::write(temp.path().join("match.md"), "").unwrap();
+        let results = search_directory(display(temp.path()), "match".into(), true).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "match.md");
+    }
+
+    #[test]
+    fn md_scan_budget_shows_unknown_folders_and_caches_expensive_answers() {
+        let temp = tempfile::tempdir().unwrap();
+        let big = temp.path().join("big");
+        fs::create_dir_all(&big).unwrap();
+        for n in 0..MD_CACHE_COST { fs::write(big.join(format!("{n}.txt")), "").unwrap(); }
+        // Running out of budget never hides a folder.
+        assert!(contains_md(&big, &mut MdScan::with_limits(10, Duration::from_secs(60))));
+        assert!(contains_md(&big, &mut MdScan::with_limits(usize::MAX, Duration::ZERO)));
+        // A full expensive scan is reused briefly by the polling tree.
+        assert!(!contains_md(&big, &mut MdScan::new()));
+        fs::write(big.join("late.md"), "").unwrap();
+        assert!(!contains_md(&big, &mut MdScan::new()));
+        MD_CACHE.lock().unwrap().remove(&big);
+        assert!(contains_md(&big, &mut MdScan::new()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn md_filter_does_not_follow_links_or_cycles() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("root");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("note.md"), "").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linked")).unwrap();
+        std::os::unix::fs::symlink(&root, root.join("cycle")).unwrap();
+        assert!(list_directory(display(&root), true).unwrap().entries.is_empty());
+    }
 }
 
 #[cfg(test)]

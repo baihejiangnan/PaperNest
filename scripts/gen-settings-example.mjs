@@ -27,6 +27,8 @@ list_marker = "*"           # bullet-list marker written on save: "*" | "-" | "+
 show_path = false           # show the full file path in the header, not just the name
 open_last_session = true    # reopen the previous session's tabs on startup
 always_show_tabbar = false  # keep the tab bar visible even with only one file open
+markdown_only = true        # tree/search: .md/.markdown/.mdx and folders containing them
+windows_new_md = false      # Windows Explorer New > MD File; independent of defaults
 auto_check_updates = false  # enable after publishing signed GitHub Releases
 
 proxy_enabled = false       # route remote images/resources through the proxy below
@@ -60,6 +62,7 @@ settings = "Mod+,"
 # open_with_prompt_dismissed = false  # do not ask again after declining Open with registration
 # open_files = []            # files to reopen on next launch (session restore)
 # active_tab = 0             # index into open_files of the active tab
+# sidebar_width = 0          # CSS px; 0 = responsive default, drag divider to change
 # [window]                   # width / height / x / y / maximized
 `;
 

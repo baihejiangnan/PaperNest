@@ -1972,6 +1972,7 @@ body:has(.link-picker) #editor :is(.milkdown-toolbar, .milkdown-link-tooltip) { 
   margin-top: 9px;
   font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .about-update-notes {
   margin-top: 8px;

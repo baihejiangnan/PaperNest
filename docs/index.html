@@ -3,102 +3,214 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PaperNest · 一点轻盈，一点可爱。</title>
-  <meta name="description" content="PaperNest：轻量、快速、所见即所得的 Markdown 编辑器。打开即工作。">
+  <title>纸间 PaperNest · 本地文档阅读与轻量编辑</title>
+  <meta name="description" content="纸间 PaperNest 是面向本地文件的轻量桌面应用：打开 Markdown 即可阅读和修改，也能快速查看代码、配置、日志与图片。">
+  <meta name="color-scheme" content="light dark">
   <link rel="icon" href="assets/icon.png">
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
-<main id="stage">
-  <header class="site-header">
-    <div class="brand">
-      <span class="logo-secret">
-        <img src="assets/icon.png" alt="PaperNest App 图标">
-      </span>
-      <strong>PaperNest</strong>
-      <span>MARKDOWN · MADE SIMPLE</span>
-    </div>
-    <div class="header-meta">
-      <span class="mint-dot"></span>
-      <b>#39C5BB</b>
-      <span>一点薄荷，一点喜欢。</span>
-      <a class="download-link header-download" href="https://github.com/baihejiangnan/PaperNest/" rel="noopener noreferrer">查看项目</a>
-    </div>
-  </header>
+<a class="skip-link" href="#main">跳到正文</a>
 
-  <div class="grain" aria-hidden="true"></div>
-  <div class="sparkle sparkle-a" aria-hidden="true">✧</div>
-  <div class="sparkle sparkle-b" aria-hidden="true">＋</div>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#top" aria-label="纸间 PaperNest 首页">
+      <img src="assets/icon.png" alt="" width="28" height="28">
+      <span>纸间 <b>PaperNest</b></span>
+    </a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#files">文件类型</a>
+      <a href="#shortcuts">快捷键</a>
+      <a href="#download">下载</a>
+    </nav>
+    <a class="btn btn-ghost btn-sm" href="https://github.com/baihejiangnan/PaperNest" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
 
-  <section class="scene active hero-scene" data-index="0">
-    <div class="copy hero-copy">
-      <div class="eyebrow">01 / SMALL APP, BIG LOVE</div>
-      <h1>轻轻打开，<br>好好写字<span>。</span></h1>
-      <p>你的 Markdown 小伙伴，<br>轻盈得刚刚好。</p>
-      <div class="metric">
-        <strong>4.3<small>MB</small></strong>
-        <div><b>0% <small>CPU</small></b><span>任务管理器实测</span></div>
+<main id="main">
+  <section class="hero" id="top">
+    <div class="container hero-inner">
+      <p class="eyebrow">开源 · 本地优先 · Windows x64</p>
+      <h1>打开文件，<br class="br-sm">就能开始读写。</h1>
+      <p class="lead">纸间是一个面向本地文件的轻量桌面应用。Markdown 以所见即所得方式呈现，代码、配置、日志与图片也能直接查看。不需要导入，不需要账号，文件始终留在你的磁盘上。</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">下载 Windows 版</a>
+        <a class="btn btn-ghost" href="https://github.com/baihejiangnan/PaperNest" rel="noopener noreferrer">查看源码</a>
       </div>
-      <span class="pill">小小占用 · 大大喜欢 ♡</span>
+      <p class="fine">便携 EXE 或 MSI 安装包 · 需要 WebView2 Runtime · MIT 许可</p>
     </div>
-    <div class="hand hero-hand">轻一点，再轻一点 ♡</div>
+
+    <div class="container">
+      <figure class="mock-wrap">
+      <div class="mock">
+        <div class="mock-titlebar" aria-hidden="true">
+          <span class="mock-tab is-active">weekly.md</span>
+          <span class="mock-tab">notes.md</span>
+          <span class="mock-tab">config.toml</span>
+          <span class="mock-win" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
+        <div class="mock-body">
+          <aside class="mock-side" aria-hidden="true">
+            <div class="mock-search">搜索文件</div>
+            <ul class="mock-tree">
+              <li class="dir">docs</li>
+              <li class="file sub">guide.md</li>
+              <li class="file sub">changelog.md</li>
+              <li class="dir">notes</li>
+              <li class="file sub">notes.md</li>
+              <li class="file is-active">weekly.md</li>
+            </ul>
+          </aside>
+          <div class="mock-doc">
+            <div class="mock-mode" role="group" aria-label="示意视图">
+              <button type="button" class="seg is-on" data-mode="render" aria-pressed="true">渲染</button>
+              <button type="button" class="seg" data-mode="source" aria-pressed="false">源码</button>
+            </div>
+            <article class="doc-render">
+              <h3>项目周报</h3>
+              <p>本周完成了文件树筛选与侧栏宽度调整，<a>详见变更记录</a>。</p>
+              <ul class="tasks">
+                <li class="done">整理发布说明</li>
+                <li class="done">补充回归清单</li>
+                <li>验证安装包升级</li>
+              </ul>
+              <table>
+                <thead><tr><th>模块</th><th>状态</th><th>负责人</th></tr></thead>
+                <tbody>
+                  <tr><td>文件树</td><td><span class="tag ok">已完成</span></td><td>A</td></tr>
+                  <tr><td>导出</td><td><span class="tag">进行中</span></td><td>B</td></tr>
+                </tbody>
+              </table>
+              <p class="math"><i>E</i> = <i>mc</i><sup>2</sup></p>
+            </article>
+            <pre class="doc-source" hidden><span class="ln">1</span><span class="tk-h">## 项目周报</span>
+<span class="ln">2</span>
+<span class="ln">3</span>本周完成了文件树筛选与侧栏宽度调整，<span class="tk-l">[详见变更记录](./changelog.md)</span>。
+<span class="ln">4</span>
+<span class="ln">5</span><span class="tk-m">- [x]</span> 整理发布说明
+<span class="ln">6</span><span class="tk-m">- [x]</span> 补充回归清单
+<span class="ln">7</span><span class="tk-m">- [ ]</span> 验证安装包升级
+<span class="ln">8</span>
+<span class="ln">9</span><span class="tk-m">|</span> 模块 <span class="tk-m">|</span> 状态 <span class="tk-m">|</span> 负责人 <span class="tk-m">|</span>
+<span class="ln">10</span><span class="tk-m">| --- | --- | --- |</span>
+<span class="ln">11</span><span class="tk-m">|</span> 文件树 <span class="tk-m">|</span> 已完成 <span class="tk-m">|</span> A <span class="tk-m">|</span>
+<span class="ln">12</span>
+<span class="ln">13</span><span class="tk-s">$$E = mc^2$$</span></pre>
+          </div>
+        </div>
+      </div>
+      <figcaption class="mock-note">界面示意。点击右上角可切换渲染与源码视图，对应应用中的 <kbd>Ctrl</kbd> + <kbd>/</kbd>。</figcaption>
+      </figure>
+    </div>
   </section>
 
-  <section class="scene appearance-scene" data-index="1">
-    <div class="copy">
-      <div class="eyebrow">02 / MAKE IT YOURS</div>
-      <h2>喜欢的颜色，<br>每天都见面。</h2>
-      <div class="hex">#39C5BB</div>
-      <p>把一抹初音绿，<br>放进你的写作日常。</p>
-      <div class="feature"><span>01</span><div><b>语言与外观</b><small>主题、强调色与显示习惯</small></div></div>
-      <div class="feature"><span>02</span><div><b>设置集中管理</b><small>常用选项，都在一个地方</small></div></div>
-    </div>
-    <div class="hand appearance-hand">是喜欢的颜色呀！</div>
-  </section>
-
-  <section class="scene rhythm-scene" data-index="2">
-    <div class="copy rhythm-copy">
-      <div class="eyebrow">03 / YOUR OWN RHYTHM</div>
-      <h2>每一个习惯，<br>都有自己的位置。</h2>
-      <p>快捷键与编辑习惯，<br>都可以照你的方式来。</p>
-      <div class="key-pills"><span>Ctrl + S</span><span>Ctrl + /</span><span>Ctrl + E</span></div>
-      <div class="hand">写字这件事，要舒服～</div>
-    </div>
-  </section>
-
-  <section class="scene showcase-scene" data-index="3">
-    <div class="copy showcase-copy">
-      <div class="eyebrow">04 / SEE IT FOR REAL</div>
-      <h2 id="showcase-title">表格漂亮，<br>信息也清楚。</h2>
-      <p id="showcase-description">复杂信息排得整整齐齐，<br>阅读不需要额外费力。</p>
-      <div class="showcase-topic" id="showcase-topic">01 / 表格渲染</div>
-      <div class="brand-sign">PaperNest<small>所见即所得。</small></div>
-    </div>
-  </section>
-
-  <section class="scene ending-scene" data-index="4">
-    <div class="copy ending-copy">
-      <div class="eyebrow">05 / READY WHEN YOU ARE</div>
-      <h2>所见即所得，<br><span>打开即工作。</span></h2>
-      <p>让排版自然发生，<br>让灵感落在眼前。</p>
-      <div class="ending-wordmark">PaperNest <small>#39C5BB</small></div>
-      <div class="ending-download">
-        <a class="download-link primary-download" href="https://github.com/baihejiangnan/PaperNest/" rel="noopener noreferrer">获取源码</a>
-        <div>进入 GitHub Releases<br><span>选择适合你的版本，开始写作。</span></div>
+  <section class="section" id="features">
+    <div class="container">
+      <h2>日常文档工作，一个窗口完成</h2>
+      <p class="section-lead">阅读优先，编辑随手可用。常用的事情不需要切换到别的软件。</p>
+      <div class="grid">
+        <article class="card">
+          <h3>所见即所得的 Markdown</h3>
+          <p>标题、列表、任务、表格、链接、脚注和数学公式直接呈现；一键切换到带行号与语法高亮的源码视图。</p>
+        </article>
+        <article class="card">
+          <h3>不只是 Markdown</h3>
+          <p>JSON、YAML、TOML、代码、日志和纯文本进入 Code 模式，支持查找替换与轻量修改；图片在独立标签页预览。</p>
+        </article>
+        <article class="card">
+          <h3>文件树与多标签页</h3>
+          <p>按需读取目录，默认聚焦 Markdown 文档；标签页可堆叠、收藏和恢复，大纲与目录内搜索帮你快速定位。</p>
+        </article>
+        <article class="card">
+          <h3>安全的文件操作</h3>
+          <p>新建、重命名、复制和删除都在应用内完成。删除前提示被引用的情况，文件移入系统回收站，随时可以恢复。</p>
+        </article>
+        <article class="card">
+          <h3>导出 HTML 与 PDF</h3>
+          <p>导出独立的 HTML，或通过系统打印流程输出 PDF。导出时会移除文档中的脚本等可执行内容。</p>
+        </article>
+        <article class="card">
+          <h3>按你的习惯调整</h3>
+          <p>浅色、深色或跟随系统；自定义强调色、字体与字号，快捷键可重新绑定，设置支持跨分类搜索。</p>
+        </article>
       </div>
     </div>
-    <div class="ending-art">
-      <span class="hand">现在，就写下第一行吧 ♡</span>
+  </section>
+
+  <section class="section section-alt" id="files">
+    <div class="container split">
+      <div>
+        <h2>常见文件，打开即看</h2>
+        <p class="section-lead">按文件类型选择合适的打开方式。二进制文件不会被当作文本加载，无法预览时只给出一条轻提示，不打断阅读。</p>
+      </div>
+      <dl class="filetypes">
+        <div><dt>Markdown</dt><dd>.md · .markdown · .mdx</dd></div>
+        <div><dt>配置与数据</dt><dd>.json · .yaml · .toml</dd></div>
+        <div><dt>代码与日志</dt><dd>常见语言源码 · .log · .txt</dd></div>
+        <div><dt>图片</dt><dd>文档内显示 · 独立标签页预览</dd></div>
+      </dl>
     </div>
   </section>
 
-  <footer>
-    <span id="page-hint">点击任意位置，继续了解 →</span>
-    <span>MADE FOR YOUR WORDS. &nbsp; ♡ &nbsp; PaperNest</span>
-  </footer>
-  <div id="progress"></div>
+  <section class="section" id="shortcuts">
+    <div class="container split">
+      <div>
+        <h2>键盘就能完成大部分操作</h2>
+        <p class="section-lead">默认快捷键覆盖新建、保存、导出和查找。应用级快捷键可在设置中重新绑定，macOS 使用 Cmd 代替 Ctrl。</p>
+      </div>
+      <table class="keys">
+        <tbody>
+          <tr><th scope="row">新建标签页</th><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td></tr>
+          <tr><th scope="row">打开文件</th><td><kbd>Ctrl</kbd> + <kbd>O</kbd></td></tr>
+          <tr><th scope="row">保存 / 另存为</th><td><kbd>Ctrl</kbd> + <kbd>S</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td></tr>
+          <tr><th scope="row">渲染 / 源码</th><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td></tr>
+          <tr><th scope="row">查找 / 替换</th><td><kbd>Ctrl</kbd> + <kbd>F</kbd> / <kbd>Ctrl</kbd> + <kbd>H</kbd></td></tr>
+          <tr><th scope="row">导出 HTML / PDF</th><td><kbd>Ctrl</kbd> + <kbd>E</kbd></td></tr>
+          <tr><th scope="row">设置</th><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <h2>你的文件，留在你的电脑上</h2>
+      <div class="grid grid-3">
+        <div class="point"><h3>普通文本格式</h3><p>Markdown 保持原样读写，不转成私有格式，也不要求放进专用库或项目。</p></div>
+        <div class="point"><h3>不上传、不同步</h3><p>应用不会把文档同步到云端。设置保存在本地 <code>settings.toml</code>，便携版可放在程序旁。</p></div>
+        <div class="point"><h3>更新由你决定</h3><p>自动检查更新默认关闭。开启后只获取本项目发布并经签名验证的版本，安装前仍需确认。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="download">
+    <div class="container">
+      <h2>下载</h2>
+      <p class="section-lead">当前正式发行 Windows x64 版本。两种包功能相同，按使用方式选择。</p>
+      <div class="grid grid-2">
+        <a class="dl" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">
+          <span class="dl-kind">便携版 · EXE</span>
+          <span class="dl-desc">无需安装，解压即用，适合放在 U 盘或随项目携带。</span>
+          <span class="dl-go">前往 Releases →</span>
+        </a>
+        <a class="dl" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">
+          <span class="dl-kind">安装版 · MSI</span>
+          <span class="dl-desc">安装到系统，支持文件关联与右键“新建 MD 文件”。</span>
+          <span class="dl-go">前往 Releases →</span>
+        </a>
+      </div>
+      <p class="fine">运行需要 WebView2 Runtime（Windows 10/11 通常已内置）。Linux 与 macOS 版本暂未发行。也可以按 README 从源码构建。</p>
+    </div>
+  </section>
 </main>
 
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <p>纸间 PaperNest · <a href="https://github.com/baihejiangnan/PaperNest/blob/main/LICENSE.md" rel="noopener noreferrer">MIT License</a></p>
+    <p>基于 <a href="https://github.com/zakee039/MDmeow" rel="noopener noreferrer">MDmeow</a> 与 <a href="https://github.com/naderi/mowl" rel="noopener noreferrer">Mowl</a> 持续开发 · 使用 Tauri、Milkdown、CodeMirror 与 KaTeX 构建</p>
+  </div>
+</footer>
 <script src="site.js"></script>
 </body>
 </html>

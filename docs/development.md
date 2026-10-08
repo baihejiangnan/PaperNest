@@ -215,6 +215,17 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.2.0 发行构建（2026-10-08）
+
+- 发行源码提交 `8ca7757deea3141fa1aae439a3fdcfdba20ddb89`，四处应用版本统一为 0.2.0。改动为公开元数据更新查询、错误保留、后台检查按钮释放、并发检查复用，以及长错误 URL 换行。构建脚本补充 MSI／便携 EXE 各自的元数据、大小与说明，处理 Windows PowerShell 字符串附带的 provider 属性，并限制元数据不超过客户端的 1 MiB 上限。更新公钥保持不变。
+- 前端构建与五项 `pnpm test:*` 通过；Rust 从同一最新编译的测试 EXE 在普通临时目录运行，49 项通过、4 项默认忽略。真实 WebView2 的独立实例已核对后台检查、设置页／关于页成功和故障反馈、重新打开保留错误、关闭故障代理后重试，以及错误换行；范围与小视口说明见上文。`pnpm release:windows -NotesFile output/tmp/release-notes-0.2.0.md` 从已提交源码完成最终签名构建，MSI 关联生命周期检查通过，两个程序均通过内嵌公钥验签和篡改拒绝检查；构建后无 tracked 改动。
+- [v0.2.0 正式发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.0) 已公开为 latest。附注标签 `47be5f6c0106e8c1e9bd149810e4d1c28286017f` 解引用为上述发行源码，main 和 `codex/windows-release-0.2.0` 均已推送。草稿阶段核对六项资产的 uploaded 状态、大小与 GitHub digest 后公开；六个文件均已匿名下载，大小与 SHA-256 与本地一致，公开副本通过 SHA256SUMS.txt 校验。首次下载校验清单遇到传输 EOF，保留已核验文件后重试成功，没有关闭 TLS 校验。
+- 匿名 REST latest-release API 与新版客户端使用的 `latest/download/latest.json` 均返回 0.2.0；公开元数据与本地逐字节一致，两个下载 URL、各自签名、字节数与中文说明均通过核对。latest.json 为 3315 字节、带 UTF-8 BOM，SHA256SUMS.txt 为 UTF-8 无 BOM、LF。
+- 发布后再次运行实际 Rust 客户端的联网集成测试，读取新版双入口元数据并下载两个程序，验签与篡改拒绝均通过。前两次尝试分别遇到 TLS 握手 EOF 和响应不完整，第三次完整通过（71.32 秒）；这些为传输中断，未放宽 TLS 或签名检查。
+- 便携 EXE SHA-256：`f6ef3612df5311fb5dd4258fc91a8000316c79dd104694edb7ca82bff994edab`；MSI SHA-256：`3245a291fbc2028c78545dee78c9ca3c89a69efd2697ddc5bbf23a9c55972ec5`。其余哈希见 Release 的 SHA256SUMS.txt。
+- 发行源码的日常 CI 在 [main](https://github.com/baihejiangnan/PaperNest/actions/runs/37801847201) 和 [发行分支](https://github.com/baihejiangnan/PaperNest/actions/runs/37801845157) 均通过。[release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37801846795) 在 `Require updater signing secret` 因缺少 `TAURI_SIGNING_PRIVATE_KEY` 停止，构建与 publish 被跳过；本次由本机现有密钥签名并上传，没有上传私钥。程序具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 未执行 MSI 实际安装／升级／卸载，未替换用户安装的 0.1.5。旧版仍使用旧 REST API；若检查失败，手动下载 0.2.0 升级一次后即可使用新的更新路径。Linux/macOS 仍未发行。
+
 ### Windows v0.1.6 发行构建（2026-10-08）
 
 - 发行源码提交 `4757697e1898a631d15d388edc915ad7e3ff506d`，是 v0.1.5（`1f792a1`）后 main 的下一提交，内容为 v0.1.5 之后的全部功能改动加上一项仅忽略 `.workbuddy-ai/` 的提交（`.gitignore` 一行）。改动为未保存更改弹窗改为“保存／不保存／取消”、可选自动保存（`auto_save`，默认关闭）、列表符号默认 `-` 且保存时不再转义词内下划线、深色模式行内公式颜色跟随主题紫色；四处应用版本统一为 0.1.6，更新公钥、签名构建脚本与发行工作流未改变。

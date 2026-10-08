@@ -9,7 +9,9 @@ $ReleaseDir = Join-Path $Root "release"
 $StageDir = Join-Path $Root "release.__staging"
 $TargetRelease = Join-Path $Root "src-tauri\target\release"
 $TargetBundle = Join-Path $TargetRelease "bundle"
-$releaseNotes = if ($NotesFile) { Get-Content -LiteralPath $NotesFile -Raw -Encoding UTF8 } else { "" }
+# Windows PowerShell attaches provider properties to Get-Content strings;
+# strip that wrapper before ConvertTo-Json serializes the manifest.
+$releaseNotes = if ($NotesFile) { (Get-Content -LiteralPath $NotesFile -Raw -Encoding UTF8).ToString() } else { "" }
 
 function Read-CargoVersion {
     $match = Select-String -Path (Join-Path $Root "src-tauri\Cargo.toml") -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
@@ -243,7 +245,11 @@ try {
             }
         }
     }
-    $latest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $StageDir "latest.json") -Encoding utf8
+    $metadataPath = Join-Path $StageDir "latest.json"
+    $latest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $metadataPath -Encoding utf8
+    if ((Get-Item -LiteralPath $metadataPath).Length -gt 1MB) {
+        throw "Update metadata exceeded the client's 1 MiB limit."
+    }
 
     $files = @(Get-ChildItem -LiteralPath $StageDir -File)
     $expected = @(

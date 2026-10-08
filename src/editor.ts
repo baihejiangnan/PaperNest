@@ -62,7 +62,7 @@ export class Editor {
     HTMLButtonElement,
     [number, number]
   >();
-  private listMarker: ListMarker = "*";
+  private listMarker: ListMarker = "-";
   /** Path of the document in the active tab — the base for relative images. */
   private docPath: string | null = null;
   /** Changes when the host replaces the document or destroys its editor. */

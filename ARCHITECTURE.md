@@ -57,11 +57,11 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/emoji-data.ts` | Hand‑curated ~230 common emoji (glyph + shortcode + keywords) and alias map. Native Unicode only, no dependency. |
 | `src/i18n.ts` | In-app English, Chinese, Japanese and German strings, language changes and static `data-i18n*` markup. |
 | `src/settings-panel.ts` | The settings GUI (`#settings-panel`, `Ctrl/Cmd+,` or the gear button). Full‑screen overlay that flips in over the editor; one control per hand‑editable `settings.toml` key. "Dumb" — reports each change via `onChange`; `main.ts` owns the object, the apply‑functions and the debounced save. |
-| `src/markdown-serializer.ts` | `remarkStringifyOptionsCtx` tweaks: bullet‑list marker (`*`/`-`/`+`) and link/image handlers that stop `&` in URLs being escaped. Applied in `Editor.init` via `crepe.editor.config`. |
+| `src/markdown-serializer.ts` | `remarkStringifyOptionsCtx` tweaks: bullet‑list marker (`-` default, `*`/`+`), a text handler that drops escapes from intraword `_`, and link/image handlers that stop `&` in URLs being escaped. Applied in `Editor.init` via `crepe.editor.config`; covered by `pnpm test:markdown-serializer`. |
 | `src/find.ts` | `$prose` plugin for WYSIWYG find: scans text nodes for the query, decorates matches, exposes state via `findKey`. |
 | `src/find-bar.ts` | Find / replace UI shared by Markdown and Code modes. |
 | `src/ui-theme.css` | Global light/dark tokens and HeroUI v3 semantic aliases. |
-| `src/modal.ts`, `src/dialogs.ts` | Focus isolation, app confirmation/message dialogs and their queue; no native warning/message dialogs. |
+| `src/modal.ts`, `src/dialogs.ts` | Focus isolation, app confirmation/message dialogs and their queue, including the three-way `askSaveChanges` (Save / Don't save / Cancel); no native warning/message dialogs. |
 | `src/preview-notice.ts` | Non-blocking amber preview notices for binary/non-UTF-8 files; a single notice with timer, hover/focus pause, dismissal and localized text. |
 | `src-tauri/src/delete_info.rs` | Background read-only file/reference analysis for deletion confirmation. |
 | `src-tauri/src/recycle.rs` | System recycle-bin operations. Windows uses a fresh COM STA and silent `IFileOperation` with `FOFX_RECYCLEONDELETE`; other desktop platforms use `trash`. Errors propagate to the in-app dialog, with no permanent-delete fallback. `delete_workspace_entry` awaits background completion before closing tabs, refreshing the tree or saving “do not ask again”. |
@@ -69,7 +69,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src-tauri/src/lib.rs` | Tauri builder: single-instance plugin first, shared state, IPC command registry and settings watcher. `file_arg()` selects an existing file argument. |
 | `src-tauri/src/commands.rs` | Settings, document read/write/rename, export and image-loading commands. `get_settings` also returns startup file and version information. |
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions, Windows Explorer integration and same-process secondary-window creation. |
-| `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
+| `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, auto_save, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
 | `src-tauri/src/portable.rs` | Resolves the portable data dir (next to exe; on macOS next to the `.app`); writability check + OS‑config fallback. |
 | `src-tauri/src/new_md.rs`, `src-tauri/build.rs` | Per-user Windows ShellNew registration, ownership journal, rollback and uninstall cleanup; localized menu-name resources embedded in the EXE. |
 | `src-tauri/src/export.rs` | `render_html`: Markdown → GFM HTML (comrak), sanitized with ammonia, wrapped in a self‑contained page (a script‑free variant for printing). |
@@ -92,7 +92,7 @@ a read-only portable directory falls back there and shows a hint.
 
 - **`settings.toml`** — the only settings file. Top half is hand‑editable
   (language, spellcheck, fonts, sizes, accent, shortcuts, `quit_on_escape`,
-  `list_marker`, `show_path`, `open_last_session`); bottom
+  `list_marker`, `auto_save`, `show_path`, `open_last_session`); bottom
   half is app‑managed (window geometry, open tabs). The app writes it
   debounced (800 ms) and on quit; a 1 Hz watcher (`settings::watch`) picks up
   **external** edits and emits `settings-changed` → `main.ts` re‑applies
@@ -136,7 +136,7 @@ a read-only portable directory falls back there and shows a hint.
   or start-page tab. `read_document` and `read_image_data_url` run file reads and
   image encoding in `tauri::async_runtime::spawn_blocking`, keeping synchronous
   filesystem work off the desktop event loop.
-  A dirty preview requires confirmation before replacement;
+  A dirty preview asks Save / Don't save / Cancel before replacement;
   cancel keeps its content and path. Preview and pin flags are runtime tab state;
   session restore still stores only paths.
 - Switching tabs → `TabBar.onActivate` → save the outgoing tab's text/scroll,
@@ -194,6 +194,21 @@ view if it changed in Code mode. In preview mode, Crepe's serialization remains
 the clean baseline so replacing the view does not erase undo history. When
 editing continues during the asynchronous write, the completed save updates
 the baseline without overwriting the newer view and leaves the tab dirty.
+Writes of one tab are serialized (`queueTabSave`), so manual and automatic
+saves never call `write_document` concurrently for the same tab.
+
+**Closing with unsaved edits.** Closing a tab, replacing a preview, quitting
+and starting an update all go through `settleUnsaved`: with `auto_save` on,
+tabs that have a path are saved first; the rest get one `askSaveChanges`
+question ("Save all" for several). Untitled tabs are activated and saved
+with Save As; a failed save or cancelled Save As aborts the whole action.
+
+**Auto-save** (`auto_save`, default off) is frontend-only state:
+`autoSavePending` holds tabs edited by the user (editor/CodeMirror change
+callbacks), flushed 1.5 s after the last edit, on tab switch and on window
+`blur`. It saves with `keepView`, never replacing the visible text; the
+submitted text becomes the clean baseline even when Rust reformatted tables.
+Failures are shown once per file and error and the tab stays dirty.
 
 ### Settings
 Workspace preferences include `markdown_only` (default true) and app-managed

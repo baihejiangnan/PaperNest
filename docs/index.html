@@ -20,6 +20,7 @@
     </a>
     <nav class="nav" aria-label="页面导航">
       <a href="#features">功能</a>
+      <a href="#gallery">界面</a>
       <a href="#files">文件类型</a>
       <a href="#shortcuts">快捷键</a>
       <a href="#download">下载</a>
@@ -42,65 +43,19 @@
     </div>
 
     <div class="container">
-      <figure class="mock-wrap">
-      <div class="mock">
-        <div class="mock-titlebar" aria-hidden="true">
-          <span class="mock-tab is-active">weekly.md</span>
-          <span class="mock-tab">notes.md</span>
-          <span class="mock-tab">config.toml</span>
-          <span class="mock-win" aria-hidden="true"><i></i><i></i><i></i></span>
+      <figure class="shot-hero">
+        <div class="shot-frame">
+          <picture id="view-render">
+            <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/main-dark.png">
+            <img src="assets/screenshots/main-light.png" width="1402" height="902" decoding="async" fetchpriority="high" alt="纸间 PaperNest 主界面：左侧是文件树，右侧是渲染后的 Markdown 文档，包含任务列表、表格、代码块和公式">
+          </picture>
+          <img id="view-source" src="assets/screenshots/markdown-source.png" width="1402" height="902" decoding="async" alt="纸间 PaperNest 的 Markdown 源码视图：带行号和语法高亮的原始文本" hidden>
         </div>
-        <div class="mock-body">
-          <aside class="mock-side" aria-hidden="true">
-            <div class="mock-search">搜索文件</div>
-            <ul class="mock-tree">
-              <li class="dir">docs</li>
-              <li class="file sub">guide.md</li>
-              <li class="file sub">changelog.md</li>
-              <li class="dir">notes</li>
-              <li class="file sub">notes.md</li>
-              <li class="file is-active">weekly.md</li>
-            </ul>
-          </aside>
-          <div class="mock-doc">
-            <div class="mock-mode" role="group" aria-label="示意视图">
-              <button type="button" class="seg is-on" data-mode="render" aria-pressed="true">渲染</button>
-              <button type="button" class="seg" data-mode="source" aria-pressed="false">源码</button>
-            </div>
-            <article class="doc-render">
-              <h3>项目周报</h3>
-              <p>本周完成了文件树筛选与侧栏宽度调整，<a>详见变更记录</a>。</p>
-              <ul class="tasks">
-                <li class="done">整理发布说明</li>
-                <li class="done">补充回归清单</li>
-                <li>验证安装包升级</li>
-              </ul>
-              <table>
-                <thead><tr><th>模块</th><th>状态</th><th>负责人</th></tr></thead>
-                <tbody>
-                  <tr><td>文件树</td><td><span class="tag ok">已完成</span></td><td>A</td></tr>
-                  <tr><td>导出</td><td><span class="tag">进行中</span></td><td>B</td></tr>
-                </tbody>
-              </table>
-              <p class="math"><i>E</i> = <i>mc</i><sup>2</sup></p>
-            </article>
-            <pre class="doc-source" hidden><span class="ln">1</span><span class="tk-h">## 项目周报</span>
-<span class="ln">2</span>
-<span class="ln">3</span>本周完成了文件树筛选与侧栏宽度调整，<span class="tk-l">[详见变更记录](./changelog.md)</span>。
-<span class="ln">4</span>
-<span class="ln">5</span><span class="tk-m">- [x]</span> 整理发布说明
-<span class="ln">6</span><span class="tk-m">- [x]</span> 补充回归清单
-<span class="ln">7</span><span class="tk-m">- [ ]</span> 验证安装包升级
-<span class="ln">8</span>
-<span class="ln">9</span><span class="tk-m">|</span> 模块 <span class="tk-m">|</span> 状态 <span class="tk-m">|</span> 负责人 <span class="tk-m">|</span>
-<span class="ln">10</span><span class="tk-m">| --- | --- | --- |</span>
-<span class="ln">11</span><span class="tk-m">|</span> 文件树 <span class="tk-m">|</span> 已完成 <span class="tk-m">|</span> A <span class="tk-m">|</span>
-<span class="ln">12</span>
-<span class="ln">13</span><span class="tk-s">$$E = mc^2$$</span></pre>
-          </div>
+        <div class="view-toggle" role="group" aria-label="切换截图视图" hidden>
+          <button type="button" data-view="render" aria-pressed="true">渲染</button>
+          <button type="button" data-view="source" aria-pressed="false">源码</button>
         </div>
-      </div>
-      <figcaption class="mock-note">界面示意。点击右上角可切换渲染与源码视图，对应应用中的 <kbd>Ctrl</kbd> + <kbd>/</kbd>。</figcaption>
+        <figcaption class="shot-note">Windows 桌面实际运行界面。应用中用 <kbd>Ctrl</kbd> + <kbd>/</kbd> 切换渲染与源码视图。</figcaption>
       </figure>
     </div>
   </section>
@@ -112,15 +67,15 @@
       <div class="grid">
         <article class="card">
           <h3>所见即所得的 Markdown</h3>
-          <p>标题、列表、任务、表格、链接、脚注和数学公式直接呈现；一键切换到带行号与语法高亮的源码视图。</p>
+          <p>标题、列表、任务、表格、链接、脚注和数学公式直接呈现；GitHub 风格的 <code>&lt;details&gt;</code> 折叠区块可展开收起；一键切换到带行号与语法高亮的源码视图。</p>
         </article>
         <article class="card">
           <h3>不只是 Markdown</h3>
-          <p>JSON、YAML、TOML、代码、日志和纯文本进入 Code 模式，支持查找替换与轻量修改；图片在独立标签页预览。</p>
+          <p>JSON、YAML、TOML、代码、日志和纯文本进入 Code 模式，支持查找、替换与轻量修改；图片在独立标签页预览。</p>
         </article>
         <article class="card">
           <h3>文件树与多标签页</h3>
-          <p>按需读取目录，默认聚焦 Markdown 文档；标签页可堆叠、收藏和恢复，大纲与目录内搜索帮你快速定位。</p>
+          <p>按需读取目录，默认聚焦 Markdown 文档；标签页可堆叠、收藏和恢复，配合大纲、目录内搜索、前进/后退和会话恢复。</p>
         </article>
         <article class="card">
           <h3>安全的文件操作</h3>
@@ -138,7 +93,28 @@
     </div>
   </section>
 
-  <section class="section section-alt" id="files">
+  <section class="section section-alt" id="gallery">
+    <div class="container">
+      <h2>界面一览</h2>
+      <p class="section-lead">以下均为实际运行截图。点击图片可查看原始尺寸。</p>
+      <div class="gallery">
+        <figure>
+          <a href="assets/screenshots/code-json.png"><img src="assets/screenshots/code-json.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间在 Code 模式中打开 JSON 配置文件，显示行号与语法高亮"></a>
+          <figcaption>Code 模式：JSON 配置直接打开，带行号与语法高亮。</figcaption>
+        </figure>
+        <figure>
+          <a href="assets/screenshots/settings-editor.png"><img src="assets/screenshots/settings-editor.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间设置面板的编辑器分类，可调整阅读字体与字号"></a>
+          <figcaption>设置：按分类调整字体、字号与编辑习惯，支持搜索。</figcaption>
+        </figure>
+        <figure>
+          <a href="assets/screenshots/readme-details.png"><img src="assets/screenshots/readme-details.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间打开项目 README，展开其中的文件树折叠区块，其余区块保持收起"></a>
+          <figcaption>折叠区块：支持 GitHub 风格的 &lt;details&gt;，可展开与收起。</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="files">
     <div class="container split">
       <div>
         <h2>常见文件，打开即看</h2>

@@ -8,7 +8,7 @@ import {
 } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { ask, message } from "./dialogs";
+import { ask, askSaveChanges, message } from "./dialogs";
 import { dismissPreviewNotice, showUnsupportedPreviewNotice } from "./preview-notice";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -60,6 +60,8 @@ interface Settings {
   quit_on_escape: boolean;
   /** Bullet-list marker written on save: "*", "-" or "+". */
   list_marker: ListMarker;
+  /** Save edited documents that already have a path automatically. */
+  auto_save: boolean;
   /** Show the full file path (not just the name) in the editor header. */
   show_path: boolean;
   /** Reopen the previous session's tabs on startup. */
@@ -625,6 +627,8 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
   if (prev && !prev.loading) {
     if (!prev.imageUrl && !prev.startPage) updateTabContent(prev, codeViewVisible ? codeEditor.getText() : editor.getMarkdown());
     prev.scrollTop = prev.imageUrl ? imageDocument.scrollTop : codeViewVisible ? codeEditor.scrollTop : editorHost.scrollTop;
+    // Switching away is an auto-save point; prev is now saved from tab.content.
+    if (prev !== next) void autoSaveTab(prev);
   }
   showTab(next);
 };
@@ -701,13 +705,9 @@ tabBar.onCloseRequest = async (tab: Tab) => {
     return true;
   }
   if (tab === tabBar.active) markDirtyFromView();
-  if (tab.dirty) {
-    const discard = await ask(
-      t("dialog.discardChanges", { name: baseName(tab.path) }),
-      { title: t("dialog.discardTitle"), kind: "warning", confirmLabel: t("dialog.discard"), danger: true },
-    );
-    if (!discard) return false;
-  }
+  if (!(await settleUnsaved([tab], "close"))) return false;
+  if (!tabBar.tabs.includes(tab)) return true;
+  autoSavePending.delete(tab);
   tabBar.remove(tab.id);
   persistSoon();
   return true;
@@ -717,6 +717,7 @@ editor.onChange = (markdown) => {
   const tab = tabBar.active;
   if (switching || codeViewVisible || !tab || tab.imageUrl || tab.startPage || tab.loading) return;
   updateTabContent(tab, markdown);
+  noteUserEdit(tab);
   workspace.setContent(markdown);
   scheduleTextStats(true);
 };
@@ -730,6 +731,7 @@ codeEditor.onChange = () => {
   const tab = tabBar.active;
   if (!tab || tab.imageUrl || tab.startPage || tab.loading) return;
   updateTabContent(tab, text);
+  noteUserEdit(tab);
   workspace.setContent(text);
   scheduleTextStats(true);
 };
@@ -802,6 +804,9 @@ settingsPanel.onChange = (key: SettingKey, value) => {
     case "code_alternate_rows":
       codeEditor.setAlternateRows(settings.code_alternate_rows);
       break;
+    case "auto_save":
+      if (!settings.auto_save) cancelAutoSave();
+      break;
     case "proxy_enabled":
     case "proxy_url":
       applyProxySettings(true);
@@ -846,6 +851,10 @@ settingsPanel.onNewMdMenuToggle = applyNewMdMenu;
 settingsPanel.onOpen = () => { void refreshNewMdMenu().catch(reportNewMdMenuError); };
 window.addEventListener("focus", () => {
   if (settings && !newMdMenuBusy) void refreshNewMdMenu().catch(() => {});
+});
+// Losing window focus (switching to another app) is an auto-save point.
+window.addEventListener("blur", () => {
+  if (settings?.auto_save) void flushAutoSave();
 });
 
 settingsPanel.onOpenWithToggle = async () => {
@@ -925,11 +934,9 @@ async function openPreviewPath(path: string): Promise<void> {
   if (slot && tabBar.tabs.includes(slot)) {
     if (slot === tabBar.active) markDirtyFromView();
     if (slot.dirty) {
-      const discard = await ask(
-        t("dialog.discardChanges", { name: baseName(slot.path) }),
-        { title: t("dialog.discardTitle"), kind: "warning", confirmLabel: t("dialog.discard"), danger: true },
-      );
-      if (!discard || request !== previewOpenSequence) return;
+      const proceed = await settleUnsaved([slot], "close");
+      if (!proceed || request !== previewOpenSequence || !tabBar.tabs.includes(slot)) return;
+      autoSavePending.delete(slot);
     }
     // Force onActivate to mount the newly loaded document even when the
     // preview slot is already the selected tab.
@@ -1054,12 +1061,46 @@ async function wireFileDrop(): Promise<void> {
   });
 }
 
-async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
+interface SaveOptions {
+  /** Never replace the visible text, even when the backend reformatted it
+   *  (auto-save and close): rewriting the view would reset cursor and undo. */
+  keepView?: boolean;
+  /** Auto-save: skip unchanged text and report failures once, without waiting. */
+  quiet?: boolean;
+}
+
+const AUTO_SAVE_DELAY_MS = 1500;
+/** Every write of one tab runs after the previous one has settled. */
+const saveChains = new WeakMap<Tab, Promise<unknown>>();
+/** Tabs edited by the user since their last auto-save attempt. Only these are
+ *  auto-saved, so merely opening (or re-normalizing) a file never writes it. */
+const autoSavePending = new Set<Tab>();
+let autoSaveTimer: number | undefined;
+let autoSaveError: { path: string; error: string } | null = null;
+
+function queueTabSave(tab: Tab, job: () => Promise<boolean>): Promise<boolean> {
+  const previous = saveChains.get(tab) ?? Promise.resolve();
+  const run = previous.then(job, job);
+  saveChains.set(tab, run.catch(() => {}));
+  return run;
+}
+
+async function saveDoc(tab: Tab | undefined = tabBar.active, options: SaveOptions = {}): Promise<boolean> {
   if (!tab || tab.imageUrl || tab.loading) return false;
   if (!tab.path) return tab === tabBar.active ? saveAs() : false;
+  return queueTabSave(tab, () => writeTab(tab, options));
+}
 
+async function writeTab(tab: Tab, options: SaveOptions): Promise<boolean> {
+  // A tab closed while its save was queued has nothing left to write.
+  if (!tabBar.tabs.includes(tab)) return true;
+  if (!tab.path || tab.imageUrl || tab.loading || tab.startPage) return false;
   const path = tab.path;
   const md = tab === tabBar.active ? readView() : tab.content;
+  if (options.quiet && md === tab.saved) {
+    updateTabContent(tab, md);
+    return true;
+  }
   let written: string;
   try {
     // The backend beautifies GFM tables and returns the text it wrote.
@@ -1068,17 +1109,21 @@ async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
       contents: md,
     });
   } catch (e) {
-    await message(String(e), { title: "PaperNest", kind: "error" });
+    if (options.quiet) reportAutoSaveError(path, e);
+    else await message(String(e), { title: "PaperNest", kind: "error" });
     return false;
   }
+  if (autoSaveError?.path === path) autoSaveError = null;
   if (!tabBar.tabs.includes(tab) || tab.path !== path) return true;
   const active = tab === tabBar.active;
   const latest = active ? readView() : tab.content;
   const preview = active && !codeViewVisible;
   // In preview, keep Crepe's serialization as the baseline: table formatting
   // changes only the Markdown source and replacing the view would erase undo.
-  tab.saved = preview ? md : written;
-  if (latest === md && written !== md && !preview) {
+  // keepView does the same in Code mode: the submitted text is the baseline,
+  // so the tab does not flip back to dirty because disk has formatted tables.
+  tab.saved = preview || options.keepView ? md : written;
+  if (!options.keepView && latest === md && written !== md && !preview) {
     if (active) writeView(written, viewScrollTop());
     tab.content = written;
   } else {
@@ -1088,8 +1133,86 @@ async function saveDoc(tab: Tab | undefined = tabBar.active): Promise<boolean> {
   tab.dirty = tab.content !== tab.saved;
   tabBar.refreshDirty();
   updateTitle();
-  persistSoon();
+  if (!options.quiet) persistSoon();
   return true;
+}
+
+function reportAutoSaveError(path: string, error: unknown): void {
+  const text = String(error);
+  // One notice per file and error; the debounce must not stack dialogs.
+  if (autoSaveError?.path === path && autoSaveError.error === text) return;
+  autoSaveError = { path, error: text };
+  void message(t("dialog.autoSaveFailed", { name: baseName(path), error: text }), { title: "PaperNest", kind: "error" });
+}
+
+/** A user edit: (re)start the auto-save debounce for this tab. */
+function noteUserEdit(tab: Tab): void {
+  if (!settings?.auto_save || !tab.path) return;
+  autoSavePending.add(tab);
+  window.clearTimeout(autoSaveTimer);
+  autoSaveTimer = window.setTimeout(() => { void flushAutoSave(); }, AUTO_SAVE_DELAY_MS);
+}
+
+function cancelAutoSave(): void {
+  window.clearTimeout(autoSaveTimer);
+  autoSavePending.clear();
+}
+
+async function flushAutoSave(): Promise<void> {
+  window.clearTimeout(autoSaveTimer);
+  await Promise.all([...autoSavePending].map(autoSaveTab));
+}
+
+async function autoSaveTab(tab: Tab): Promise<void> {
+  if (!autoSavePending.has(tab)) return;
+  // Cleared before writing: edits during the write mark the tab pending again.
+  autoSavePending.delete(tab);
+  if (!settings.auto_save || !tabBar.tabs.includes(tab) || !tab.dirty) return;
+  if (!tab.path || tab.imageUrl || tab.startPage || tab.loading) return;
+  const ok = await queueTabSave(tab, () => writeTab(tab, { keepView: true, quiet: true }));
+  // Failed: retry on the next switch, focus loss or edit; the notice is not repeated.
+  if (!ok && tabBar.tabs.includes(tab) && tab.dirty) autoSavePending.add(tab);
+}
+
+/**
+ * Before tabs are closed, replaced or the app quits: auto-save what it can,
+ * then ask Save / Don't save / Cancel for the rest. True means "go ahead".
+ */
+async function settleUnsaved(tabs: Tab[], purpose: "close" | "quit" | "update"): Promise<boolean> {
+  let dirty = tabs.filter((tab) => tab.dirty);
+  if (settings.auto_save) {
+    for (const tab of dirty) {
+      if (!tab.path || tab.imageUrl || tab.loading) continue;
+      autoSavePending.delete(tab);
+      // Failures are reported here and the tab falls through to the question.
+      await saveDoc(tab, { keepView: true });
+    }
+    dirty = dirty.filter((tab) => tabBar.tabs.includes(tab) && tab.dirty);
+  }
+  if (!dirty.length) return true;
+  const name = dirty.map((tab) => baseName(tab.path)).join(", ");
+  const body = purpose === "close" ? t("dialog.saveChangesBody", { name })
+    : purpose === "quit" ? t("dialog.saveChangesQuit", { name })
+      : t("update.unsavedInstall", { name });
+  const choice = await askSaveChanges(body, dirty.length > 1 ? { saveLabel: t("dialog.saveAll") } : {});
+  if (choice === "cancel") return false;
+  if (choice === "discard") return true;
+  for (const tab of dirty) {
+    if (tabBar.tabs.includes(tab) && !(await saveBeforeClose(tab))) return false;
+  }
+  return true;
+}
+
+/** Save one tab for a close/quit; false (nothing discarded) on failure or cancelled Save As. */
+async function saveBeforeClose(tab: Tab): Promise<boolean> {
+  if (!tab.path) {
+    // Save As works on the visible document, so show the untitled tab first.
+    if (tab !== tabBar.active) tabBar.activate(tab.id);
+    if (!(await saveAs())) return false;
+  } else if (!(await saveDoc(tab, { keepView: true }))) {
+    return false;
+  }
+  return !tab.dirty;
 }
 
 async function saveAs(): Promise<boolean> {
@@ -1670,13 +1793,8 @@ async function checkVersion(silent: boolean): Promise<void> {
 async function usePreparedVersion(): Promise<void> {
   if (!preparedVersion) return;
   markDirtyFromView();
-  if (tabBar.tabs.some((tab) => tab.dirty)) {
-    const proceed = await ask(t("update.unsavedInstall"), {
-      title: "PaperNest",
-      kind: "warning",
-    });
-    if (!proceed) return;
-  }
+  if (!(await settleUnsaved(tabBar.tabs, "update"))) return;
+  cancelAutoSave();
 
   await captureGeometry();
   await flushSettings();
@@ -2070,16 +2188,11 @@ async function quitApp(): Promise<void> {
   if (closing) return;
   closing = true;
   markDirtyFromView();
-  if (tabBar.tabs.some((tab) => tab.dirty)) {
-    const quit = await ask(t("dialog.unsavedQuit"), {
-      title: "PaperNest",
-      kind: "warning",
-    });
-    if (!quit) {
-      closing = false;
-      return;
-    }
+  if (!(await settleUnsaved(tabBar.tabs, "quit"))) {
+    closing = false;
+    return;
   }
+  cancelAutoSave();
   window.clearTimeout(geometryCaptureTimer);
   if (!secondaryWindow) {
     try {
@@ -2324,7 +2437,8 @@ async function bootstrap(): Promise<void> {
   workspace.setMarkdownOnly(settings.markdown_only !== false);
   workspace.setWidth(settings.sidebar_width ?? 0);
   settings.shortcuts = withDefaultShortcuts(settings.shortcuts);
-  if (!isListMarker(settings.list_marker)) settings.list_marker = "*";
+  if (!isListMarker(settings.list_marker)) settings.list_marker = "-";
+  settings.auto_save = settings.auto_save === true;
 
   setLang(settings.language ?? "system");
   applyStaticI18n();
@@ -2365,6 +2479,8 @@ async function bootstrap(): Promise<void> {
     settings.accent = ext.accent;
     settings.color_scheme = ext.color_scheme;
     settings.confirm_delete = ext.confirm_delete;
+    settings.auto_save = ext.auto_save === true;
+    if (!settings.auto_save) cancelAutoSave();
     settings.proxy_enabled = ext.proxy_enabled;
     settings.proxy_url = ext.proxy_url;
     settings.auto_check_updates = ext.auto_check_updates;

@@ -15,11 +15,16 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 
 </div>
 
+![PaperNest in light mode, with an expanded file tree and a Markdown document containing tasks, a table, code, and math](docs/assets/screenshots/main-light.png)
+
+*Actual Windows desktop screenshots using prepared demo documents. The interface shown is in Chinese.*
+
 ---
 
 ## Contents
 
 - [Highlights](#highlights)
+- [Screenshots](#screenshots)
 - [Download and install](#download-and-install)
 - [Getting started](#getting-started)
 - [Shortcuts](#shortcuts)
@@ -38,6 +43,45 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 | **Safe file operations** | Create, rename, duplicate, and delete inside the app. Delete shows where a file is referenced and moves it to the system recycle bin. |
 | **HTML and PDF export** | Export standalone HTML or print to PDF. Scripts and other executable content are removed on export. |
 | **Make it yours** | Light, dark, or system theme; custom accent color, fonts, and size; rebindable shortcuts and searchable settings. |
+
+## Screenshots
+
+The light-mode workspace is shown above. These screenshots show alternate views of the same document, a configuration file, settings, and collapsible sections.
+
+<details>
+<summary><b>See more screenshots</b></summary>
+
+### Dark mode
+
+The same Markdown document and file tree, with the dark theme enabled.
+
+![PaperNest workspace in dark mode](docs/assets/screenshots/main-dark.png)
+
+### Markdown source
+
+Press `Ctrl+/` to see line numbers, Markdown markup, and syntax highlighting.
+
+![PaperNest Markdown source view](docs/assets/screenshots/markdown-source.png)
+
+### Code mode
+
+JSON configuration files open directly in Code mode without conversion to Markdown.
+
+![PaperNest displaying a JSON configuration file in Code mode](docs/assets/screenshots/code-json.png)
+
+### Editor settings
+
+Adjust reading fonts, text size, and editing preferences, or preview the current document.
+
+![PaperNest settings panel showing the editor category](docs/assets/screenshots/settings-editor.png)
+
+### Collapsible README sections
+
+The project's README opened in PaperNest, with the file-tree section expanded and the other sections collapsed.
+
+![PaperNest displaying an expanded collapsible section in the project README](docs/assets/screenshots/readme-details.png)
+
+</details>
 
 ## Download and install
 
@@ -80,7 +124,7 @@ The current release targets **Windows x64**. Download it from [Releases](https:/
 - The plus button opens a new tab where you can create or open a file. The arrow menu switches, stacks, favorites, and closes tabs.
 - Favorites save the list of tabs that have file paths and can be restored from the arrow menu. Unsaved new files are not included.
 - “Open in new tab” shows the tab immediately with “Opening file…” while reading. You can switch or close it during loading.
-- Replacing an edited preview tab asks for confirmation first.
+- Closing a tab, replacing a preview tab, quitting, or installing an update with unsaved edits offers Save, Don't save, or Cancel (Save all for several documents). If saving fails or Save As is cancelled, nothing is closed.
 - “Open in new window” creates a single-document window in the same app process, without the file tree, outline, or tab bar.
 
 </details>
@@ -92,6 +136,8 @@ The current release targets **Windows x64**. Download it from [Releases](https:/
 - “Add link / Edit link” opens a small popover near the selection. Type a URL or local path, or search sibling files of the current document to insert a relative link.
 - Click an image to enlarge it, and adjust its alignment and size. Relative images and local links resolve from the current document's folder.
 - Binary files are never opened as text. Unsupported formats or encodings show a short notice at the top of the window that disappears after four seconds.
+- “Editor → Auto-save edited files” is off by default. When on, documents that already have a file are saved about 1.5 s after you stop typing, when you switch tabs, when the window loses focus, and on close. Untitled documents still ask. Opening a file never writes it.
+- Saved Markdown uses `-` for bullet lists by default; switch to `*` or `+` under Editor (a choice already stored in `settings.toml` is kept). Underscores inside words, such as `CODE_MODE_PLAN`, are no longer backslash-escaped.
 
 </details>
 
@@ -101,7 +147,7 @@ The current release targets **Windows x64**. Download it from [Releases](https:/
 - Settings use category navigation on the left. “Search settings” finds names, config keys, and file extensions across categories.
 - “Editor → Font → Preview current document” fades the settings overlay so you can see the document behind it. Press Esc to return.
 - Delete confirmation shows file counts and referencing documents. “Do not ask again” can be reset in General settings.
-- On Windows, “File associations → Windows Explorer” offers a “Show MD File in Explorer's New menu” switch (off by default). It works even when the app is closed and never replaces your default app. Turn it off before deleting a portable copy.
+- On Windows, “File associations → Windows Explorer” offers a “Show MD File in the Windows New menu” switch (off by default). It works even when the app is closed and never replaces your default app. Turn it off before deleting a portable copy.
 
 </details>
 

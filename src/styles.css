@@ -808,9 +808,14 @@ button.workspace-crumb:hover, button.workspace-crumb:focus-visible { opacity: 1;
 /* KaTeX / LaTeX rendering: calm formula cards with an accent rail. */
 #editor .milkdown span[data-type="math_inline"] {
   color: var(--accent-soft-foreground);
-  background: #edf8f6;
+  background: var(--accent-soft);
   border-radius: 5px;
   padding: 1px 5px;
+}
+/* Inline formulas take the soft accent colour; the general .katex rule below
+   would otherwise reset them to body text on the tinted background. */
+#editor .milkdown span[data-type="math_inline"] .katex {
+  color: inherit;
 }
 #editor .milkdown .katex-display {
   margin: 1em 0;

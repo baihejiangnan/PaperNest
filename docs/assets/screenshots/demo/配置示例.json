@@ -1,0 +1,21 @@
+{
+  "project": "PaperNest",
+  "description": "本地阅读与轻量编辑",
+  "appearance": {
+    "theme": "light",
+    "accent": "#8A5CF5",
+    "fontSize": 16 
+  },
+  "workspace": {
+    "name": "阅读空间",
+    "markdownOnly": true,
+    "restoreSession": true
+  },
+  "documents": [
+    { "title": "阅读示例", "format": "markdown" },
+    { "title": "项目说明", "format": "markdown" },
+    { "title": "配置示例", "format": "json" }
+  ],
+  "tags": ["阅读", "笔记", "本地文件"],
+  "cloudSync": false
+}

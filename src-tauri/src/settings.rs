@@ -89,6 +89,8 @@ pub struct Settings {
     pub quit_on_escape: bool,
     /// Bullet-list marker written on save: "*", "-" or "+".
     pub list_marker: String,
+    /// Save edited documents that already have a path automatically.
+    pub auto_save: bool,
     /// Show the full file path (not just the file name) in the editor header.
     pub show_path: bool,
     /// Reopen the previous session's tabs on startup.
@@ -149,7 +151,8 @@ impl Default for Settings {
             language: "system".to_string(),
             spellcheck: true,
             quit_on_escape: false,
-            list_marker: "*".to_string(),
+            list_marker: "-".to_string(),
+            auto_save: false,
             show_path: false,
             open_last_session: true,
             always_show_tabbar: false,
@@ -424,6 +427,17 @@ mod theme_tests {
         assert_eq!(settings.accent, "#8A5CF5");
         assert_eq!(settings.color_scheme, "system");
         assert!(settings.code_alternate_row_color.is_empty());
+        assert_eq!(settings.list_marker, "-");
+        assert!(!settings.auto_save);
+    }
+
+    #[test]
+    fn existing_list_marker_and_auto_save_survive_roundtrip() {
+        // Older files persist list_marker = "*"; that choice is kept.
+        let settings = parse_settings("list_marker = '*'\nauto_save = true").unwrap();
+        let restored = parse_settings(&toml::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(restored.list_marker, "*");
+        assert!(restored.auto_save);
     }
 
     #[test]

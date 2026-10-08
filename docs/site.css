@@ -24,6 +24,7 @@
 html{scroll-behavior:smooth;scroll-padding-top:72px}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 var(--font);-webkit-font-smoothing:antialiased}
 img{max-width:100%;display:block}
+[hidden]{display:none!important}
 a{color:var(--accent-strong);text-decoration:none}
 a:hover{text-decoration:underline}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
@@ -68,53 +69,21 @@ kbd{display:inline-block;min-width:24px;padding:1px 7px;border:1px solid var(--b
 .actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:32px}
 .fine{margin-top:16px;color:var(--muted);font-size:13px}
 
-/* 界面示意 */
-.mock-wrap{margin:56px 0 0}
-.mock{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);overflow:hidden;text-align:left}
-.mock-titlebar{display:flex;align-items:flex-end;gap:2px;height:40px;padding:0 0 0 12px;background:var(--surface-2);border-bottom:1px solid var(--border)}
-.mock-tab{padding:7px 16px;border-radius:8px 8px 0 0;color:var(--muted);font-size:13px;white-space:nowrap}
-.mock-tab.is-active{background:var(--surface);color:var(--fg);box-shadow:0 1px 0 var(--surface)}
-.mock-win{display:flex;gap:18px;margin-left:auto;align-self:center;padding:0 16px}
-.mock-win i{width:10px;height:10px;border:1.5px solid var(--muted);border-radius:2px;opacity:.6}
-.mock-win i:first-child{height:0;border-width:1.5px 0 0;align-self:center}
-.mock-body{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:400px}
-.mock-side{padding:12px;background:var(--surface-2);border-right:1px solid var(--border);font-size:13px}
-.mock-search{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--muted)}
-.mock-tree{list-style:none;margin:12px 0 0;padding:0}
-.mock-tree li{position:relative;padding:4px 8px 4px 26px;border-radius:6px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mock-tree li::before{content:"";position:absolute;left:8px;top:50%;width:11px;height:13px;margin-top:-6.5px;border:1.5px solid var(--muted);border-radius:2px;opacity:.7}
-.mock-tree li.dir::before{height:10px;margin-top:-5px;border-radius:2px 2px 3px 3px}
-.mock-tree li.sub{margin-left:16px}
-.mock-tree li.is-active{background:var(--accent-soft);color:var(--accent-strong)}
-.mock-tree li.is-active::before{border-color:var(--accent)}
-.mock-doc{position:relative;padding:32px clamp(20px,5vw,56px) 36px}
-.mock-mode{position:absolute;top:14px;right:16px;display:flex;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}
-.seg{height:28px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
-.seg:hover{color:var(--fg)}
-.seg.is-on{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px #0000001f}
-.doc-render{max-width:620px;font-size:15px}
-.doc-render h3{font-size:24px;font-weight:700;margin:0 0 12px}
-.doc-render p{margin:0 0 12px}
-.doc-render a{text-decoration:underline;text-underline-offset:3px}
-.tasks{list-style:none;margin:0 0 16px;padding:0}
-.tasks li{position:relative;padding:2px 0 2px 28px}
-.tasks li::before{content:"";position:absolute;left:2px;top:7px;width:14px;height:14px;border:1.5px solid var(--border);border-radius:4px;background:var(--surface)}
-.tasks li.done{color:var(--muted);text-decoration:line-through}
-.tasks li.done::before{background:var(--accent);border-color:var(--accent)}
-.tasks li.done::after{content:"";position:absolute;left:7px;top:9px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.doc-render table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14px}
-.doc-render th,.doc-render td{padding:8px 12px;border:1px solid var(--border);text-align:left}
-.doc-render th{background:var(--surface-2);font-weight:600}
-.tag{display:inline-block;padding:0 8px;border-radius:999px;background:var(--hover);color:var(--warning);font-size:12px;line-height:20px}
-.tag.ok{color:var(--success)}
-.math{font-family:"Times New Roman",serif;font-size:19px;text-align:center}
-.doc-source{margin:0;max-width:680px;font:13.5px/1.8 var(--mono);color:var(--fg);white-space:pre-wrap;overflow-wrap:anywhere}
-.doc-source .ln{display:inline-block;width:2.4em;margin-right:12px;color:var(--muted);opacity:.6;text-align:right;user-select:none}
-.tk-h{color:var(--accent-strong);font-weight:700}
-.tk-m{color:var(--muted)}
-.tk-l{color:#2f7fd1}
-.tk-s{color:var(--success)}
-.mock-note{margin-top:16px;color:var(--muted);font-size:13px;text-align:center}
+/* 界面截图 */
+.shot-hero{margin:56px 0 0}
+.shot-frame{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.shot-frame img{width:100%;height:auto}
+.view-toggle{display:flex;width:max-content;margin:20px auto 0;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}
+.view-toggle button{height:34px;min-width:72px;padding:0 16px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+.view-toggle button:hover{color:var(--fg)}
+.view-toggle button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px #0000001f}
+.shot-note{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:40px}
+.gallery figure{margin:0}
+.gallery a{display:block;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;transition:border-color .14s,box-shadow .14s}
+.gallery a:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.gallery img{width:100%;height:auto}
+.gallery figcaption{margin-top:12px;color:var(--muted);font-size:14px}
 
 /* 通用区块 */
 .section{padding:88px 0}
@@ -159,20 +128,17 @@ kbd{display:inline-block;min-width:24px;padding:1px 7px;border:1px solid var(--b
 @media (max-width:900px){
   .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .split{grid-template-columns:1fr;gap:32px}
-  .mock-body{grid-template-columns:180px minmax(0,1fr)}
+  .gallery{grid-template-columns:1fr}
 }
 @media (max-width:640px){
   .nav{display:none}
   .header-inner .btn{margin-left:auto}
   .hero{padding:56px 0 48px}
+  .shot-hero{margin-top:40px}
   .br-sm{display:inline}
   .actions .btn{flex:1 1 100%}
   .grid,.grid-2{grid-template-columns:1fr}
   .section{padding:64px 0}
-  .mock-body{grid-template-columns:1fr;min-height:0}
-  .mock-side{display:none}
-  .mock-tab:not(.is-active){display:none}
-  .mock-doc{padding-top:56px}
   .filetypes>div{flex-direction:column;gap:4px}
   .filetypes dd{text-align:left}
   .keys td{white-space:normal}

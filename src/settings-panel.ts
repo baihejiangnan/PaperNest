@@ -29,6 +29,7 @@ export interface PanelSettings {
   open_last_session: boolean;
   show_path: boolean;
   list_marker: string;
+  auto_save: boolean;
   editor_font: string;
   editor_font_size: number;
   source_font: string;
@@ -203,6 +204,7 @@ const SECTIONS: Section[] = [
           { value: "+", label: "settings.language.system" },
         ],
       },
+      { key: "auto_save", kind: "checkbox", label: "settings.autoSave", hint: "settings.autoSave.hint" },
       { key: "show_path", kind: "checkbox", label: "settings.showPath" },
       {
         key: "code_alternate_rows",
@@ -1256,7 +1258,7 @@ export class SettingsPanel {
     const labelText = document.createElement("span");
     labelText.className = "settings-label";
     labelText.textContent = t(f.label);
-    if (f.kind === "select" && f.hint) {
+    if ((f.kind === "select" || (f.kind === "checkbox" && f.key !== "auto_check_updates")) && f.hint) {
       const hint = document.createElement("span");
       hint.className = "settings-hint-text";
       hint.textContent = " — " + t(f.hint);

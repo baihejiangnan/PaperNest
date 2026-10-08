@@ -1,7 +1,7 @@
 {
   "name": "papernest",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "test:code-text": "node scripts/test-code-text.mjs",
     "test:tab-path": "node scripts/test-tab-path.mjs",
     "test:details-html": "node scripts/test-details-html.mjs",
+    "test:markdown-serializer": "node scripts/test-markdown-serializer.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",

@@ -11,8 +11,14 @@ export interface DialogOptions {
   ready?: Promise<void>;
   initialFocus?: HTMLElement;
   canConfirm?: () => boolean;
+  /** Optional middle action between Cancel and the confirm button. */
+  alternateLabel?: string;
+  alternateDanger?: boolean;
+  /** Initially focus the confirm button instead of Cancel (non-destructive confirms only). */
+  focusConfirm?: boolean;
 }
-export interface DialogResult { confirmed: boolean; remember: boolean }
+export interface DialogResult { confirmed: boolean; remember: boolean; choice: "confirm" | "alternate" | "cancel" }
+export type SaveChangesChoice = "save" | "discard" | "cancel";
 let queue: Promise<unknown> = Promise.resolve();
 
 /** Serialise app dialogs so concurrent errors cannot cover a pending question. */
@@ -77,21 +83,31 @@ function renderDialog(body: string, options: DialogOptions, confirmation: boolea
       void options.ready.then(() => { confirm.disabled = false; card.removeAttribute("aria-busy"); })
         .catch(() => { card.removeAttribute("aria-busy"); });
     }
+    let alternate: HTMLButtonElement | null = null;
+    if (options.alternateLabel) {
+      alternate = document.createElement("button");
+      alternate.type = "button";
+      alternate.className = `app-dialog-button${options.alternateDanger ? " is-danger" : ""}`;
+      alternate.textContent = options.alternateLabel;
+    }
     let finished = false;
-    const finish = (confirmed: boolean) => {
+    const finish = (choice: DialogResult["choice"]) => {
       if (finished) return;
       finished = true;
       root.hidden = true;
       deactivateModal(root);
       root.remove();
-      resolve({ confirmed, remember: confirmed && remember.checked });
+      const confirmed = choice === "confirm";
+      resolve({ confirmed, remember: confirmed && remember.checked, choice });
     };
-    cancel.addEventListener("click", () => finish(false));
-    confirm.addEventListener("click", () => finish(true));
-    close.addEventListener("click", () => finish(false));
-    root.addEventListener("click", event => { if (event.target === root) finish(false); });
-    root.addEventListener("dialog-dismiss", () => finish(false));
+    cancel.addEventListener("click", () => finish("cancel"));
+    confirm.addEventListener("click", () => finish("confirm"));
+    alternate?.addEventListener("click", () => finish("alternate"));
+    close.addEventListener("click", () => finish("cancel"));
+    root.addEventListener("click", event => { if (event.target === root) finish("cancel"); });
+    root.addEventListener("dialog-dismiss", () => finish("cancel"));
     if (confirmation) actions.appendChild(cancel);
+    if (alternate) actions.appendChild(alternate);
     actions.appendChild(confirm);
     footer.appendChild(actions);
     card.append(title, close, description);
@@ -100,12 +116,32 @@ function renderDialog(body: string, options: DialogOptions, confirmation: boolea
     root.appendChild(card);
     document.body.appendChild(root);
     // Opening or pressing Enter must not accidentally approve a destructive action.
-    activateModal(root, () => finish(false), options.initialFocus ?? (confirmation ? cancel : confirm));
+    // A non-destructive confirm (Save) may take initial focus; a destructive
+    // alternate button never does.
+    const initial = options.initialFocus
+      ?? (!confirmation || (options.focusConfirm && !options.danger) ? confirm : cancel);
+    activateModal(root, () => finish("cancel"), initial);
   });
 }
 
 export async function ask(body: string, options: DialogOptions = {}): Promise<boolean> {
   return (await confirmDialog(body, options)).confirmed;
+}
+
+/**
+ * Unsaved-changes question with three real outcomes: Save (primary, initially
+ * focused), Don't save (destructive) and Cancel. Esc, × and the overlay cancel.
+ */
+export async function askSaveChanges(body: string, options: { title?: string; saveLabel?: string; discardLabel?: string } = {}): Promise<SaveChangesChoice> {
+  const result = await confirmDialog(body, {
+    title: options.title ?? t("dialog.saveChangesTitle"),
+    kind: "warning",
+    confirmLabel: options.saveLabel ?? t("dialog.save"),
+    alternateLabel: options.discardLabel ?? t("dialog.dontSave"),
+    alternateDanger: true,
+    focusConfirm: true,
+  });
+  return result.choice === "confirm" ? "save" : result.choice === "alternate" ? "discard" : "cancel";
 }
 
 export async function message(body: string, options: DialogOptions = {}): Promise<void> {

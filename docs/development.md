@@ -13,10 +13,11 @@
 - `pnpm test:code-text`：检查 CodeMirror 文本序列化的 CRLF、LF、CR、混合换行、空文本、编辑及撤销，防止打开文本后误判未保存。
 - `pnpm test:tab-path`：检查普通 Windows 路径、扩展路径和 UNC 路径的标签身份，避免同一文件重复打开。
 - `pnpm test:details-html`：检查 `<details>` 开始标记的识别，包括 `open` 属性及与 `<summary>` 合并在同一 HTML 块的 GitHub 写法；其他 HTML 保持原样显示。
+- `pnpm test:markdown-serializer`：用 Milkdown 自带的 remark 包与默认处理器，加上 `src/markdown-serializer.ts` 的配置，往返序列化样例 Markdown：单词内下划线不加转义、列表符号、链接／图片／邮件地址写法，以及保存后重新解析得到相同文档树。ProseMirror 与 mdast 之间的转换需要 DOM，不在此测试内。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：快速检查 Rust。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
-- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、三个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
+- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、四个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
 - `pnpm release:windows`：Windows x64 EXE/MSI、更新签名、元数据及 SHA-256 清单。脚本检查 MSI 实际关联动作与执行顺序，并通过应用内嵌公钥检查两个产物的有效签名及篡改拒绝；CI 再核对完整六文件集合和校验和。当前 [工作流](../.github/workflows/release.yml) 仅发行 Windows，Linux/macOS 的现有本地脚本暂定。
 
 如果已经有开发实例占用 Vite 端口或单实例锁，先确认该实例及未保存内容，再重启开发命令。不要用旧的 `target/debug` 可执行文件来判断新改动是否生效；Rust 改动需要完成重新编译。
@@ -24,6 +25,13 @@
 在受限执行环境中，工作区生成的 EXE 可能继承低完整性标记，即使窗口能正常显示，也无法调用正常桌面权限下的资源管理器；目录打开会返回错误码 5，文件定位会返回 `0x80070005`。这时先核对应用与 Explorer 的完整性等级。桌面验证应将最新已编译程序复制到独立的普通临时目录，在该目录使用测试配置启动；不修改工作区或系统目录的权限。已有下载版、安装版或开发版可能占用同一应用标识的单实例锁，检查进程时也应包括版本化的 EXE 名称，不能只检查 `PaperNest.exe`。
 
 ## 修改位置
+
+### 保存确认、自动保存与 Markdown 保存格式（2026-10-08）
+
+- 关闭有未保存修改的标签页、替换预览页、退出和安装更新改用 `askSaveChanges`（`src/dialogs.ts`）：保存（主按钮，初始焦点）、不保存（危险）、取消；Esc、关闭按钮与遮罩为取消。多个文档时为一次“全部保存”。未命名标签页会先激活再另存为；保存失败或取消另存为时中止关闭／退出，不丢弃内容。删除文件前的确认仍为放弃／取消。
+- 新设置 `auto_save`（默认关闭，“编辑器”分类）。仅用户编辑过且有路径的文本标签页会写入：停止输入 1.5 秒后、切换标签页、窗口失去焦点，以及关闭／替换／退出时。同一标签页的写入经 `queueTabSave` 串行；写入期间的新编辑保持未保存并在下次保存。自动保存从不替换视图内容：后端格式化表格后磁盘与视图不同，以提交的文本作为基准，标签不会来回变为未保存；失败只按同一文件同一错误提示一次。
+- 列表符号默认改为 `-`。`settings.toml` 会写出完整设置，已有用户文件中的 `list_marker = "*"` 保持不变。单词内部（两侧为字母或数字）的 `_` 不再写成 `\_`，图片替代文本相同；`<a@b.c>` 形式的邮件链接不再改写为 `<mailto:…>`。Milkdown 在下划线旁直接接 `*` 强调的写法（如 `a_*b*_c`）本身就会写错，与本改动无关，测试中断言其输出与原版一致。
+- 自动检查（2026-10-08）：`pnpm build`、四个 `pnpm test:*`、`cargo test --locked --lib`（46 项通过，3 项 ignored）通过。Vite + 无头 Edge 组件检查 46 项通过：四种语言的按钮文字与样式、初始焦点在“保存”、背景 `inert`、保存／不保存／取消／Esc／关闭按钮／遮罩的结果、焦点恢复、“全部保存”、排队，以及删除类危险确认仍聚焦“取消”；360 px 宽德语与 900 px 中文截图中按钮未超出卡片。另以桩函数在 Node 中运行 `main.ts` 的保存函数：防抖只写一次、代码视图自动保存不改写视图、写入不重叠、写入期间的编辑保留、失败只提示一次、未编辑不写入、取消或另存为取消时中止。尚未在实际 WebView2 桌面窗口中操作。
 
 ### Markdown 折叠区块（2026-10-08）
 

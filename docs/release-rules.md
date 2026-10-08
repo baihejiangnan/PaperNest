@@ -1,6 +1,6 @@
 # 推送与发行规则
 
-本文件供后续 agent 执行 PaperNest 的代码推送、Windows 发行构建和 GitHub Releases 发布。规则整理自 v0.1.0、v0.1.1、v0.1.2 的实际操作；历史证据见 [开发与发行记录](development.md)。具体构建行为以 [Windows 构建脚本](../scripts/build-release.ps1)、[发行工作流](../.github/workflows/release.yml) 和 [更新实现](../src-tauri/src/update.rs) 为核对依据。实现变化时同步更新本文件，不照搬历史版本号或提交号。
+本文件供后续 agent 执行 PaperNest 的代码推送、Windows 发行构建和 GitHub Releases 发布。规则整理自 v0.1.0～v0.1.5 的实际操作；历史证据见 [开发与发行记录](development.md)。具体构建行为以 [Windows 构建脚本](../scripts/build-release.ps1)、[发行工作流](../.github/workflows/release.yml) 和 [更新实现](../src-tauri/src/update.rs) 为核对依据。实现变化时同步更新本文件，不照搬历史版本号或提交号。
 
 ## 1. 执行范围与目标仓库
 
@@ -27,11 +27,17 @@ v0.1.0 当时只推送独立发行分支；v0.1.1 和 v0.1.2 已同步 main。�
 
 ## 2. 推送前检查
 
-1. 查看 `git status --short`、当前分支、`git remote -v`、相关 diff 与未跟踪文件。保留已有修改，确认本次授权的范围；避免直接 `git add .` 将配置、测试数据或无关工作一起提交。
+1. 查看 `git status --short`、当前分支、`git remote -v`、相关 diff 与未跟踪文件。保留已有修改，确认本次授权的范围；避免直接 `git add .` 或 `git add -A` 将配置、测试数据或无关工作一起提交。逐个文件判断是否属于本次范围：
+   - 只有格式变化、看起来是被编辑器重新保存的文件（例如列表符号 `-` 变 `*`、下划线被转义为 `\_`、末尾多出空行），不属于本次改动时不提交，在结果中列出，由用户决定。
+   - 来源不明的未跟踪目录（例如其他工具生成的 `.workbuddy-ai/`）不提交，也不删除。
+   - 无法判断是否属于本次授权时先问用户，不猜测。
 2. `git fetch origin --prune` 后检查 origin/main、目标工作分支与 HEAD 的关系。同步 main 前确认 `git merge-base --is-ancestor origin/main HEAD` 成功；若不成功，先整合远端改动并验证，不能覆盖远端提交。
 3. 确认没有未解决冲突、临时调试入口或凭据。检查 `.gitignore`；release/、release.__staging/、src-tauri/target/、node_modules/、output/tmp/、output/playwright/ 等产物与临时文件不提交。正式维护的预览资料可按本次改动范围提交，不能把整个 output/ 一概忽略或上传。
 4. 检查用户操作说明、架构、设计、开发记录和 TODO 是否需要随代码更新。测试报告区分构建、组件检查、桌面实测和用户确认，不能将历史版本的验证写成新版本已实测。
-5. 执行 `git diff --check`，按改动范围完成必要检查。普通文档修改不要求重打发行包；功能发行需执行下一节检查。
+5. 执行 `git diff --check`，再按改动范围完成检查，每条都检查退出码：
+   - 只改文档、截图或 `docs/` 介绍页：`git diff --check` 即可，不要求构建或重打发行包。
+   - 改了 `src/`、`src-tauri/`、`scripts/`、`package.json` 或工作流：运行 `pnpm build`、`package.json` 中全部 `test:*` 脚本，以及 `cargo test --manifest-path src-tauri/Cargo.toml --locked --lib`，与 [CI](../.github/workflows/ci.yml) 保持一致。
+   - 正式发行另需执行第 4 节的签名构建。
 6. 使用明确文件列表暂存，检查 `git diff --cached --stat` 与 staged diff 后提交。提交信息描述最终改动，不把失败尝试或临时计划写成已实现行为。
 
 PowerShell 中 `$ErrorActionPreference = 'Stop'` 不保证 Git、pnpm、Cargo、gh 等外部程序失败后自动停止。每个关键命令后检查 `$LASTEXITCODE`，失败即停止依赖它的后续步骤。不得在构建失败后继续提交发行标签或发布。
@@ -51,15 +57,18 @@ PowerShell 中 `$ErrorActionPreference = 'Stop'` 不保证 Git、pnpm、Cargo、
 
 当前正式发行范围为 Windows x64：便携 EXE 和 MSI。Linux/macOS 仍暂定，现有脚本不代表已经完成对应系统实测。工具链要求见 [环境与命令](development.md#环境与命令)。
 
-正式构建前至少运行以下检查，每条均检查退出码：
+正式构建前至少运行以下检查，每条均检查退出码。前端测试以 `package.json` 中实际存在的全部 `test:*` 脚本为准，新增测试时同步本列表与 CI；下面是当前列表：
 
 ```powershell
 pnpm test:code-text
 pnpm test:tab-path
 pnpm test:details-html
+pnpm test:markdown-serializer
 cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
 pnpm release:windows
 ```
+
+`pnpm release:windows` 在本机通常需要 10 分钟以上，可能超过单条命令的超时时间。应在后台运行并把输出写入 `output/tmp/release-X.Y.Z.log`，等待进程结束后检查退出码和日志末尾的 `Result: PASS`；不能在进程结束前推断成功或失败。
 
 `pnpm release:windows` 已包含前端类型检查和构建，无须无理由重复运行。除上述检查外，完成本次功能必要的回归；Rust 默认跳过的集成测试要如实记录，不能写成全部通过。明确的平台暂定项可保留在 TODO；影响本次发行可用性或验签的失败必须解决后再发布。
 
@@ -98,6 +107,8 @@ pnpm release:windows
 应用检查更新读取 `https://api.github.com/repos/baihejiangnan/PaperNest/releases/latest`，按便携／安装模式寻找上表精确文件名及对应 `.sig`，下载后用内嵌公钥验证。latest.json 也必须发布并保持一致，但当前应用不是仅靠该文件判断更新；只更新 JSON 而漏发 EXE/MSI 或签名会破坏更新能力。
 
 latest.json 的 version 为 `X.Y.Z`，windows-x86_64 的 URL 必须指向 `https://github.com/baihejiangnan/PaperNest/releases/download/vX.Y.Z/PaperNest_X.Y.Z_x64.msi`，signature 与 MSI 的 `.sig` 文本一致。SHA256SUMS.txt 使用脚本生成的 UTF-8 无 BOM、LF 格式，每个条目均需实际重新计算核对。
+
+latest.json 由脚本生成，开头带 UTF-8 BOM（自 v0.1.3 起各版本一致，应用可正常读取）。核对时用能处理 BOM 的方式解析，例如 PowerShell 的 `Get-Content -Raw | ConvertFrom-Json` 或 Python 的 `encoding='utf-8-sig'`；不要把 BOM 当成文件损坏，也不要手动改写这个文件。
 
 本地 release/ 会保留旧版本带版本号的文件，而 latest.json 与 SHA256SUMS.txt 会更新。上传时只能使用本次版本的明确六文件列表，不能直接 `release/*`。GitHub 自动附带的 Source code 压缩包不计入这六项资产。
 
@@ -158,7 +169,7 @@ gh release edit $releaseTag --repo baihejiangnan/PaperNest --draft=false --prere
 
 重试前先 `gh release view` 或查询认证后的 Releases 列表，复用已有草稿；不要收到超时就重复创建。草稿可能无法从 `/releases/tags/{tag}` 取得，出现 404 时查看 Releases 列表和草稿 ID，不能据此断言不存在。
 
-正式公开之前，使用 `gh api repos/baihejiangnan/PaperNest/releases/{release_id}` 核对草稿：
+正式公开之前，使用 `gh api repos/baihejiangnan/PaperNest/releases/{release_id}` 核对草稿。在 PowerShell 中，`gh ... --jq` 表达式里的双引号可能被吞掉，导致筛选条件失效、返回空结果；应改为取得完整 JSON 后用 `ConvertFrom-Json` 和 `Where-Object` 筛选，并确认筛选结果非空再判断。核对项：
 
 - tag_name 是本次标签、目标源码正确，说明和正式版属性正确。
 - 六项资产名称恰好匹配，state 均为 uploaded；没有旧版本、日志、调试包或凭据。

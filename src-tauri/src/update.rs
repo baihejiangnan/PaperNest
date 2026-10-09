@@ -17,7 +17,7 @@ use minisign_verify::{PublicKey, Signature};
 use reqwest::header::{ACCEPT, CONTENT_LENGTH, USER_AGENT};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     portable::{self, InstallMode},
@@ -505,23 +505,7 @@ pub fn open_portable_update(version: String) -> Result<(), String> {
         }
         let version = parse_version(&version)?.to_string();
         let path = verify_local_update(&version, "portable")?;
-        // PaperNest is single-instance. Launch through a short-lived helper after
-        // the current process has had time to exit, otherwise the new EXE would
-        // simply hand control back to the old instance.
-        let escaped_path = path.to_string_lossy().replace(char::from(39), "''");
-        let launch_script = format!(
-            "Start-Sleep -Milliseconds 900; Start-Process -FilePath '{}'",
-            escaped_path
-        );
-        Command::new("powershell.exe")
-            .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
-            .arg("-Command")
-            .arg(launch_script)
-            .spawn()
-            .map_err(|e| format!("cannot open new PaperNest version: {e}"))?;
-        return Ok(());
+        return start_update_handoff("portable", &path, &path);
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -561,19 +545,63 @@ pub fn install_downloaded_update(version: String) -> Result<(), String> {
         }
         let version = parse_version(&version)?.to_string();
         let path = verify_local_update(&version, "installed")?;
-        Command::new("msiexec.exe")
-            .arg("/i")
-            .arg(&path)
-            .arg("/passive")
-            .arg("/norestart")
-            .spawn()
-            .map_err(|e| format!("cannot start PaperNest installer: {e}"))?;
-        return Ok(());
+        let executable = std::env::current_exe()
+            .map_err(|e| format!("cannot locate current PaperNest: {e}"))?;
+        return start_update_handoff("installed", &path, &executable);
     }
     #[cfg(not(target_os = "windows"))]
     {
         let _ = version;
         Err("installed update is only supported on Windows".to_string())
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn update_handoff_script(handoff: &serde_json::Value) -> String {
+    let data = BASE64.encode(handoff.to_string().as_bytes());
+    format!(
+        "$handoff = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{data}')) | ConvertFrom-Json\n{}",
+        include_str!("update-restart.ps1")
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn start_update_handoff(mode: &str, artifact: &Path, executable: &Path) -> Result<(), String> {
+    use std::io::{BufRead, BufReader};
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    let fallback = std::env::current_exe()
+        .map_err(|e| format!("cannot locate current PaperNest: {e}"))?;
+    let cache = update_cache_dir()?;
+    std::fs::create_dir_all(&cache).map_err(|e| format!("cannot create update cache: {e}"))?;
+    let script = update_handoff_script(&serde_json::json!({
+        "parentPid": std::process::id(), "mode": mode,
+        "artifact": artifact, "executable": executable, "fallback": fallback,
+        "errorLog": cache.join("update-restart.log")
+    }));
+    let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let powershell = std::env::var_os("SystemRoot")
+        .map(PathBuf::from).ok_or_else(|| "cannot locate Windows directory".to_string())?
+        .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let mut child = Command::new(powershell)
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand"])
+        .arg(BASE64.encode(utf16))
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null())
+        .spawn().map_err(|e| format!("cannot start update restart helper: {e}"))?;
+    let stdout = child.stdout.take().ok_or_else(|| "missing update helper output".to_string())?;
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        let result = BufReader::new(stdout).read_line(&mut line);
+        let _ = sender.send(result.is_ok() && line.trim() == "PaperNest update helper ready");
+    });
+    if receiver.recv_timeout(Duration::from_secs(10)).unwrap_or(false) {
+        Ok(()) // helper has started; frontend can now close the only app window
+    } else {
+        let _ = child.kill();
+        let _ = child.wait();
+        Err("update restart helper did not start; PaperNest is still open".to_string())
     }
 }
 
@@ -588,9 +616,12 @@ pub async fn prepare_new_version(
 }
 
 #[tauri::command]
-pub fn use_prepared_version(version: String) -> Result<(), String> {
+pub fn use_prepared_version(app: AppHandle, version: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        if app.webview_windows().len() > 1 {
+            return Err("Close other PaperNest windows before installing the update.".to_string());
+        }
         return match portable::current_mode() {
             InstallMode::Portable => open_portable_update(version),
             InstallMode::Installed => install_downloaded_update(version),
@@ -598,7 +629,7 @@ pub fn use_prepared_version(version: String) -> Result<(), String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = version;
+        let _ = (app, version);
         Err("in-app update is not enabled on this platform yet".to_string())
     }
 }
@@ -611,6 +642,80 @@ pub fn show_prepared_version(version: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{artifact_names, manifest_package, parse_manifest, parse_version, release_info};
+
+    #[cfg(target_os = "windows")]
+    fn exercise_restart_helper(mode: &str, exit_code: i32) {
+        use base64::Engine as _;
+        use std::os::windows::process::CommandExt;
+        use std::process::{Command, Stdio};
+        let dir = tempfile::tempdir().unwrap();
+        let executable = dir.path().join("新版 O'Brien 阅读器.exe");
+        let fallback = dir.path().join("旧版 阅读器.exe");
+        std::fs::write(&executable, b"fixture, never executed").unwrap();
+        std::fs::write(&fallback, b"fixture, never executed").unwrap();
+        // A real old-process lifetime, with every installer/app launch intercepted.
+        let mut old = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", "Start-Sleep -Milliseconds 2000"])
+            .creation_flags(0x08000000).stdout(Stdio::null()).stderr(Stdio::null())
+            .spawn().unwrap();
+        let calls = dir.path().join("calls.jsonl");
+        let handoff = serde_json::json!({
+            "parentPid": old.id(), "mode": mode, "fixtureExitCode": exit_code,
+            "artifact": dir.path().join("安装 O'Brien 包.msi"),
+            "executable": executable, "fallback": fallback,
+            "errorLog": dir.path().join("error.log"), "fixtureCalls": calls
+        });
+        let mocks = r#"
+function Start-Process {
+    param($FilePath, $ArgumentList, [switch]$Wait, [switch]$PassThru, $WindowStyle)
+    if (Get-Process -Id $handoff.parentPid -ErrorAction SilentlyContinue) { throw 'Old reader is still running' }
+    $call = @{path=$FilePath;args=$ArgumentList;wait=[bool]$Wait;hidden=($WindowStyle -eq 'Hidden')}
+    [IO.File]::AppendAllText($handoff.fixtureCalls, (($call | ConvertTo-Json -Compress) + "`n"))
+    if ($FilePath.EndsWith('msiexec.exe')) { return [pscustomobject]@{ExitCode=$handoff.fixtureExitCode} }
+}
+function Get-ItemProperty {
+    param($LiteralPath)
+    return [pscustomobject]@{InstallType='MSI';ExecutablePath=$handoff.executable}
+}
+"#;
+        let script = format!("{mocks}\n{}", super::update_handoff_script(&handoff));
+        let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let output = Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-EncodedCommand"])
+            .arg(super::BASE64.encode(utf16)).creation_flags(0x08000000)
+            .output().unwrap();
+        old.wait().unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("PaperNest update helper ready"));
+        let calls: Vec<serde_json::Value> = std::fs::read_to_string(calls).unwrap()
+            .lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+        let launch = calls.last().unwrap();
+        assert_eq!(launch["hidden"], true);
+        if mode == "installed" {
+            assert_eq!(calls.len(), 2);
+            assert_eq!(calls[0]["wait"], true);
+            let args = calls[0]["args"].as_str().unwrap();
+            assert!(args.contains("AUTOLAUNCHAPP=0"));
+            assert!(args.contains("/i \""));
+        } else { assert_eq!(calls.len(), 1); }
+        let failed = mode == "installed" && ![0, 3010].contains(&exit_code);
+        assert_eq!(launch["path"], if failed { handoff["fallback"].clone() } else { handoff["executable"].clone() });
+        assert_eq!(launch["args"].as_str().unwrap().contains("--papernest-update-failed"), failed);
+        assert!(launch["args"].as_str().unwrap().contains("--papernest-resume-after-update"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn restart_helper_waits_installs_then_resumes() { exercise_restart_helper("installed", 0); }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn restart_helper_accepts_reboot_required_success() { exercise_restart_helper("installed", 3010); }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn restart_helper_recovers_reader_after_install_cancel() { exercise_restart_helper("installed", 1602); }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn restart_helper_resumes_portable_without_installer() { exercise_restart_helper("portable", 0); }
 
     // Run against each staged release artifact before publishing. This exercises
     // the same embedded public key and verifier as the download/install path.

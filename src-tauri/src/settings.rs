@@ -140,6 +140,10 @@ pub struct Settings {
     pub open_files: Vec<PathBuf>,
     /// Index into `open_files` of the tab that was active.
     pub active_tab: usize,
+    /// Scroll offsets aligned with `open_files`, including the active view.
+    pub open_file_scroll_positions: Vec<f64>,
+    /// Markdown source/reading view for the restored session.
+    pub session_source_mode: bool,
     /// Preferred workspace sidebar width in CSS pixels (0 = responsive default).
     pub sidebar_width: f64,
     pub window: WindowState,
@@ -181,6 +185,8 @@ impl Default for Settings {
             last_update_check: 0,
             open_files: Vec::new(),
             active_tab: 0,
+            open_file_scroll_positions: Vec::new(),
+            session_source_mode: false,
             sidebar_width: 0.0,
             window: WindowState::default(),
         }
@@ -447,5 +453,19 @@ mod theme_tests {
         assert!(!restored.markdown_only);
         assert!(restored.windows_new_md);
         assert_eq!(restored.sidebar_width, 350.0);
+    }
+
+    #[test]
+    fn reading_session_survives_roundtrip_and_old_settings() {
+        let old = parse_settings("open_files = ['C:/文档/read.md']\nactive_tab = 0").unwrap();
+        assert!(old.open_file_scroll_positions.is_empty());
+        assert!(!old.session_source_mode);
+        let mut settings = old;
+        settings.open_file_scroll_positions = vec![428.5];
+        settings.session_source_mode = true;
+        let restored = parse_settings(&toml::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(restored.open_files, settings.open_files);
+        assert_eq!(restored.open_file_scroll_positions, vec![428.5]);
+        assert!(restored.session_source_mode);
     }
 }

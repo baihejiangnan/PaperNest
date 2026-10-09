@@ -2,11 +2,11 @@
 
 从仓库根目录运行命令。应用由 Vite 前端和 Tauri/Rust 桌面壳组成；`src-tauri/tauri.conf.json` 是通用配置，平台配置在同目录的 `tauri.*.conf.json` 中。
 
-向远端推送或发布 GitHub Releases 前，必须阅读 [推送与发行规则](release-rules.md)。本文保留开发命令与历史验证证据；发行操作顺序、资产要求和完成条件以该规则为准。
+向远端推送或发布 GitHub Releases 前，必须阅读 [推送与发行规则](release-rules.md)。本文提供开发命令、详细验收、故障处理与历史验证证据；发行操作顺序、资产要求和完成条件以该规则为准。
 
 ## 环境与命令
 
-- Node.js 20+、pnpm、Rust stable（最低 1.85）；Windows 还需要 MSVC Build Tools、Windows SDK 和 WebView2。具体安装与发布入口见 [README](../README.md#构建)。
+- Node.js 20+、pnpm、Rust stable（最低 1.85）；Windows 还需要 MSVC Build Tools、Windows SDK 和 WebView2。具体安装与发布入口见 [README](../README.md#从源码构建)。
 - `pnpm install`：按 `pnpm-lock.yaml` 安装依赖。
 - `pnpm tauri dev`：启动前端开发服务与桌面窗口；前端热更新，Rust 文件变化会重新编译并重启应用。
 - `pnpm build`：TypeScript 类型检查及 Vite 前端产物构建。
@@ -15,8 +15,8 @@
 - `pnpm test:details-html`：检查 `<details>` 开始标记的识别，包括 `open` 属性及与 `<summary>` 合并在同一 HTML 块的 GitHub 写法；其他 HTML 保持原样显示。
 - `pnpm test:markdown-serializer`：用 Milkdown 自带的 remark 包与默认处理器，加上 `src/markdown-serializer.ts` 的配置，往返序列化样例 Markdown：单词内下划线不加转义、列表符号、链接／图片／邮件地址写法，以及保存后重新解析得到相同文档树。ProseMirror 与 mdast 之间的转换需要 DOM，不在此测试内。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：快速检查 Rust。
-- `pnpm test:update-ui`：运行实际更新协调与渲染函数，验证错误在 finally／重新打开后仍显示、设置页保留原因、失败重试、后台检查释放按钮，以及手动检查复用进行中的请求。
-- `cargo test --manifest-path src-tauri/Cargo.toml --locked --lib update::tests::public_metadata_downloads_and_verifies_both_windows_packages -- --ignored --nocapture`：联网读取公开 latest.json，下载 MSI 和便携 EXE，用内嵌公钥验签并检查篡改拒绝；不安装、不启动程序。常规 CI 默认跳过。
+- `pnpm test:update-ui`：运行实际更新协调与渲染函数，验证错误在 finally／重新打开后仍显示、设置页保留原因、失败重试、后台检查释放按钮、手动检查复用请求，以及更新前严格保存会话、保存／交接失败和取消不关闭、更新重启强制恢复文件与阅读位置。
+- 公开更新联网集成测试：命令与通过条件见[公开更新入口验证](#公开更新入口验证)；常规 CI 默认跳过，不安装或启动下载程序。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
 - [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、五个 `pnpm test:*` 与 `cargo test`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
@@ -26,7 +26,73 @@
 
 在受限执行环境中，工作区生成的 EXE 可能继承低完整性标记，即使窗口能正常显示，也无法调用正常桌面权限下的资源管理器；目录打开会返回错误码 5，文件定位会返回 `0x80070005`。这时先核对应用与 Explorer 的完整性等级。桌面验证应将最新已编译程序复制到独立的普通临时目录，在该目录使用测试配置启动；不修改工作区或系统目录的权限。已有下载版、安装版或开发版可能占用同一应用标识的单实例锁，检查进程时也应包括版本化的 EXE 名称，不能只检查 `PaperNest.exe`。
 
+## 发行验证与故障处理
+
+本节提供操作细节，流程与完成条件以[发行规则](release-rules.md)为准。以下验收清单是待执行步骤；实际结果记录在对应开发／发行记录，未完成项维护在 [TODO](../TODO.md)。
+
+### 更新安装与恢复验收
+
+修改更新器、MSI 启动动作、会话保存／恢复时，除构建和逻辑测试外，按下表验收。发布前可用已验签的本地候选包验证安装和恢复；从公开入口发现新版并完成更新的完整链路，在[发行规则第 6 步](release-rules.md#6-公开核验与收尾)发布后核验。不得为测试候选包覆盖已公开版本的 latest.json、资产或标签。
+
+使用隔离的 Windows 测试环境、可恢复的安装／配置快照与临时文档，不默认替换用户正在使用的安装版。记录源版本、目标版本、安装／便携模式、候选包 SHA-256、实际 EXE 路径和每项结果。保留较低版本用于发布后的检查更新，不提前把所有测试实例升级为目标版本。
+
+| 场景 | 操作与通过条件 |
+| --- | --- |
+| 安装版升级成功 | 打开至少两个临时 Markdown 文件，选中第二个并滚动；完成升级后无需手动打开应用，新版自动启动且只出现一个主实例，文件与活动标签恢复。确认关于页版本和进程 EXE 路径为目标安装版，不能仅看到窗口就算通过。 |
+| 阅读位置与视图 | 从已支持保存位置的客户端升级，分别检查 Markdown 阅读与源码视图、活动与非活动标签的位置。关闭日常“恢复上次会话”再更新，仍恢复本次会话，开关保持关闭；普通无更新参数启动继续遵守该设置。关闭更新失败提示、切换标签后位置仍保留。 |
+| 旧客户端兼容 | v0.2.1 及之前的旧 MSI 更新器只传被动安装参数；核对新 MSI 的旧版升级分支自动启动并传入 `--papernest-resume-after-update`。旧版未记录滚动位置和源码状态，首次升级只验收已有文件／活动标签恢复，不承诺追溯旧版位置。便携旧客户端的限制单独记录，不能把 MSI 的兼容结果套用到便携版。 |
+| 新辅助进程交接 | 新更新器等待旧进程实际退出；安装版等待安装结束再启动，便携版打开已验签的新 EXE。新辅助进程传入 `AUTOLAUNCHAPP=0`，由辅助进程启动一次，避免 MSI 同时再启动。 |
+| 取消、保存与失败 | 在支持新辅助进程的客户端，检查未保存确认的保存／不保存／取消；取消另存为、保存失败或辅助进程未就绪时原窗口保留。安装取消、UAC 拒绝或安装失败时尝试返回原程序并恢复会话，显示具体失败反馈；区分真实安装失败和模拟安装器／启动路径失败。多文档窗口打开时先提示关闭其他窗口，不能遗漏其未保存内容。 |
+
+安装包结构另作只读检查：从本次编译后的 MSI 查询 `CustomAction` 和 `InstallExecuteSequence`，确认 `SetAUTOLAUNCHAPP`／`SetLAUNCHAPPARGS` 在 `FindRelatedProducts` 后，仅对旧版被动升级生效，保留新辅助进程显式禁用自动启动的属性；确认 `InstallFinalize < PaperNestRegisterAssociationsAction < LaunchApplication`，启动条件为 `AUTOLAUNCHAPP = "1" AND NOT Installed AND NOT REMOVE`。构建脚本现有检查只覆盖文件关联动作及顺序，不能假定它已经自动检查上述新增属性和条件；实现调整后同步核对 [MSI 模板](../src-tauri/windows/main.wxs) 和 [辅助进程](../src-tauri/src/update-restart.ps1)。
+
+分别记录逻辑测试、辅助进程模拟、实际 MSI 安装、桌面阅读恢复和公开入口更新的结果。返回码 0／3010／1602 的模拟测试及 MSI 表检查不能替代真实升级、取消／UAC 拒绝或回滚测试。未执行的项目保留在 TODO 并在发行说明中明确范围；若实际发现无法自动启动、重复启动、文件丢失或保存失败仍关闭等问题，先修复再发布。既有开发验证见 [更新后自动启动与阅读恢复](#更新后自动启动与阅读恢复2026-10-10v022-发行)，不能把该记录写成本次发行已经实测。
+
+### 公开更新入口验证
+
+公开元数据与文件核对后，显式运行默认忽略的联网集成测试；它使用应用的真实元数据解析和内嵌公钥，下载 MSI 与便携 EXE，并检查验签成功和篡改拒绝，不安装或启动下载包：
+
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml --locked --lib update::tests::public_metadata_downloads_and_verifies_both_windows_packages -- --ignored --nocapture
+if ($LASTEXITCODE -ne 0) { throw 'Public updater metadata/download/signature verification failed.' }
+```
+
+检查输出必须同时包含本次 `X.Y.Z` 的 `installed` 和 `portable` 两个 PASS；测试若连接到旧 latest 并通过，不能算本次发行通过。该测试不校验所有元数据 size／独立 `.sig` 的逐项一致性，不替代[发行规则](release-rules.md#6-公开核验与收尾)中的六文件与两个平台键检查。记录运行所用源码提交，不能把最新源码测试记成旧客户端兼容验证。
+
+随后在保留的较低版本客户端中分别检查安装／便携模式：点击“检查更新”后显示本次新版，下载对应程序并验签，不出现“已是最新版本”或无反馈；开启自动检查时，确认本次检查完成后关于入口出现更新提示点。自动检查默认关闭且有时间间隔，先核对偏好和检查时间，不把“刚发布但尚未触发检查”误判为故障。关于页提示点的颜色取自主题强调色，不要求固定红色。
+
+在隔离测试环境继续选择安装／使用新版，按[更新安装与恢复验收](#更新安装与恢复验收)检查自动启动、文件／活动标签以及源版本支持的阅读位置恢复，记录源版本与本次目标版本。UI 检查、下载验签与真实安装恢复分别记结果；旧版 v0.1.6 及更早的 REST 配额问题、旧版未保存阅读位置等已知限制在说明中保留。若缺少旧客户端或测试环境，明确留为待验证，不能只凭联网测试通过就宣称完整旧版更新链路通过；公开元数据／下载／验签失败时，不得报告正式发行完成。
+
+### 发行工具与环境问题
+
+| 现象／场景 | 处理 |
+| --- | --- |
+| 构建耗时或命令提前返回 | 后台构建日志写入 output/tmp/，等待进程结束并检查退出码和 `Result: PASS`；不根据耗时猜测结果。 |
+| pnpm 运行前试图重装依赖 | 新环境使用 `pnpm install --frozen-lockfile`。已有锁定依赖可用时，仅为本次命令设置 `$env:pnpm_config_verify_deps_before_run = 'false'`，完成后恢复；不用于掩盖缺失依赖或升级锁文件。 |
+| TEMP/TMP 拒绝访问 | 为本次进程指定 output/tmp/ 专用目录后恢复环境；不修改系统权限或清空用户临时目录。工作区测试 EXE 的 HKCU 权限问题可把同一最新已编译 EXE 复制到普通临时目录运行，不能换旧程序。 |
+| Windows release LTO 内存压力 | 构建脚本默认 `CARGO_BUILD_JOBS=1`；不绕过签名或 MSI 检查来加速。 |
+| 本地签名凭据 | 脚本优先使用 `TAURI_SIGNING_PRIVATE_KEY`（可带 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），否则使用用户目录 `.tauri/papernest-updater.key`；本机文件分支按空密码调用，不假定支持任意加密文件。缺少匹配私钥不得生成新密钥冒充兼容更新。 |
+| CI 签名或发布失败 | 重新核对本次 Secrets 名称与失败步骤，不沿用历史“缺密钥”的结论。切换本地发布前确认没有仍在发布的任务；需要改源码／工作流时使用新版本，不移动已推送标签。 |
+| latest.json 解析报错 | Windows PowerShell 可生成 UTF-8 BOM，PowerShell 7 可无 BOM；客户端兼容两者。用 Get-Content -Raw 后接 ConvertFrom-Json，或 Python 的 `utf-8-sig` 解析；HTTP 二进制响应先保存为文件，别把字节数组直接转 JSON，不手动改写元数据。 |
+| 元数据说明为空 | 本地传 `pnpm release:windows -NotesFile <UTF-8说明文件>`，同一说明用于 Release；未传时 notes 为空。当前云端工作流未传 NotesFile，自动生成 Release notes 不会自动写入 latest.json，需要元数据说明时同步调整构建输入。 |
+| 草稿查询 404／创建超时 | 查询认证后的 Releases 列表及草稿 ID，复用本次已有草稿；不能据 404 或超时判断不存在并重复创建。 |
+| PowerShell 中 gh --jq 筛选为空 | 双引号可能被吞掉；取得完整 JSON 后用 ConvertFrom-Json／Where-Object，并确认结果非空再判断。 |
+| GitHub digest 不可用 | 认证下载草稿资产，实际计算大小与 SHA-256，再与本次构建对照；不直接记为通过。 |
+| GitHub REST 限流／CDN 延迟 | 客户端用公开 latest/download/latest.json；v0.1.6 及更早客户端仍依赖旧 REST API，必要时手动升级。网络失败保留已核验结果按原因重试，不能降低 TLS 或签名要求。 |
+
+元数据 BOM 是兼容格式；校验清单使用 UTF-8 无 BOM、LF。旧 MSI-only 元数据下便携更新会读取 EXE 自己的独立 .sig，不能借用 MSI 签名。GitHub 自动附带的 Source code 压缩包不计入六项发行资产。
+
 ## 修改位置
+
+### 更新后自动启动与阅读恢复（2026-10-10，v0.2.2 发行）
+
+- 原 MSI 更新路径启动 `msiexec /passive` 后关闭窗口，没有等待安装结果或重新启动应用；便携版原来固定等待 900 毫秒，也可能撞上旧进程的单实例锁。新辅助进程先报告已就绪，再等待旧进程退出；MSI 安装完成后读取安装标记中的 EXE 路径并启动，便携版直接启动已验签的新 EXE。安装取消、失败或启动路径错误时尝试返回原程序，并显示更新未完成的提示。辅助进程路径通过 JSON/Base64 传递，不拼入 PowerShell 源码；不修改签名校验或允许未验签的下载包。
+- 更新前保留原有未保存确认，严格保存文件列表、活动标签、每个文件的滚动位置、源码视图状态和窗口状态；保存或辅助进程交接失败时保持窗口打开。新进程通过一次启动参数恢复中断的会话，即使日常 `open_last_session` 已关闭，也不改变该偏好。Markdown 等待布局和焦点稳定后恢复滚动，错误弹窗返回焦点时禁止滚动到光标。多窗口更新要求先关闭其他文档窗口，避免遗漏未保存内容。
+- 新 MSI 为旧客户端的被动升级补充启动和会话恢复参数；新辅助进程显式传入 `AUTOLAUNCHAPP=0` 避免重复启动。旧客户端没有记录滚动位置和源码视图，所以第一次从旧版升级只能恢复已保存的文件／活动标签，完整位置恢复从修复版开始。
+- 前端类型检查、构建及五项 `pnpm test:*` 通过；锁定依赖编译的 Rust 测试 EXE 在普通临时目录完整运行，54 项通过、4 项默认忽略。四项 Windows PowerShell 辅助进程测试等待真实旧进程退出，拦截安装与启动调用，覆盖 MSI 返回 0／3010、取消 1602、便携启动和含中文／空格／单引号路径；不执行真实安装。构建使用单次命令的工作区 TEMP/TMP，避免系统临时目录的权限问题，没有修改权限。
+- 独立标识与临时便携配置的实际 WebView2 窗口中，通过真实辅助进程完成关闭／重启：两个长 Markdown 文件、原活动标签、阅读视图 1472 px 和源码视图 1855.20 px 位置均恢复；关闭日常会话恢复时仍可恢复更新会话，该开关保持 false。启动目标不存在时返回原测试 EXE，错误提示前后保持 1400 px，切换标签后位置仍一致。普通无更新参数启动显示新建标签页；页面脚本错误为 0。920×680 的恢复与失败提示截图已检查。隔离测试进程和回环 CDP 端口已关闭，用户安装版及其配置未替换。
+- 本地 MSI 编译通过；只读查询实际 MSI 的执行表，核对旧客户端升级条件、自动启动开关及 `LaunchApplication` 排在 `InstallFinalize` 和关联注册之后。这些检查不代表实际 MSI 升级、UAC 拒绝或回滚通过，相关实机验证保留在 [TODO](../TODO.md)。2026-10-10 交接时应用版本仍为 0.2.1，修复尚未提交／推送／发布，没有覆盖原发行包或移动标签；后续接手以 Git 状态及新的发行记录为准。
+- v0.2.2 发行（2026-10-10）：上述修复随本次版本提交并发行，四处版本号一致。提交前复跑前端构建、五项 `pnpm test:*`（`test:update-ui` 覆盖严格保存、保存／交接失败和取消不关闭、更新重启强制恢复）与 `cargo test --locked --lib`：工作区内 `new_md::registry::tests::registration_preserves_defaults_and_other_writers` 仍因 HKCU 写入被拒（`Os { code: 5, kind: PermissionDenied }`，`src-tauri/src/new_md.rs:474`）未通过；把同一最新测试 EXE 复制到普通系统临时目录后为 **54 项通过、4 项默认忽略、0 项失败**。这是本执行环境限制，不记为工作区通过，也不作为本轮回归。
 
 ### 更新查询与错误反馈修复（2026-10-08）
 

@@ -1,198 +1,125 @@
 # 推送与发行规则
 
-本文件供后续 agent 执行 PaperNest 的代码推送、Windows 发行构建和 GitHub Releases 发布。规则整理自 v0.1.0～v0.1.5 的实际操作；历史证据见 [开发与发行记录](development.md)。具体构建行为以 [Windows 构建脚本](../scripts/build-release.ps1)、[发行工作流](../.github/workflows/release.yml) 和 [更新实现](../src-tauri/src/update.rs) 为核对依据。实现变化时同步更新本文件，不照搬历史版本号或提交号。
+供接手 agent 执行 PaperNest 的源码推送与 Windows x64 发行。先读 [AGENTS](../AGENTS.md)、当前 diff、[TODO](../TODO.md) 和最近[开发记录](development.md)，再按本次授权执行。详细验收与排障见 [发行验证与故障处理](development.md#发行验证与故障处理)；构建行为以[脚本](../scripts/build-release.ps1)和[工作流](../.github/workflows/release.yml)为准。
 
-## 1. 执行范围与目标仓库
+## 1. 确认范围与目标
 
-| 用户指令 | 应执行的范围 |
+| 用户指令 | 执行范围 |
 | --- | --- |
-| 修改代码、测试、撰写文档 | 完成对应本地工作；不据此自行推送或发布。 |
-| 推送更新、同步远端仓库 | 检查并提交本次授权的改动，完成相应验证，推送当前工作分支；依本项目近两次发行习惯，以正常快进方式同步 origin/main。用户指定目标分支或要求 PR 时按其要求执行。不自动打发行标签。 |
-| 编译、打包 | 生成并核验本地产物；不据此公开发布。 |
-| 推送并发布发行版 / Releases | 完成本文件的正式发行流程，包括源码、标签、签名产物、公开发布及下载验证。已有明确授权时连续执行，不在每一步重复询问。 |
+| 修改代码／文档 | 完成本地工作，不自行推送或发布。 |
+| 推送更新 | 检查、提交、推送当前工作分支，并正常快进同步 origin/main；不打发行标签。 |
+| 编译／打包 | 核验本地产物，不公开发布。 |
+| 发布新版本 | 完成以下全部六步，包含源码、标签、签名资产与公开核验。已有明确授权时连续执行，不逐步重复确认。 |
 
-目标必须明确核对：
+用户指定分支或要求 PR 时按其要求执行；分支保护要求 PR 时走 PR 流程。仅推送源码执行第 2、4 步及第 6 步的文档／交接收尾。
 
-| 用途 | 地址 / 约定 |
-| --- | --- |
-| 自有仓库 origin | `https://github.com/baihejiangnan/PaperNest.git` |
-| 正式 Releases | `https://github.com/baihejiangnan/PaperNest/releases` |
-| 默认发布分支 | `main` |
-| Windows 发行工作分支 | `codex/windows-release-X.Y.Z`，使用实际待发行版本 |
-| 原项目 upstream | `https://github.com/zakee039/MDmeow.git`，仅作来源参考，不作为本项目推送或发行目标 |
+- 实际根目录以 `git rev-parse --show-toplevel` 为准，应包含 package.json、src-tauri/ 和 .git。
+- origin：`https://github.com/baihejiangnan/PaperNest.git`；默认分支：`main`；发行分支：`codex/windows-release-X.Y.Z`。upstream 原项目仅作参考。
+- Git 推送明确使用 origin；gh 命令带 `--repo baihejiangnan/PaperNest`。
+- 保留已有改动；不使用强推、`reset --hard`、`clean -fd` 或删除标签解决常规问题。私钥／密码不进入源码、日志或发行资产，不擅自轮换更新公钥或上传私钥到 Secrets。
+- PowerShell 每条关键外部命令检查 `$LASTEXITCODE`，失败即停止依赖步骤；`$ErrorActionPreference = 'Stop'` 不足以保证外部命令失败时停止。
 
-所有命令在包含 package.json、src-tauri/ 和 .git 的实际仓库根目录执行。先用 `git rev-parse --show-toplevel` 确认，不能假定聊天工作目录就是仓库根目录。GitHub CLI 命令明确带 `--repo baihejiangnan/PaperNest`，Git 推送明确写 `origin`。
+## 2. 检查并提交源码
 
-v0.1.0 当时只推送独立发行分支；v0.1.1 和 v0.1.2 已同步 main。本规则沿用后两次的做法。main 受保护或远端出现新提交时先处理实际差异，必要时走仓库要求的 PR 流程；不得强推绕过保护。
-
-## 2. 推送前检查
-
-1. 查看 `git status --short`、当前分支、`git remote -v`、相关 diff 与未跟踪文件。保留已有修改，确认本次授权的范围；避免直接 `git add .` 或 `git add -A` 将配置、测试数据或无关工作一起提交。逐个文件判断是否属于本次范围：
-   - 只有格式变化、看起来是被编辑器重新保存的文件（例如列表符号 `-` 变 `*`、下划线被转义为 `\_`、末尾多出空行），不属于本次改动时不提交，在结果中列出，由用户决定。
-   - 来源不明的未跟踪目录（例如其他工具生成的 `.workbuddy-ai/`）不提交，也不删除。
-   - 无法判断是否属于本次授权时先问用户，不猜测。
-2. `git fetch origin --prune` 后检查 origin/main、目标工作分支与 HEAD 的关系。同步 main 前确认 `git merge-base --is-ancestor origin/main HEAD` 成功；若不成功，先整合远端改动并验证，不能覆盖远端提交。
-3. 确认没有未解决冲突、临时调试入口或凭据。检查 `.gitignore`；release/、release.__staging/、src-tauri/target/、node_modules/、output/tmp/、output/playwright/ 等产物与临时文件不提交。正式维护的预览资料可按本次改动范围提交，不能把整个 output/ 一概忽略或上传。
-4. 检查用户操作说明、架构、设计、开发记录和 TODO 是否需要随代码更新。测试报告区分构建、组件检查、桌面实测和用户确认，不能将历史版本的验证写成新版本已实测。
-5. 执行 `git diff --check`，再按改动范围完成检查，每条都检查退出码：
-   - 只改文档、截图或 `docs/` 介绍页：`git diff --check` 即可，不要求构建或重打发行包。
-   - 改了 `src/`、`src-tauri/`、`scripts/`、`package.json` 或工作流：运行 `pnpm build`、`package.json` 中全部 `test:*` 脚本，以及 `cargo test --manifest-path src-tauri/Cargo.toml --locked --lib`，与 [CI](../.github/workflows/ci.yml) 保持一致。
-   - 正式发行另需执行第 4 节的签名构建。
-6. 使用明确文件列表暂存，检查 `git diff --cached --stat` 与 staged diff 后提交。提交信息描述最终改动，不把失败尝试或临时计划写成已实现行为。
-
-PowerShell 中 `$ErrorActionPreference = 'Stop'` 不保证 Git、pnpm、Cargo、gh 等外部程序失败后自动停止。每个关键命令后检查 `$LASTEXITCODE`，失败即停止依赖它的后续步骤。不得在构建失败后继续提交发行标签或发布。
-
-不使用 `reset --hard`、`clean -fd`、强制推送或删除远端标签来解决常规发布问题。遇到确实超出当前授权、会丢失他人工作的操作，再说明具体冲突并请求必要决定。
-
-## 3. 版本与源码一致性
-
-- 正式版本使用 `X.Y.Z`，标签使用 `vX.Y.Z`，创建附注标签。用户指定版本时按指定值；未指定时沿用最近发行习惯，对当前 PaperNest 正式版本增加补丁号，并在执行更新时说明所选版本。
-- 仓库继承了原项目 v1.x 标签。不能用“最大的 Git 标签”决定 PaperNest 下一版。结合 origin 的正式 Releases、最近 PaperNest 标签和应用版本字段判断；三者不一致时先查明原因。
-- 四处版本必须一致：package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml，以及 src-tauri/Cargo.lock 中 `name = "papernest"` 对应的 version。不得全局替换 Cargo.lock 中依赖库的相同版本号。
-- 保持产品名、应用标识、现有更新公钥及自有仓库更新地址。常规发行不生成新签名密钥，不改变客户端信任的公钥。
-- 在发行分支提交最终源码和版本字段，再从该提交构建。构建后检查 tracked diff；若脚本生成了需要提交的源码或配置，先审查并提交，再重新构建。产物必须对应最终标签所指源码，不能用旧 target/debug 程序或其他版本安装包替代。
-- 已发布的正式标签和同名资产保持不变。需要修复代码或二进制时发布新版本；不得移动已发布标签或用 `--clobber` 偷换文件。发布后的证据可另做文档提交，同步 main 和发行分支，原发行标签不移动。
-
-## 4. Windows 检查与签名构建
-
-当前正式发行范围为 Windows x64：便携 EXE 和 MSI。Linux/macOS 仍暂定，现有脚本不代表已经完成对应系统实测。工具链要求见 [环境与命令](development.md#环境与命令)。
-
-正式构建前至少运行以下检查，每条均检查退出码。前端测试以 `package.json` 中实际存在的全部 `test:*` 脚本为准，新增测试时同步本列表与 CI；下面是当前列表：
+1. 查看 status、分支、remote、diff 与未跟踪文件，纳入本次授权的源码；无关格式改动、来源不明文件不提交也不删除。明确列出暂存文件，不直接 `git add .`／`git add -A`。未提交修复须随工作区交接，仅克隆远端不会获得它。
+2. `git fetch origin --prune` 后检查目标分支；`git merge-base --is-ancestor origin/main HEAD` 必须成功，目标工作分支也不得被非快进覆盖。否则先整合并验证。
+3. 正式发行复用或创建发行分支，确认版本为 `X.Y.Z`、标签为 `vX.Y.Z`。用户未指定时，对 origin 最近 PaperNest 正式发行增加补丁号并说明；不能按继承的原项目 v1.x 标签选择版本。
+4. 四处应用版本一致：package.json、src-tauri/tauri.conf.json、Cargo.toml、Cargo.lock 中 `papernest` 的 version；不全局替换依赖版本。保持产品名、应用标识、更新地址与公钥。
+5. 更新受影响的 README、架构、开发记录和 TODO；检查无冲突、调试入口或凭据。release/、release.__staging/、target/、node_modules/ 和 output/tmp/ 等产物不提交，正式预览资料按实际范围判断。
+6. `git diff --check` 后验证并提交，检查 staged diff。只改文档无需构建；改代码／脚本／工作流须前端构建、全部 `test:*` 和 Rust 锁定依赖测试通过。发行构建已包含前端构建，无须重复：
 
 ```powershell
-pnpm test:code-text
-pnpm test:tab-path
-pnpm test:details-html
-pnpm test:markdown-serializer
-pnpm test:update-ui
+pnpm run '/^test:/'
 cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
-pnpm release:windows
+# 源码推送／CI 发行路径另运行 pnpm build；本地发行构建已包含它。
 ```
 
-`pnpm release:windows` 在本机通常需要 10 分钟以上，可能超过单条命令的超时时间。应在后台运行并把输出写入 `output/tmp/release-X.Y.Z.log`，等待进程结束后检查退出码和日志末尾的 `Result: PASS`；不能在进程结束前推断成功或失败。
+## 3. 选择发布者并构建
 
-`pnpm release:windows` 已包含前端类型检查和构建，无须无理由重复运行。除上述检查外，完成本次功能必要的回归；Rust 默认跳过的集成测试要如实记录，不能写成全部通过。明确的平台暂定项可保留在 TODO；影响本次发行可用性或验签的失败必须解决后再发布。
+推送发行标签前，用 `gh secret list --repo baihejiangnan/PaperNest` 只核对密钥名称，选择唯一资产发布者：
 
-环境处理沿用以下约定：
-
-- 新环境按 `pnpm install --frozen-lockfile` 安装；不借发布之机升级依赖或重写锁文件。
-- 若已有可用锁定依赖，但新版 pnpm 的运行前检查试图自动重装 node_modules，可针对当前命令暂时设置 `$env:pnpm_config_verify_deps_before_run = 'false'`。完成后恢复此前值，不修改全局配置，不用这一开关掩盖缺失或不匹配的依赖。
-- 受限环境测试无法写系统临时目录时，将当前测试进程的 TMP/TEMP 指向仓库 output/tmp/ 下专用目录，完成后恢复环境；不修改目录权限或清空用户临时目录。
-- 构建脚本默认将 Cargo 并行任务数设为 1，避免 Windows release LTO 的内存压力。不要为追求速度绕过已经存在的签名与 MSI 检查。
-
-签名构建统一使用 `pnpm release:windows`，不能把 `pnpm build` 或普通 `pnpm tauri build` 的成功当作完整发行成功。脚本依次完成：
-
-1. 检查版本及冲突，构建前端和 Tauri MSI，提取便携 EXE。
-2. 检查 MSI 文件关联的实际自定义动作与执行顺序。
-3. 使用 `TAURI_SIGNING_PRIVATE_KEY` 环境凭据，或本机用户目录 `.tauri/papernest-updater.key`，为 EXE 和 MSI 签名。环境密钥可配合 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；本机文件分支目前按空密码调用，不能假定支持任意加密文件。
-4. 通过应用内嵌的 src-tauri/updater.pub 和实际 Rust 验证器，分别检查原文件验签通过、修改字节后验签失败。
-5. 生成 latest.json 和 SHA256SUMS.txt，验证完整集合后才复制到 release/。
-
-私钥、密码及其内容不得提交、打印、写入报告或作为资产上传。缺少原密钥时不能生成新密钥冒充兼容更新；可以继续完成源码推送及其他独立工作，但必须明确签名发行尚未完成。
-
-当前产物具有应用更新签名，没有 Windows Authenticode 证书签名；两者不能混称。
-
-## 5. 六个必需发行文件
-
-设应用版本为 `X.Y.Z`，GitHub Release 必须包含以下六项：
-
-| 文件 | 用途 |
+| 条件 | 路径 |
 | --- | --- |
-| `PaperNest-X.Y.Z.exe` | Windows x64 便携程序 |
-| `PaperNest-X.Y.Z.exe.sig` | 便携程序更新签名 |
-| `PaperNest_X.Y.Z_x64.msi` | Windows x64 安装包 |
-| `PaperNest_X.Y.Z_x64.msi.sig` | 安装包更新签名 |
-| `latest.json` | 版本、说明、日期、MSI 与便携 EXE 的下载 URL、各自签名与大小 |
-| `SHA256SUMS.txt` | 前五项文件的 SHA-256，不包含自身 |
+| 无云端签名密钥，本地有匹配密钥 | 从已提交源码本地签名构建，执行第 5 步草稿发布；如实记录标签触发的 CI 停止状态。 |
+| 有云端签名密钥 | 完成本地必要验证，推送标签后由 CI 构建、验签及发布；本地不同时上传。 |
+| CI 失败 | 先诊断；确认没有仍在发布的任务和会被覆盖的公开资产，才继续已授权的本地发布。缺少匹配密钥时签名发行不能完成。 |
 
-应用检查及下载前复查均读取 `https://github.com/baihejiangnan/PaperNest/releases/latest/download/latest.json`，不调用 GitHub REST API，也不需要 Token。按便携／安装模式选取对应资产，下载后用内嵌公钥验证。六个文件仍需完整发布，不能只更新 JSON。v0.1.6 及更早的客户端仍使用旧 API，需手动升级到包含此修复的版本。
-
-latest.json 的 version 为 `X.Y.Z`；`platforms.windows-x86_64` 的 URL 必须指向 `https://github.com/baihejiangnan/PaperNest/releases/download/vX.Y.Z/PaperNest_X.Y.Z_x64.msi`，`platforms.windows-x86_64-portable` 指向同一标签下的 `PaperNest-X.Y.Z.exe`。各自的 signature 必须与对应 `.sig` 文本一致，size 必须与程序文件字节数一致。客户端兼容旧的仅 MSI 元数据：便携更新按既有文件名下载 EXE 及其独立 `.sig`，仍执行验签。`pub_date` 由构建脚本生成 UTC 时间；需要在应用显示更新说明时，构建前准备 UTF-8 说明文件，使用 `pnpm release:windows -NotesFile <说明文件>` 写入 `notes`，并将同一说明用于 Release。未传入时 notes 为空，用户仍可打开版本页面查看说明。SHA256SUMS.txt 使用脚本生成的 UTF-8 无 BOM、LF 格式，每个条目均需实际重新计算核对。
-
-latest.json 由脚本生成，Windows PowerShell 输出可带 UTF-8 BOM（v0.1.3～v0.1.6 已发布文件均有 BOM），PowerShell 7 可输出无 BOM UTF-8；客户端兼容两者。核对时用能处理 BOM 的方式解析，例如 PowerShell 的 `Get-Content -Raw | ConvertFrom-Json` 或 Python 的 `encoding='utf-8-sig'`；不要把 BOM 当成文件损坏，也不要手动改写这个文件。
-
-本地 release/ 会保留旧版本带版本号的文件，而 latest.json 与 SHA256SUMS.txt 会更新。上传时只能使用本次版本的明确六文件列表，不能直接 `release/*`。GitHub 自动附带的 Source code 压缩包不计入这六项资产。
-
-## 6. 推送源码和标签
-
-正式发行使用或创建 `codex/windows-release-X.Y.Z`。已有合适分支就复用，不为同一次重试制造多个分支或重复提交。不要切换分支时丢弃工作区修改。
-
-完成构建验证后，记录 `git rev-parse HEAD` 作为发行源码提交。先检查本地和 origin 是否已有同名标签：不存在才创建；存在时读取指向并确认是否属于当前任务，不能盲目重建。
-
-以下为 PowerShell 命令示例，实际执行时替换版本，检查每条命令退出码，并先满足前文检查：
+所有发行路径先设置下列变量，版本须已按第 2 步确定；最后一行仅用于本地签名构建，说明文件先准备好：
 
 ```powershell
-$releaseVersion = 'X.Y.Z' # 替换为本次已确定的版本
+$releaseVersion = 'X.Y.Z'
 $releaseTag = "v$releaseVersion"
 $releaseBranch = "codex/windows-release-$releaseVersion"
+pnpm release:windows -NotesFile "output/tmp/release-notes-$releaseVersion.md"
+```
 
+等待进程结束，核对退出码和 `Result: PASS`。脚本检查 MSI 关联动作，使用内嵌公钥验证 EXE／MSI 签名及篡改拒绝，并生成元数据和校验和。普通 tauri build 成功不等于签名发行通过；当前没有 Windows Authenticode 证书签名。
+
+产物必须对应已提交的最终源码。构建后若出现需提交的 tracked 改动，审查、提交后重新构建。记录源码提交与资产哈希，不能使用旧 debug 程序、测试包或其他版本产物。
+
+本次明确六文件集合如下；本地可能保留旧版本文件，禁止用 `release/*` 上传：
+
+| 文件 | 要求 |
+| --- | --- |
+| `PaperNest-X.Y.Z.exe`、其 `.sig` | 便携程序与自身签名。 |
+| `PaperNest_X.Y.Z_x64.msi`、其 `.sig` | 安装包与自身签名。 |
+| `latest.json` | 两个平台入口、各自签名与实际 size、版本、UTC pub_date；notes 可为空，有说明时与 Release 一致。 |
+| `SHA256SUMS.txt` | 前五项的 SHA-256；UTF-8 无 BOM、LF，不包含自身。 |
+
+元数据版本为 X.Y.Z；`windows-x86_64` 对应 MSI，`windows-x86_64-portable` 对应 EXE，URL 均为 `https://github.com/baihejiangnan/PaperNest/releases/download/vX.Y.Z/<对应文件名>`。签名与对应 .sig 一致，size 与程序字节数一致；使用脚本生成，不手工改写。
+
+涉及更新／安装／会话的改动，按[更新安装与恢复验收](development.md#更新安装与恢复验收)验证自动启动、唯一主实例、文件／标签及源版本支持的阅读位置恢复、取消和失败处理。逻辑／模拟测试不能替代真实 MSI 升级；未验证项写入 TODO 和说明，实际可用性或验签失败须解决后发布。
+
+## 4. 推送源码与标签
+
+本地构建验证完成后，或 CI 路径完成必要本地验证后，记录 HEAD。发行时先核对本地／远端同名标签和 Release：不存在才创建附注标签；存在则核实所属任务与指向，不盲目重建。已公开标签和资产不移动、不覆盖；修复使用新版本。
+
+仅推送源码时使用当前授权分支，不创建或推送标签：
+
+```powershell
+$pushBranch = (git branch --show-current).Trim()
+git push --atomic origin "HEAD:refs/heads/$pushBranch" 'HEAD:refs/heads/main'
+```
+
+正式发行在第 3 步变量基础上执行：
+
+```powershell
 git tag -a $releaseTag -m "PaperNest $releaseTag"
 git push --atomic origin "HEAD:refs/heads/$releaseBranch" 'HEAD:refs/heads/main' "refs/tags/$releaseTag"
 git branch --set-upstream-to="origin/$releaseBranch"
 ```
 
-推送前必须已确认 origin/main 是 HEAD 的祖先，且远端目标分支不会被非快进覆盖。普通代码推送使用相同分支/main 策略但不创建或推送发行标签。明确推送本次标签，不能 `git push --tags` 把原项目标签一并推送。
+仅推送本次标签，不用 `git push --tags`。通过 `git ls-remote origin` 核对 main、工作分支和标签解引用提交，不能只看 push 日志。后续证据可另做文档提交同步分支，原发行标签不移动。
 
-推送后用 `git ls-remote origin` 核对 main、发行分支与标签；附注标签需检查其解引用后的提交。不要只依据本地分支名或一条“push 成功”日志判断远端内容。
+## 5. 发布完整资产
 
-## 7. 本地发行与云端工作流选择
-
-v0.1.0～v0.1.2 的正式发行均使用本地签名构建。v0.1.2 发布时仓库尚未配置 `TAURI_SIGNING_PRIVATE_KEY`，标签触发的 CI 在密钥检查处停止；该次已通过本地上传和公开下载核验完成发行。这是历史状态，后续执行需重新检查，不能一直假定 CI 不可用。
-
-每次发行先用 `gh secret list --repo baihejiangnan/PaperNest` 查看密钥名称，不读取或展示密钥值，并确认现有工作流配置：
-
-- 未配置云端签名密钥、且本地具有匹配密钥：沿用本地构建及下一节的草稿发布。推送标签仍会触发 CI，检查并如实记录其停止位置；不能把缺密钥的 CI 标为通过。
-- 已配置云端签名密钥：选择 CI 作为唯一资产发布者，完成本地必要验证后推送标签，观察 workflow 构建、验签和完整资产检查，直到公开发行与下载核验完成。本地与 CI 不同时向同一 Release 上传文件。
-- CI 失败时先诊断原因，不能默认是缺密钥。仅在确认没有仍在运行的发布任务、没有已公开资产会被覆盖后，才继续已授权的本地发布。需要改源码或工作流时使用新版本，不移动已推送的发行标签。
-
-当前工作流通过 `v*` 标签或 workflow_dispatch 触发，会直接发布正式版，并配置 `overwrite_files: true`。因此不得对已公开版本随意重新运行工作流或手动 dispatch，以免覆盖已发布资产。需要修改签名凭据或轮换密钥时，按用户明确要求单独处理；常规发布不擅自上传本机私钥到 GitHub Secrets。
-
-## 8. 本地上传：先草稿核对，再正式发布
-
-发行说明面向使用者，包含本次功能／修复、便携 EXE 与 MSI 的选择、必要限制。描述最终实现与验证范围，不宣称未测试的平台或安装行为。用 UTF-8 Markdown 文件配合 `--notes-file`，避免多行说明在命令中转义错误。
+**本地路径**先创建草稿，复用本次已有草稿；超时后先核对，不重复创建。发行说明面向使用者，写明便携／安装包选择和验证限制：
 
 ```powershell
-$releaseVersion = 'X.Y.Z' # 替换为本次版本
-$releaseTag = "v$releaseVersion"
 $releaseAssets = @(
   "release/PaperNest-$releaseVersion.exe",
   "release/PaperNest-$releaseVersion.exe.sig",
   "release/PaperNest_$($releaseVersion)_x64.msi",
   "release/PaperNest_$($releaseVersion)_x64.msi.sig",
-  'release/latest.json',
-  'release/SHA256SUMS.txt'
+  'release/latest.json', 'release/SHA256SUMS.txt'
 )
-# 事先创建说明文件，确认远端标签已存在，且没有同名发行。
 gh release create $releaseTag @releaseAssets --repo baihejiangnan/PaperNest --verify-tag --draft --title "PaperNest $releaseTag" --notes-file "output/tmp/release-notes-$releaseVersion.md"
-# 完成下述草稿检查后，才执行：
+# 草稿核验通过后才公开：
 gh release edit $releaseTag --repo baihejiangnan/PaperNest --draft=false --prerelease=false --latest
 ```
 
-重试前先 `gh release view` 或查询认证后的 Releases 列表，复用已有草稿；不要收到超时就重复创建。草稿可能无法从 `/releases/tags/{tag}` 取得，出现 404 时查看 Releases 列表和草稿 ID，不能据此断言不存在。
+公开前核对：标签／源码／说明正确；恰好六项资产且 state 为 uploaded；逐项 size 和 GitHub digest 与本地一致（无 digest 时认证下载计算哈希）；元数据和签名通过第 3 步要求。不完整时保留草稿处理，修订后重新核对。
 
-正式公开之前，使用 `gh api repos/baihejiangnan/PaperNest/releases/{release_id}` 核对草稿。在 PowerShell 中，`gh ... --jq` 表达式里的双引号可能被吞掉，导致筛选条件失效、返回空结果；应改为取得完整 JSON 后用 `ConvertFrom-Json` 和 `Where-Object` 筛选，并确认筛选结果非空再判断。核对项：
+**CI 路径**观察工作流直到发布完成，执行相同资产核验及第 6 步。当前工作流直接公开并允许覆盖文件，禁止对已公开版本重新运行或随意 dispatch；CI 不会自动完成下一步公开下载和客户端验收。
 
-- tag_name 是本次标签、目标源码正确，说明和正式版属性正确。
-- 六项资产名称恰好匹配，state 均为 uploaded；没有旧版本、日志、调试包或凭据。
-- 每项 size 与本地一致，每项 GitHub digest（`sha256:...`）与本地 `Get-FileHash -Algorithm SHA256` 一致。digest 若不可用，不记为通过，应通过认证下载实际文件重新计算哈希。
-- latest.json 与校验和已按第 5 节验证，两个程序均已通过内嵌公钥验签和篡改拒绝检查。
+## 6. 公开核验与收尾
 
-未通过核对时保留草稿处理具体问题，不公开不完整版本。草稿修订文件后重新核对全部六项。
+以下发行核验全部通过，才能报告“正式发行完成”：
 
-## 9. 发布后的公开验证与收尾
+1. Release 公开、非草稿、非预发布且为 latest；通过认证管理 API 核对目标版本，再匿名核验 `https://github.com/baihejiangnan/PaperNest/releases/latest/download/latest.json`。
+2. 匿名下载全部六资产至独立核验目录，逐项大小与 SHA-256 和本次构建产物一致，并实际验证 SHA256SUMS.txt；CI 路径使用本次工作流产物对照，不能拿独立重建的包比对。GitHub 列表或上传成功不能替代下载核验。
+3. 元数据两个平台键都符合第 3 步契约；分别从其中 URL 下载 MSI／EXE，核对大小、哈希和各自签名。按[公开更新入口验证](development.md#公开更新入口验证)运行真实客户端联网测试，输出须为本次版本的 installed 和 portable 两项 PASS，不能接受旧 latest 的通过结果。
+4. 核对标签解引用提交等于构建源码，main 和发行分支包含该提交；更新开发记录／TODO，记录 Release 链接、源码与版本、资产哈希、测试和公开核验结果、CI 状态及实际未验证范围。
+5. 检查工作区和远端引用，向用户报告版本、链接、推送目标与剩余事项；跨 agent 交接另记录分支／HEAD、未提交文件、产物／草稿和已完成步骤，避免漏掉本地修复或重复运行。
 
-以下各项全部完成，才能报告“正式发行完成”：
-
-1. Release 为公开、非草稿、非预发布，并标记为 latest。用认证后的管理 API 确认 latest 的 tag_name 是本次版本，再按第 3 项匿名核验客户端使用的公开更新入口。旧版客户端使用的匿名 REST latest-release API 可额外检查；若受限流影响，如实记录，不能以它替代新版的公开元数据验证。
-2. 以未带 GitHub 认证信息的普通 HTTP 请求，下载全部六个公开资产到 output/tmp/ 下独立核验目录。逐项对比本地构建文件的 SHA-256 和大小；只查看 GitHub 资产列表不足以替代下载核验。
-3. 匿名下载 `https://github.com/baihejiangnan/PaperNest/releases/latest/download/latest.json`，确认内容、版本、MSI URL 与签名匹配；并确认其中 MSI 入口可下载且哈希正确。PowerShell 可能把 application/octet-stream 响应当字节数组，应先保存文件再 `Get-Content -Raw | ConvertFrom-Json`，不要把解析方式错误误判为发行内容损坏。
-4. 核对标签解引用后的源码提交与本次构建一致，main 和发行分支包含该提交。更新 [开发记录](development.md) 与 [TODO](../TODO.md)，写明 Release 链接、源码提交、测试范围、哈希、公开下载／更新入口结果和 CI 实际状态。新的验证记录可做文档提交，再正常推送 main 和发行分支；不重新构建或移动原标签。
-5. 最后检查工作区与远端引用，说明剩余改动的归属。给用户简洁返回版本、Release 链接、推送目标、产物与验证结果；存在 CI 未配置或实际未验证的范围时如实说明，不把本地签名发行写成 CI 自动构建成功。
-
-网络失败、CDN 暂未同步或 GitHub 限流时保留已完成的结果，按具体错误重试并说明尚未核验的部分。不能通过关闭 TLS 校验、跳过签名、仅凭上传成功就结束发行。
-
-## 10. 交接给下一位 agent
-
-接手推送时，先读 AGENTS.md、本文件、当前 diff、TODO 和最近开发记录。确认用户这次授权的是源码推送、打包还是正式发行，再从尚未完成的步骤继续。
-
-任务跨会话时记录当前分支与 HEAD、版本／标签、构建和测试结果、产物所在目录与哈希、Release 草稿或公开链接、CI 状态及剩余步骤。不要在交接材料中包含私钥或密码。已有可靠验证且源码未变时不无理由重做；缺少证据的步骤不得猜测为完成。
+另在保留的较低版本安装／便携客户端按开发说明验证“检查更新 → 下载验签 → 使用新版 → 自动启动／会话恢复”。缺少客户端或隔离环境时明确记为待验证，不能把联网测试写成完整安装链路通过。网络／CDN／限流故障按具体错误重试，不关闭 TLS 或跳过签名；历史验证和当前测试分别记录，可靠证据且源码未变时不无理由重做。

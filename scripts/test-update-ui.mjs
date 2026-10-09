@@ -7,7 +7,8 @@ import ts from "typescript";
 // boundaries stubbed. In particular, assertions run after the finally block.
 const source = await readFile(new URL("../src/main.ts", import.meta.url), "utf8");
 const ast = ts.createSourceFile("main.ts", source, ts.ScriptTarget.Latest, true);
-const names = new Set(["setUpdateActions", "setUpdateProgress", "renderVersionInfo", "checkVersion", "runVersionCheck"]);
+const names = new Set(["setUpdateActions", "setUpdateProgress", "renderVersionInfo", "checkVersion", "runVersionCheck",
+  "snapshotSession", "flushSettings", "restoreTabs", "usePreparedVersion"]);
 const functions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text));
 assert.equal(functions.length, names.size);
 const settingsHandler = ast.statements.find(node => ts.isExpressionStatement(node)
@@ -17,6 +18,7 @@ assert.ok(settingsHandler);
 const { outputText } = ts.transpileModule([
   "let versionInfo = null, versionError = null, preparedVersion = null, versionBusy = false, versionCheckTask = null;",
   "let updatePrimaryAction = null, updateSecondaryAction = null;",
+  "let closing = false, sourceMode = false, persistTimer, geometryCaptureTimer;",
   ...functions.map(node => node.getText(ast)),
   settingsHandler.getText(ast),
 ].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } });
@@ -82,4 +84,69 @@ await check();
 assert.match(context.updateStatusEl.textContent, /update.assetPending/);
 assert.equal(context.updatePrimaryButton.hidden, true);
 assert.equal(context.updateSecondaryButton.hidden, false);
-console.log("PASS: update errors survive finally/reopening and reach settings; retry, latest, concurrent checks and signed-package actions work.");
+// Exercise the real shutdown coordinator: saving must precede handoff/close,
+// and a failed save/handoff/cancel must leave the reader open.
+const events = [];
+const readingTab = { path: "C:/文档/reading.md", scrollTop: 0, id: "active" };
+context.tabBar = { tabs: [readingTab], active: readingTab };
+context.secondaryWindow = false;
+context.viewScrollTop = () => 876.5;
+context.window = { clearTimeout() {} };
+context.markDirtyFromView = () => events.push("dirty");
+context.settleUnsaved = async () => true;
+context.cancelAutoSave = () => events.push("cancel-auto-save");
+context.captureGeometry = async () => events.push("geometry");
+context.win = { destroy: async () => events.push("close") };
+context.invoke = async command => events.push(command);
+vm.runInContext("preparedVersion = { version: '0.2.2' }; versionError = null", context);
+await vm.runInContext("usePreparedVersion()", context);
+assert.deepEqual(events, ["dirty", "cancel-auto-save", "geometry", "save_settings", "use_prepared_version", "close"]);
+assert.deepEqual(Array.from(context.settings.open_files), [readingTab.path]);
+assert.deepEqual(Array.from(context.settings.open_file_scroll_positions), [876.5]);
+
+for (const failedCommand of ["save_settings", "use_prepared_version"]) {
+  events.length = 0;
+  context.invoke = async command => {
+    events.push(command);
+    if (command === failedCommand) throw new Error(`failed ${command}`);
+  };
+  await vm.runInContext("usePreparedVersion()", context);
+  assert.ok(!events.includes("close"));
+  if (failedCommand === "save_settings") assert.ok(!events.includes("use_prepared_version"));
+  assert.match(context.updateStatusEl.textContent, new RegExp(failedCommand));
+}
+events.length = 0;
+context.settleUnsaved = async () => false;
+await vm.runInContext("usePreparedVersion()", context);
+assert.deepEqual(events, ["dirty"]);
+assert.equal(vm.runInContext("closing", context), false);
+
+// add() intentionally mutates persisted state just like real restore callbacks.
+// The original offsets/active index must be captured before those callbacks.
+const restoredTabs = [];
+context.tabBar = {
+  add(path, content, activate, imageUrl, startPage) {
+    const tab = { path, content, id: `restored-${restoredTabs.length}`, scrollTop: 0, startPage };
+    restoredTabs.push(tab);
+    context.settings.open_files = [];
+    context.settings.open_file_scroll_positions = [];
+    context.settings.active_tab = 0;
+    return tab;
+  },
+  activate(id) { this.activeId = id; },
+};
+context.isImagePath = () => false;
+context.invoke = async (_command, { path }) => {
+  if (path === "missing.md") throw new Error("missing file");
+  return `text for ${path}`;
+};
+context.settings = { open_last_session: false, open_files: ["a.md", "missing.md", "b.md"],
+  open_file_scroll_positions: [120, 300, 876.5], active_tab: 2, session_source_mode: true };
+await vm.runInContext("restoreTabs(true)", context);
+assert.deepEqual(restoredTabs.map(tab => [tab.path, tab.scrollTop]), [["a.md", 120], ["b.md", 876.5]]);
+assert.equal(context.tabBar.activeId, "restored-1");
+assert.equal(vm.runInContext("sourceMode", context), true);
+restoredTabs.length = 0;
+await vm.runInContext("restoreTabs(false)", context);
+assert.equal(restoredTabs[0].startPage, true, "ordinary startup still honors open_last_session=false");
+console.log("PASS: update feedback/concurrency; strict save-before-restart and failure/cancel recovery; interrupted session, active tab and reading positions restore.");

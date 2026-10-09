@@ -24,6 +24,9 @@ pub struct SettingsPayload {
     /// Set when `settings.toml` existed but could not be used; defaults were
     /// loaded and the original was copied aside.
     pub load_error: Option<LoadIssue>,
+    /// Update restart restores the interrupted session even if ordinary startup does not.
+    pub resume_after_update: bool,
+    pub update_install_failed: bool,
 }
 
 #[tauri::command]
@@ -38,6 +41,8 @@ pub fn get_settings(state: State<AppState>) -> SettingsPayload {
         open_with: file_arg(&std::env::args().collect::<Vec<_>>()),
         version: env!("CARGO_PKG_VERSION").to_string(),
         load_error,
+        resume_after_update: std::env::args().any(|arg| arg == "--papernest-resume-after-update"),
+        update_install_failed: std::env::args().any(|arg| arg == "--papernest-update-failed"),
     }
 }
 

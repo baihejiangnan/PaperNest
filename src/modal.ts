@@ -44,7 +44,9 @@ export function deactivateModal(root: HTMLElement): void {
   if (!wasTop) return;
   const top = stack[stack.length - 1];
   if (modal.returnFocus?.isConnected && !modal.returnFocus.closest("[inert]") && modal.returnFocus.getClientRects().length) {
-    modal.returnFocus.focus();
+    // Returning to the document must not scroll its caret into view and lose
+    // the reading position restored after an update (or any modal).
+    modal.returnFocus.focus({ preventScroll: true });
   } else if (top) {
     (focusable(top.root)[0] ?? top.root).focus();
   }

@@ -63,6 +63,8 @@ settings = "Mod+,"
 # open_with_prompt_dismissed = false  # do not ask again after declining Open with registration
 # open_files = []            # files to reopen on next launch (session restore)
 # active_tab = 0             # index into open_files of the active tab
+# open_file_scroll_positions = [] # scroll offsets aligned with open_files
+# session_source_mode = false # restore Markdown source view with the session
 # sidebar_width = 0          # CSS px; 0 = responsive default, drag divider to change
 # [window]                   # width / height / x / y / maximized
 `;

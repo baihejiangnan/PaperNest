@@ -89,6 +89,8 @@ interface Settings {
   last_update_check: number;
   open_files: string[];
   active_tab: number;
+  open_file_scroll_positions: number[];
+  session_source_mode: boolean;
   sidebar_width: number;
   window: WindowState;
 }
@@ -101,6 +103,8 @@ interface SettingsPayload {
   open_with: string | null;
   version: string;
   load_error: { error: string; backup: string | null } | null;
+  resume_after_update: boolean;
+  update_install_failed: boolean;
 }
 
 interface OpenWithStatus {
@@ -285,11 +289,12 @@ function writeView(md: string, scrollTop = 0): void {
   switching = true;
   editor.setContent(md);
   scheduleTextStats(true);
-  requestAnimationFrame(() => {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     if (generation !== viewWriteGeneration) return;
     editorHost.scrollTop = scrollTop;
     switching = false;
-  });
+    persistSoon();
+  }));
 }
 
 function viewScrollTop(): number {
@@ -467,13 +472,22 @@ function beginTitleRename(): void {
   titleInput.setSelectionRange(0, dot > 0 ? dot : name.length);
 }
 
-function persistSoon(): void {
-  if (secondaryWindow) return;
+function snapshotSession(): void {
   const withPath = tabBar.tabs.filter((t) => t.path);
   settings.open_files = withPath.map((t) => t.path as string);
   const activePath = tabBar.active?.path ?? null;
   const idx = activePath ? settings.open_files.indexOf(activePath) : -1;
   settings.active_tab = idx < 0 ? 0 : idx;
+  settings.open_file_scroll_positions = withPath.map(tab => {
+    const offset = tab === tabBar.active ? viewScrollTop() : tab.scrollTop;
+    return Number.isFinite(offset) ? Math.max(0, offset) : 0;
+  });
+  settings.session_source_mode = sourceMode;
+}
+
+function persistSoon(): void {
+  if (secondaryWindow) return;
+  snapshotSession();
 
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => {
@@ -616,7 +630,10 @@ function showTab(next: Tab): void {
   updateTitle();
   updateSourceButton();
   scheduleTextStats(true);
-  if (!next.imageUrl && !next.startPage && !next.loading) (codeViewVisible ? codeEditor : editor).focus();
+  if (!next.imageUrl && !next.startPage && !next.loading) {
+    if (codeViewVisible) codeEditor.focus();
+    else editor.focus(true);
+  }
   persistSoon();
   if (next.loading) return;
   void workspace.setDocument(next.path, next.imageUrl ? "" : next.content);
@@ -1811,15 +1828,24 @@ async function runVersionCheck(): Promise<void> {
 }
 
 async function usePreparedVersion(): Promise<void> {
-  if (!preparedVersion) return;
-  markDirtyFromView();
-  if (!(await settleUnsaved(tabBar.tabs, "update"))) return;
-  cancelAutoSave();
-
-  await captureGeometry();
-  await flushSettings();
-  await invoke("use_prepared_version", { version: preparedVersion.version });
-  await win.destroy();
+  if (!preparedVersion || closing) return;
+  closing = true;
+  try {
+    markDirtyFromView();
+    if (!(await settleUnsaved(tabBar.tabs, "update"))) return;
+    cancelAutoSave();
+    window.clearTimeout(geometryCaptureTimer);
+    await captureGeometry();
+    // Updating must stop if saving the interrupted session fails.
+    await flushSettings(true);
+    await invoke("use_prepared_version", { version: preparedVersion.version });
+    await win.destroy();
+  } catch (error) {
+    versionError = String(error);
+    renderVersionInfo();
+  } finally {
+    closing = false;
+  }
 }
 
 async function prepareLatestVersion(): Promise<void> {
@@ -2122,12 +2148,14 @@ function wireButtons(): void {
 }
 
 /** Immediately write settings, cancelling any pending debounced write. */
-async function flushSettings(): Promise<void> {
+async function flushSettings(strict = false): Promise<void> {
   if (secondaryWindow) return;
   window.clearTimeout(persistTimer);
+  snapshotSession();
   try {
     await invoke("save_settings", { settings });
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     /* nothing we can do on the way out */
   }
 }
@@ -2421,9 +2449,9 @@ async function restoreWindow(): Promise<void> {
   }
 }
 
-async function restoreTabs(): Promise<void> {
+async function restoreTabs(resumeAfterUpdate = false): Promise<void> {
   if (secondaryWindow) { tabBar.add(null, ""); return; }
-  if (settings.open_last_session === false) {
+  if (settings.open_last_session === false && !resumeAfterUpdate) {
     tabBar.add(null, "", true, null, true);
     return;
   }
@@ -2431,6 +2459,8 @@ async function restoreTabs(): Promise<void> {
   const files = settings.open_files ?? [];
   // Capture the saved index before add() persists a partially restored session.
   const savedActiveIndex = settings.active_tab ?? 0;
+  const savedPositions = [...(settings.open_file_scroll_positions ?? [])];
+  sourceMode = settings.session_source_mode === true;
   const restored: Array<{ sourceIndex: number; tabId: string }> = [];
   for (const [sourceIndex, path] of files.entries()) {
     if (!path) continue;
@@ -2438,6 +2468,8 @@ async function restoreTabs(): Promise<void> {
       const tab = isImagePath(path)
         ? tabBar.add(path, "", false, await invoke<string>("read_image_data_url", { docPath: null, src: path }))
         : tabBar.add(path, await invoke<string>("read_document", { path }), false);
+      const offset = savedPositions[sourceIndex];
+      tab.scrollTop = Number.isFinite(offset) ? Math.max(0, offset) : 0;
       restored.push({ sourceIndex, tabId: tab.id });
     } catch {
       // An unreadable file should not prevent the other session tabs opening.
@@ -2560,7 +2592,7 @@ async function bootstrap(): Promise<void> {
     await refreshNewMdMenu().catch(reportNewMdMenuError);
   }
 
-  await restoreTabs();
+  await restoreTabs(payload.resume_after_update);
 
   // A file passed on the command line (double-click / "Open with").
   if (secondaryWindow) {
@@ -2597,7 +2629,11 @@ async function bootstrap(): Promise<void> {
   // Open With check runs only after the main window and editor are ready.
   if (!secondaryWindow) {
     void initializeOpenWithIntegration();
-    maybeCheckVersionInBackground();
+    if (payload.update_install_failed) {
+      await message(t("update.installFailed"), { title: "PaperNest", kind: "error" });
+    } else {
+      maybeCheckVersionInBackground();
+    }
   }
 
   // settings.toml could not be used, so defaults are active and the next save

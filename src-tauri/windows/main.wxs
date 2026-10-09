@@ -37,6 +37,14 @@
         <Property Id="AUTOLAUNCHAPP" Secure="yes" />
         <!-- Property to forward cli args to the launched app to not lose those of the pre-update instance -->
         <Property Id="LAUNCHAPPARGS" Secure="yes" />
+        <!-- Older clients only pass /passive. Resume after their major upgrade;
+             the new helper explicitly opts out and performs its own restart. -->
+        <SetProperty Id="AUTOLAUNCHAPP" Value="1" After="FindRelatedProducts" Sequence="execute">
+            WIX_UPGRADE_DETECTED AND UILevel &lt; 5 AND NOT AUTOLAUNCHAPP AND NOT REMOVE
+        </SetProperty>
+        <SetProperty Id="LAUNCHAPPARGS" Value="--papernest-resume-after-update" After="FindRelatedProducts" Sequence="execute">
+            WIX_UPGRADE_DETECTED AND UILevel &lt; 5 AND NOT LAUNCHAPPARGS AND NOT REMOVE
+        </SetProperty>
 
         {{#if allow_downgrades}}
             <MajorUpgrade Schedule="afterInstallInitialize" AllowDowngrades="yes" />
@@ -352,7 +360,7 @@
         {{/if}}
 
         <InstallExecuteSequence>
-          <Custom Action="LaunchApplication" After="PaperNestRegisterAssociationsAction">AUTOLAUNCHAPP AND NOT Installed</Custom>
+          <Custom Action="LaunchApplication" After="PaperNestRegisterAssociationsAction">AUTOLAUNCHAPP = "1" AND NOT Installed AND NOT REMOVE</Custom>
         </InstallExecuteSequence>
 
         <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]" After="CostFinalize"/>

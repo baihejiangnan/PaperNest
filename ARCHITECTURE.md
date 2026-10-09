@@ -138,7 +138,8 @@ a read-only portable directory falls back there and shows a hint.
   filesystem work off the desktop event loop.
   A dirty preview asks Save / Don't save / Cancel before replacement;
   cancel keeps its content and path. Preview and pin flags are runtime tab state;
-  session restore still stores only paths.
+  session restore stores paths, the active index, aligned scroll offsets and the
+  global Markdown source-view mode. Preview and pin flags remain runtime-only.
 - Switching tabs → `TabBar.onActivate` → save the outgoing tab's text/scroll,
   then swap the visible view among Markdown, Code and image preview.
 - `readView()` / `writeView()` abstract the active text editor; image tabs do
@@ -228,6 +229,22 @@ request generations reject responses from an earlier filter or root selection.
 `get_settings` returns settings plus mode, location and startup-file metadata.
 `save_settings` persists the whole `Settings` struct and records its signature.
 External edits arrive as a `settings-changed` event.
+
+Update shutdown snapshots the visible scroll offset and requires a successful
+settings write before handoff. `use_prepared_version` verifies the local package,
+rejects an update while other document windows remain open, and starts a hidden
+PowerShell helper with a base64 JSON envelope inside an encoded command. The
+helper acknowledges readiness before the frontend destroys the sole window;
+it waits for the old process to exit, waits for MSI completion (0/3010 success),
+then launches the registered installed EXE or the downloaded portable EXE with
+`--papernest-resume-after-update`. MSI autolaunch is explicitly disabled for this
+path. Cancellation/failure attempts to reopen the original EXE with a failure
+flag and writes an update-cache log. `get_settings` reports these startup flags;
+the resume flag overrides only this startup's session preference, without changing
+`open_last_session`. Older callers that only supply `/passive` are covered by
+the new MSI's conditional autolaunch after the install transaction and association
+registration. This legacy path cannot recover scroll offsets never saved by old
+clients. Manual full-UI installs retain their existing launch checkbox behavior.
 
 `windows_new_md` defaults to false and controls Windows Explorer's New submenu.
 `get_new_md_menu_status` and `set_new_md_menu` run off the UI thread; the latter

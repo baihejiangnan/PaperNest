@@ -70,6 +70,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Public updater metadata/download/signature ver
 | 构建耗时或命令提前返回 | 后台构建日志写入 output/tmp/，等待进程结束并检查退出码和 `Result: PASS`；不根据耗时猜测结果。 |
 | pnpm 运行前试图重装依赖 | 新环境使用 `pnpm install --frozen-lockfile`。已有锁定依赖可用时，仅为本次命令设置 `$env:pnpm_config_verify_deps_before_run = 'false'`，完成后恢复；不用于掩盖缺失依赖或升级锁文件。 |
 | TEMP/TMP 拒绝访问 | 为本次进程指定 output/tmp/ 专用目录后恢复环境；不修改系统权限或清空用户临时目录。工作区测试 EXE 的 HKCU 权限问题可把同一最新已编译 EXE 复制到普通临时目录运行，不能换旧程序。 |
+| pnpm 被兜底脚本拦截 | 某些终端环境注入的 pnpm 兜底脚本会在转发后置位守卫变量，同一会话内第二次调用 `pnpm` 便跳过真实 pnpm 并报 `[pnpm] pnpm not found`。把真实 pnpm 所在目录前置到本次进程 PATH（`$env:PATH = '<pnpm 目录>;' + $env:PATH`）后复跑，不改脚本、不装依赖、不换包管理器；构建脚本自身的 `pnpm build`／`pnpm tauri build` 走同一进程，需在启动构建前设置。 |
 | Windows release LTO 内存压力 | 构建脚本默认 `CARGO_BUILD_JOBS=1`；不绕过签名或 MSI 检查来加速。 |
 | 本地签名凭据 | 脚本优先使用 `TAURI_SIGNING_PRIVATE_KEY`（可带 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`），否则使用用户目录 `.tauri/papernest-updater.key`；本机文件分支按空密码调用，不假定支持任意加密文件。缺少匹配私钥不得生成新密钥冒充兼容更新。 |
 | CI 签名或发布失败 | 重新核对本次 Secrets 名称与失败步骤，不沿用历史“缺密钥”的结论。切换本地发布前确认没有仍在发布的任务；需要改源码／工作流时使用新版本，不移动已推送标签。 |
@@ -280,6 +281,19 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 - 云端打包配置说明：公开发行生成标签后触发的 [release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37274135173) 在签名密钥检查处停止，因为仓库尚未配置 `TAURI_SIGNING_PRIVATE_KEY`；构建和发布步骤未执行，没有覆盖上述本地构建并验签的已发布产物。以后若使用云端自动打包，须先按本文构建说明配置相同签名密钥；本次手动发行和下载核对已完成。
 
 ## UI 与弹窗回归
+
+### Windows v0.2.2 发行构建（2026-10-10）
+
+- 发行源码提交 `d2e202dcce799831f8a8b11edd9a7588bfc40522`，是 v0.2.1 后 main 的下一提交，四处应用版本统一为 0.2.2。改动为[更新后自动启动与阅读恢复](#更新后自动启动与阅读恢复2026-10-10v022-发行)修复及配套文档（辅助进程交接、旧客户端被动升级补自动启动、会话与阅读位置恢复、多窗口提示），更新公钥、签名构建脚本与发行工作流未改变。
+- 提交前验证：`pnpm build` 通过（1178 个模块）；五项 `pnpm test:*` 通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 在工作区内为 53 项通过、4 项显式忽略、1 项失败，失败项仍是 `new_md::registry::tests::registration_preserves_defaults_and_other_writers` 的 HKCU 写入被拒（`Os { code: 5, kind: PermissionDenied }`，`src-tauri/src/new_md.rs:474`）；把同一最新测试 EXE 复制到普通临时目录后为 **54 项通过、4 项默认忽略、0 项失败**，本执行环境限制不记为工作区通过。
+- `pnpm release:windows -NotesFile output/tmp/release-notes-0.2.2.md` 从已提交源码完成前端类型检查、构建、MSI 生命周期检查、签名构建及两个产物的验签／篡改拒绝测试，退出码 0、末行 `Result: PASS (updater-signed Windows release + metadata + SHA256 checksums)`；构建后 tracked 文件无变化。本次构建环境仍按上文处理 pnpm 兜底脚本与系统 TEMP 权限：把真实 pnpm 目录前置到 PATH，并为本次命令指定 `output/tmp/` 专用临时目录，未修改系统权限。
+- 只读查询本次编译 MSI 的执行表：`FindRelatedProducts | 25`、`SetAUTOLAUNCHAPP … | 26`、`SetLAUNCHAPPARGS … | 27`、`InstallFinalize | 6600`、`PaperNestRegisterAssociationsAction | 6601`、`LaunchApplication AUTOLAUNCHAPP = "1" AND NOT Installed AND NOT REMOVE | 6602`，满足[更新安装与恢复验收](#更新安装与恢复验收)对旧版被动升级、辅助进程显式禁用自动启动和提交后启动顺序的要求。这些检查不代表实际 MSI 升级、取消／UAC 拒绝或回滚通过。
+- 附注标签 `867a166f4f340d0728a5ffd0debafb5738cf2812` 解引用为上述源码提交，源码和标签已推送 origin/main、`codex/windows-release-0.2.2` 与 v0.2.2。草稿中核对恰好六个资产的名称、uploaded 状态、大小和 GitHub digest 后正式公开为 latest（release id 408244170，发布于 2026-10-09T19:00:53Z）。
+- 全部六个公开资产匿名下载到独立目录后，大小与 SHA-256 均与本地相同，校验清单通过。匿名 `latest/download/latest.json` 与本地逐字节一致，版本为 0.2.2；MSI 与便携 EXE 的 URL、各自签名、大小、中文说明和 UTC 日期均一致。latest.json 为 3281 字节、带 UTF-8 BOM；SHA256SUMS.txt 为 438 字节、UTF-8 无 BOM、LF。
+- 显式运行默认忽略的联网集成测试，使用应用真实元数据解析和内嵌公钥下载两个程序：`PASS: 0.2.2 installed public metadata, download, signature and tamper rejection` 与 `PASS: 0.2.2 portable public metadata, download, signature and tamper rejection`，测试通过（9.48 秒）。未安装或启动下载程序。
+- 便携 EXE SHA-256：`d2c895a4ff2267492622ba19e5e34c30c9964cf0c6af369854edc9b778da2513`；MSI SHA-256：`04d5d4e723835339fd9d3e9135e9a2e88f27c797f4dcb4ab48e02c42a8704555`。其余哈希见 Release 的 SHA256SUMS.txt。
+- 发行源码的 [main 日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37977200270)、[发行分支日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37977200040) 与 [pages 部署](https://github.com/baihejiangnan/PaperNest/actions/runs/37977198775) 均通过。[release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37977200276) 在 `Require updater signing secret` 因未配置 `TAURI_SIGNING_PRIVATE_KEY` 停止，构建与 publish 被跳过（`gh secret list` 为空，已重新核对，未沿用历史结论）；本次由本机现有密钥签名并发布，没有上传私钥。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 未覆盖范围：未执行真实 MSI 安装／升级／卸载、安装取消、UAC 拒绝与失败回滚，也未在保留的 0.2.1／0.2.0 客户端中实际点击“检查更新 → 下载验签 → 使用新版 → 自动启动／会话恢复”，这些按[更新安装与恢复验收](#更新安装与恢复验收)留为待验证，不能把模拟安装器测试或联网下载验签当作完整旧版更新链路通过。Linux/macOS 未发行。
 
 ### Windows v0.2.1 更新检查测试发行（2026-10-08）
 

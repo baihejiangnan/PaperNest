@@ -282,6 +282,19 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 
 ## UI 与弹窗回归
 
+### Windows v0.2.3 更新检查测试发行（2026-10-10）
+
+- 按仓库所有者要求发布用于验证应用内检查更新功能的版本。发行源码提交 `c5679c2d9758c0b963003c69722e762a9889080c` 仅同步四处应用版本为 0.2.3，没有功能、脚本或依赖改动，沿用原更新公钥。为让 0.2.2 更新器发现新版，[v0.2.3](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.3) 作为公开、非预发布的 latest 发行，说明明确标注测试用途。
+- 提交前验证：`pnpm build` 通过（1178 个模块）；五项 `pnpm test:*` 通过；`cargo test --manifest-path src-tauri/Cargo.toml --locked --lib` 在工作区内为 53 项通过、4 项显式忽略、1 项失败，失败项仍是 `new_md::registry::tests::registration_preserves_defaults_and_other_writers` 的 HKCU 写入被拒（`Os { code: 5, kind: PermissionDenied }`，`src-tauri/src/new_md.rs:474`）；把同一最新测试 EXE 复制到普通临时目录后为 **54 项通过、4 项默认忽略、0 项失败**，本执行环境限制不记为工作区通过。
+- `pnpm release:windows -NotesFile output/tmp/release-notes-0.2.3.md` 从已提交源码完成前端类型检查、构建、MSI 生命周期检查、签名构建及两个产物的验签／篡改拒绝测试，退出码 0、末行 `Result: PASS (updater-signed Windows release + metadata + SHA256 checksums)`；构建后 tracked 文件无变化。构建环境仍按[发行工具与环境问题](#发行工具与环境问题)处理 pnpm 兜底脚本与系统 TEMP 权限，未修改系统权限。
+- 只读查询本次编译 MSI 的执行表：`FindRelatedProducts | 25`、`SetAUTOLAUNCHAPP … | 26`、`SetLAUNCHAPPARGS … | 27`、`InstallFinalize | 6600`、`PaperNestRegisterAssociationsAction | 6601`、`LaunchApplication AUTOLAUNCHAPP = "1" AND NOT Installed AND NOT REMOVE | 6602`，与 v0.2.2 相同，满足[更新安装与恢复验收](#更新安装与恢复验收)对旧版被动升级、辅助进程显式禁用自动启动和提交后启动顺序的要求。这些检查不代表实际 MSI 升级、取消／UAC 拒绝或回滚通过。
+- 附注标签 `4643a573e0d85673ff476f77b6bc9799b2b6d6b5` 解引用为上述源码提交，源码和标签已推送 origin/main、`codex/windows-release-0.2.3` 与 v0.2.3。草稿中核对恰好六个资产的名称、uploaded 状态、大小和 GitHub digest 后正式公开为 latest（release id 408332300，发布于 2026-10-09T20:46:13Z）。
+- 全部六个公开资产匿名下载到独立目录后，大小与 SHA-256 均与本地相同，校验清单通过。匿名 `latest/download/latest.json` 与本地逐字节一致，版本为 0.2.3；MSI 与便携 EXE 的 URL、各自签名、大小、中文说明和 UTC 日期均一致。latest.json 为 2668 字节、带 UTF-8 BOM；SHA256SUMS.txt 为 438 字节、UTF-8 无 BOM、LF。
+- 显式运行默认忽略的联网集成测试，使用本次源码构建的客户端（版本号编译期嵌入）读取公开元数据并下载两个程序：`PASS: 0.2.3 installed public metadata, download, signature and tamper rejection` 与 `PASS: 0.2.3 portable public metadata, download, signature and tamper rejection`，测试通过（9.27 秒）。未安装或启动下载程序。
+- 便携 EXE SHA-256：`5e1103241a57d79e6351eb0f34a2d21034a31fbb59f83036155ba8fbc28b4079`；MSI SHA-256：`15fa7b540adc0535beed4a6f83eb4a292a0d7f1598bfd1a5d6e03a3472a6b3d0`。其余哈希见 Release 的 SHA256SUMS.txt。
+- 发行源码的 [main 日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37989114555)、[发行分支日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/37989114387) 与 [pages 部署](https://github.com/baihejiangnan/PaperNest/actions/runs/37989113696) 均通过。[release 工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/37989114377) 在 `Require updater signing secret` 因未配置 `TAURI_SIGNING_PRIVATE_KEY` 停止，构建与 publish 被跳过（`gh secret list` 为空，已重新核对，未沿用历史结论）；本次由本机现有密钥签名并发布，没有上传私钥。产物具有应用更新签名，没有 Windows Authenticode 证书签名。
+- 未覆盖范围：未在保留的 0.2.2／0.2.1／0.2.0 客户端中实际点击“检查更新 → 下载验签 → 使用新版 → 自动启动／会话恢复”，也未执行真实 MSI 安装／升级／卸载、安装取消、UAC 拒绝与失败回滚，这些按[更新安装与恢复验收](#更新安装与恢复验收)留为待验证，不能把联网下载验签当作完整旧版更新链路通过。Linux/macOS 未发行。
+
 ### Windows v0.2.2 发行构建（2026-10-10）
 
 - 发行源码提交 `d2e202dcce799831f8a8b11edd9a7588bfc40522`，是 v0.2.1 后 main 的下一提交，四处应用版本统一为 0.2.2。改动为[更新后自动启动与阅读恢复](#更新后自动启动与阅读恢复2026-10-10v022-发行)修复及配套文档（辅助进程交接、旧客户端被动升级补自动启动、会话与阅读位置恢复、多窗口提示），更新公钥、签名构建脚本与发行工作流未改变。

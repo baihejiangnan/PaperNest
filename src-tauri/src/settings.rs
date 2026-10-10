@@ -144,6 +144,7 @@ pub struct Settings {
     pub open_file_scroll_positions: Vec<f64>,
     /// Markdown source/reading view for the restored session.
     pub session_source_mode: bool,
+    pub session_workspace_root: Option<String>,
     /// Preferred workspace sidebar width in CSS pixels (0 = responsive default).
     pub sidebar_width: f64,
     pub window: WindowState,
@@ -187,6 +188,7 @@ impl Default for Settings {
             active_tab: 0,
             open_file_scroll_positions: Vec::new(),
             session_source_mode: false,
+            session_workspace_root: None,
             sidebar_width: 0.0,
             window: WindowState::default(),
         }

@@ -9,6 +9,7 @@ mod portable;
 mod proxy;
 mod recycle;
 mod settings;
+mod reading_session;
 mod update;
 mod workspace;
 mod windows_integration;

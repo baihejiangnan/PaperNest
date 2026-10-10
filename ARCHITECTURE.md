@@ -68,6 +68,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src/styles.css` | App shell, file tree, overlays and Obsidian document rendering. See [design rules](docs/design.md). |
 | `src-tauri/src/lib.rs` | Tauri builder: single-instance plugin first, shared state, IPC command registry and settings watcher. `file_arg()` selects an existing file argument. |
 | `src-tauri/src/commands.rs` | Settings, document read/write/rename, export and image-loading commands. `get_settings` also returns startup file and version information. |
+| `src-tauri/src/reading_session.rs` | User-wide reading session and restore preference shared by installed and portable executables; newer local settings take precedence for legacy compatibility. |
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions, Windows Explorer integration and same-process secondary-window creation. |
 | `src-tauri/src/settings.rs` | `settings.toml` — **the one settings file**: hand‑editable prefs (language, spellcheck, fonts, accent, color_scheme, confirm_delete, shortcuts, quit_on_escape, list_marker, auto_save, show_path, open_last_session, always_show_tabbar) + app‑managed state (window, open tabs). Plus the 1 Hz file watcher + write‑signature tracking. |
 | `src-tauri/src/portable.rs` | Resolves the portable data dir (next to exe; on macOS next to the `.app`); writability check + OS‑config fallback. |
@@ -90,7 +91,7 @@ Portable mode keeps settings beside the executable when writable (development:
 `src-tauri/target/debug/`). Installed mode uses the user's config directory;
 a read-only portable directory falls back there and shows a hint.
 
-- **`settings.toml`** — the only settings file. Top half is hand‑editable
+- **`settings.toml`** — local preferences and session fallback. Top half is hand‑editable
   (language, spellcheck, fonts, sizes, accent, shortcuts, `quit_on_escape`,
   `list_marker`, `auto_save`, `show_path`, `open_last_session`); bottom
   half is app‑managed (window geometry, open tabs). The app writes it
@@ -104,6 +105,15 @@ a read-only portable directory falls back there and shows a hint.
   and the frontend shows a one-time warning with the error and backup path
   (`SettingsPayload.load_error`). A broken hand edit while running is logged by
   the watcher and ignored.
+
+- **`PaperNest/reading-session.toml` in the user's config directory** — shared
+  paths, active tab, scroll offsets, Markdown source mode, workspace root and
+  `open_last_session`. `get_settings` overlays this when it is at least as recent
+  as the local settings file; missing/invalid shared state retains local state.
+  `save_settings` writes both records atomically per file. Other preferences stay
+  local. Startup cannot snapshot or debounce-save a partial tab list: `sessionReady`
+  becomes true only after restoration. Scrolling schedules an 800 ms save and quit
+  flushes immediately. Forced termination can lose the last unflushed interval.
 - **WebView2 data** (Windows) — `lib.rs` configures the main WebView's data
   directory before startup. Secondary windows use separate `workspace-webviews/`
   directories beside that profile: portable mode stays under the executable's
@@ -165,6 +175,12 @@ a read-only portable directory falls back there and shows a hint.
   cannot hide unsaved changes.
 - Session restore reads each saved path once, skips individual read failures,
   then activates the tab identified by the original saved index.
+  Without an explicit file, ordinary startup follows `open_last_session` (default
+  true); disabled startup opens only the landing tab and leaves the tree unloaded.
+  Explicit-file startup opens that file without restoring unrelated tabs/root.
+  Missing remembered roots fall back to the document's parent without a blocking
+  error. Supported executables share the user-wide record; old binaries cannot
+  be made to understand this new format retroactively.
 - `WorkspaceSidebar.setDocument()` reveals the active file, lazily loads its
   directory, and derives Markdown headings for the alternate outline view.
   While the file pane is visible, it polls only the root and expanded folders

@@ -116,6 +116,7 @@ function sameDirectory(a: Directory | undefined, b: Directory): boolean {
 export class WorkspaceSidebar {
   onMarkdownOnlyChange: (value: boolean) => void = () => {};
   onWidthChange: (value: number) => void = () => {};
+  onRootChange: () => void = () => {};
   onOpen: (path: string) => Promise<void> = async () => {};
   onOpenInNewTab: (path: string) => Promise<void> = async () => {};
   onRename: (oldPath: string, newPath: string) => void = () => {};
@@ -395,7 +396,9 @@ export class WorkspaceSidebar {
     if (this.mode === "outline") this.renderOutline();
   }
 
-  async setRoot(path: string, preserveExpanded = false): Promise<void> {
+  get rootPath(): string | null { return this.root?.path ?? null; }
+
+  async setRoot(path: string, preserveExpanded = false, reportError = true): Promise<void> {
     this.invalidateSearch();
     this.rootLoading = true;
     this.pendingRoot = path;
@@ -419,6 +422,7 @@ export class WorkspaceSidebar {
       if (!preserveExpanded) this.show(true);
       if (!this.searchInput.hidden && this.searchInput.value) this.queueSearch();
       this.scheduleTreeSync();
+      this.onRootChange();
     } catch (error) {
       if (token === this.loadToken) {
         this.rootLoading = false;
@@ -428,7 +432,7 @@ export class WorkspaceSidebar {
           this.renderTree();
         }
         this.scheduleTreeSync();
-        await this.report(error);
+        if (reportError) await this.report(error);
       }
     }
   }

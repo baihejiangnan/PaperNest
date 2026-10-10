@@ -91,6 +91,7 @@ interface Settings {
   active_tab: number;
   open_file_scroll_positions: number[];
   session_source_mode: boolean;
+  session_workspace_root: string | null;
   sidebar_width: number;
   window: WindowState;
 }
@@ -193,6 +194,9 @@ const emojiPicker = new EmojiPicker();
 const settingsPanel = new SettingsPanel(() => settings);
 
 let settings: Settings;
+// Startup integrations can save preferences before any document is restored.
+// Keep the persisted session intact until the initial tab list is complete.
+let sessionReady = false;
 let openWithStatus: OpenWithStatus = {
   available: false,
   registered: false,
@@ -473,6 +477,7 @@ function beginTitleRename(): void {
 }
 
 function snapshotSession(): void {
+  if (!sessionReady) return;
   const withPath = tabBar.tabs.filter((t) => t.path);
   settings.open_files = withPath.map((t) => t.path as string);
   const activePath = tabBar.active?.path ?? null;
@@ -483,16 +488,25 @@ function snapshotSession(): void {
     return Number.isFinite(offset) ? Math.max(0, offset) : 0;
   });
   settings.session_source_mode = sourceMode;
+  settings.session_workspace_root = workspace.rootPath;
 }
 
 function persistSoon(): void {
-  if (secondaryWindow) return;
+  if (secondaryWindow || !sessionReady) return;
   snapshotSession();
 
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => {
     void invoke("save_settings", { settings });
   }, 800);
+}
+
+// Also remember reading progress while scrolling, rather than relying only on
+// a normal quit (a process exit cannot run the quit handler).
+for (const host of [editorHost, sourceShell, imageDocument]) {
+  host.addEventListener("scroll", () => {
+    if (!switching) persistSoon();
+  }, { capture: true, passive: true });
 }
 
 async function refreshOpenWithStatus(): Promise<OpenWithStatus> {
@@ -653,6 +667,7 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
 workspace.onOpen = openPreviewPath;
 workspace.onMarkdownOnlyChange = (value) => { settings.markdown_only = value; settingsPanel.refresh(); persistSoon(); };
 workspace.onWidthChange = (value) => { settings.sidebar_width = value; persistSoon(); };
+workspace.onRootChange = () => persistSoon();
 workspace.onOpenInNewTab = (path) => openPath(path, true);
 workspace.getConfirmDelete = () => settings.confirm_delete !== false;
 workspace.onConfirmDeleteChange = (value) => { settings.confirm_delete = value; settingsPanel.refresh(); persistSoon(); };
@@ -900,7 +915,10 @@ settingsPanel.onCheckUpdates = async () => {
 settingsPanel.onProxyTest = async (proxyUrl) => {
   await invoke("test_proxy", { proxyUrl });
 };
-settingsPanel.onClose = () => (codeViewVisible ? codeEditor : editor).focus();
+settingsPanel.onClose = () => {
+  if (codeViewVisible) codeEditor.focus();
+  else editor.focus(true);
+};
 
 // --- file operations -------------------------------------------------------
 
@@ -2449,9 +2467,9 @@ async function restoreWindow(): Promise<void> {
   }
 }
 
-async function restoreTabs(resumeAfterUpdate = false): Promise<void> {
+async function restoreTabs(resumeAfterUpdate = false, explicitFile = false): Promise<void> {
   if (secondaryWindow) { tabBar.add(null, ""); return; }
-  if (settings.open_last_session === false && !resumeAfterUpdate) {
+  if (explicitFile || (settings.open_last_session === false && !resumeAfterUpdate)) {
     tabBar.add(null, "", true, null, true);
     return;
   }
@@ -2461,6 +2479,7 @@ async function restoreTabs(resumeAfterUpdate = false): Promise<void> {
   const savedActiveIndex = settings.active_tab ?? 0;
   const savedPositions = [...(settings.open_file_scroll_positions ?? [])];
   sourceMode = settings.session_source_mode === true;
+  if (settings.session_workspace_root) await workspace.setRoot(settings.session_workspace_root, false, false);
   const restored: Array<{ sourceIndex: number; tabId: string }> = [];
   for (const [sourceIndex, path] of files.entries()) {
     if (!path) continue;
@@ -2592,7 +2611,9 @@ async function bootstrap(): Promise<void> {
     await refreshNewMdMenu().catch(reportNewMdMenuError);
   }
 
-  await restoreTabs(payload.resume_after_update);
+  await restoreTabs(payload.resume_after_update, Boolean(payload.open_with));
+  sessionReady = true;
+  persistSoon();
 
   // A file passed on the command line (double-click / "Open with").
   if (secondaryWindow) {

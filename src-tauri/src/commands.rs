@@ -32,7 +32,8 @@ pub struct SettingsPayload {
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> SettingsPayload {
     let store = state.store.lock().unwrap();
-    let (settings, load_error) = store.load();
+    let (mut settings, load_error) = store.load();
+    crate::reading_session::load(&store.path, &mut settings);
     SettingsPayload {
         settings,
         portable: store.portable,
@@ -54,6 +55,7 @@ pub async fn save_settings(app: tauri::AppHandle, mut settings: Settings) -> Res
         let state=app.state::<AppState>();
         let sig = state.store.lock().unwrap().save(&settings).map_err(|e| e.to_string())?;
         *state.last_write.lock().unwrap() = Some(sig);
+        crate::reading_session::save(&settings).map_err(|e| e.to_string())?;
         Ok(())
     })).await.map_err(|e| e.to_string())?
 }

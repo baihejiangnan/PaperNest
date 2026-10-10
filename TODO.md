@@ -4,6 +4,7 @@
 
 | 优先级 | 事项 | 当前状态与完成条件 |
 | --- | --- | --- |
+| 待验证 | 初始化覆盖会话与普通启动恢复 | 修复随 [v0.2.4](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.4) 发行：启动同步 ShellNew 清空会话的问题已修复；普通无文件启动按默认开启的恢复开关恢复文件／标签／位置／项目根目录，关闭时显示空白新建页，指定文件启动不混入旧会话。新增同用户跨 EXE 共享记录与滚动保存。逻辑、原生日志与跨 EXE 桌面实测见 [开发记录](docs/development.md#初始化覆盖会话与普通启动恢复2026-10-10v024-发行)。旧 EXE 无法读取新增共享记录；真实 MSI 升级后的自动启动／唯一主实例／恢复链路仍待核验（见下行）。 |
 | 待验证 | 更新完成后自动启动与阅读恢复 | 修复随 [v0.2.2](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.2) 发行：新更新器等待退出／安装完成后重启，恢复本次文件、标签、滚动位置与源码视图；旧更新器的被动 MSI 升级由新 MSI 补自动启动，旧版未记录的位置无法追溯。逻辑、辅助进程、独立 WebView2 重启／失败返回及实际 MSI 执行表检查通过，见 [开发记录](docs/development.md#更新后自动启动与阅读恢复2026-10-10v022-发行)；仍需真实 MSI 升级、取消／UAC 拒绝及失败回滚实机验证，不能把模拟安装器测试当作实际安装。 |
 | 待验证 | Windows 系统右键“新建 MD 文件”的平台与安装回归 | 功能已实现，默认关闭；真实 WebView2 开关／重启、Shell 菜单名称及创建空 `.md`、第三方冲突保护、卸载 CLI 清理通过，详见 [开发说明](docs/development.md#windows-系统新建-md-文件2026-10-08)。仍需 Windows 10、完整 MSI 升级／卸载、便携版跨目录移动及 Explorer 创建后重命名界面检查。 |
 | 待验证 | MD 筛选与侧栏宽度的平台回归 | 前端构建、Rust 测试和 13 项 Edge 组件检查通过，详见 [开发说明](docs/development.md#md-文件树筛选与侧栏宽度2026-10-08)。仍需 Linux/macOS 实机与超大／网络目录性能检查。 |
@@ -16,4 +17,4 @@
 | 待完成 | Rust 测试使用全局临时目录 | 部分测试（`assets`、`commands`、`delete_info`、`export`、`recycle`、`workspace`）直接写 `std::env::temp_dir()` 根目录；新测试已改用 `tempfile::tempdir()`。受限环境中可设 `TEMP`/`TMP` 到工作区目录运行。 |
 | 暂定 | Linux/macOS 发行与实机确认 | 按当前发行范围暂定，不阻塞 Windows 发行。`src-tauri/src/workspace.rs` 的 `open_workspace_location` 将所有非 Windows 平台都交给 `xdg-open`，macOS 对应打开方式待实现。Linux/macOS 的回收站移入与恢复、窗口创建、文件管理器打开方式、文件拖放及发行包仍需在对应系统检查。 |
 
-Windows P0/P1 回归及 v0.1.0 正式发行已完成；[v0.2.3 更新检查测试发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.3) 已公开为 latest，仅把四处应用版本从 0.2.2 递增到 0.2.3，功能与 0.2.2 相同，用于验证应用内检查更新。源码及标签已推送 main 和 `codex/windows-release-0.2.3`；前端构建、五项逻辑测试、普通临时目录下 54 项 Rust 测试、签名与篡改拒绝检查、MSI 执行表只读检查通过。六个公开文件的大小／哈希与公开更新入口（installed／portable 两项，均输出 0.2.3）均已核对。main、发行分支的日常 CI 与 pages 部署均通过；release 工作流因缺少云端签名密钥停止，本次使用本机现有密钥签名并发布。真实 MSI 升级／取消／UAC 拒绝／回滚及旧客户端实机更新链路仍按表中事项继续。证据与限制见 [开发说明](docs/development.md#windows-v023-更新检查测试发行2026-10-10)。
+Windows P0/P1 回归及 v0.1.0 正式发行已完成；[v0.2.3 更新检查测试发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.3) 曾公开为 latest，仅把四处应用版本从 0.2.2 递增到 0.2.3，功能与 0.2.2 相同。本次 [v0.2.4 发行](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.4) 在其之上包含启动会话覆盖修复与跨 EXE 共享阅读记录；旧 v0.2.3 发行与标签保持不动。证据、公开核验与仍未验证的实机链路见 [开发说明](docs/development.md#windows-v024-发行构建2026-10-10)。

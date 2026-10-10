@@ -26,7 +26,7 @@ quit_on_escape = false      # when true, pressing Esc quits the app
 list_marker = "-"           # bullet-list marker written on save: "-" | "*" | "+"
 auto_save = false           # save edited files that have a path (after typing, tab switch, focus loss)
 show_path = false           # show the full file path in the header, not just the name
-open_last_session = true    # reopen the previous session's tabs on startup
+open_last_session = true    # no file argument: restore reading session; false opens a new tab
 always_show_tabbar = false  # keep the tab bar visible even with only one file open
 markdown_only = true        # tree/search: .md/.markdown/.mdx and folders containing them
 windows_new_md = false      # Windows Explorer New > MD File; independent of defaults
@@ -65,6 +65,7 @@ settings = "Mod+,"
 # active_tab = 0             # index into open_files of the active tab
 # open_file_scroll_positions = [] # scroll offsets aligned with open_files
 # session_source_mode = false # restore Markdown source view with the session
+# session_workspace_root = "" # folder root restored with the reading session
 # sidebar_width = 0          # CSS px; 0 = responsive default, drag divider to change
 # [window]                   # width / height / x / y / maximized
 `;

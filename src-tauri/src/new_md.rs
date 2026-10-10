@@ -665,6 +665,11 @@ pub async fn set_new_md_menu(enabled: bool, app: tauri::AppHandle) -> Result<New
                     "Repair the invalid settings file before changing system integration.".into(),
                 );
             }
+            // This command saves the whole Settings struct, session fields
+            // included. Re-apply the user-wide reading session first so a
+            // preference change cannot push a stale session into settings.toml
+            // and make that file look newer than the shared record.
+            crate::reading_session::load(&store.path, &mut settings);
             let previous = registry::read().map_err(|e| e.to_string())?.enabled;
             let status = registry::set(enabled).map_err(|e| e.to_string())?;
             settings.windows_new_md = status.enabled;

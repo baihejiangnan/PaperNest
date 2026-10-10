@@ -18,7 +18,7 @@ assert.ok(settingsHandler);
 const { outputText } = ts.transpileModule([
   "let versionInfo = null, versionError = null, preparedVersion = null, versionBusy = false, versionCheckTask = null;",
   "let updatePrimaryAction = null, updateSecondaryAction = null;",
-  "let closing = false, sourceMode = false, sessionReady = false, persistTimer, geometryCaptureTimer;",
+  "let closing = false, sourceMode = false, sessionReady = false, explicitLaunchPending = false, persistTimer, geometryCaptureTimer;",
   "let newMdMenuBusy = false, newMdMenuStatus;",
   ...functions.map(node => node.getText(ast)),
   settingsHandler.getText(ast),
@@ -224,4 +224,55 @@ vm.runInContext("sessionReady = false", context);
 await vm.runInContext("restoreTabs(false)", context);
 assert.deepEqual(context.tabBar.tabs.map(tab => tab.path), ["a.md", "b.md"]);
 assert.equal(context.tabBar.active.path, "b.md", "ordinary no-file startup restores the active tab by default");
-console.log("PASS: update feedback/concurrency, save-before-restart, startup ShellNew/slow-read session preservation, default restore and explicit-file/disabled startup.");
+
+// Explicit-launch persistence gate (src/main.ts bootstrap order):
+//   explicitLaunchPending = Boolean(payload.open_with); await openPath(...);
+//   sessionReady = true; persistSoon();
+// and openPath() clears explicitLaunchPending only after a successful load.
+// With explicitFile=true the strip is deliberately only the empty start page, so
+// a failed or slow read must not snapshot that empty strip over the stored
+// session. bootstrap() itself is not driven here; this exercises the gate.
+const explicitLaunchSaves = [];
+const explicitTimers = new Map();
+context.window = {
+  clearTimeout(id) { explicitTimers.delete(id); },
+  setTimeout(callback) { const id = Symbol(); explicitTimers.set(id, callback); return id; },
+};
+context.settings = { open_last_session: true, open_files: ["a.md", "b.md"], open_file_scroll_positions: [120, 876.5],
+  active_tab: 1, session_source_mode: true, session_workspace_root: "C:/project" };
+const explicitSavedSession = structuredClone(context.settings);
+context.tabBar.tabs = [];
+context.tabBar.active = null;
+context.tabBar.add = function(path, content) {
+  const tab = { path, content, scrollTop: 0, id: `explicit-${this.tabs.length}` };
+  this.tabs.push(tab);
+  vm.runInContext("persistSoon()", context);
+  return tab;
+};
+context.invoke = async command => {
+  if (command === "save_settings") explicitLaunchSaves.push(structuredClone(context.settings));
+};
+vm.runInContext("sessionReady = false", context);
+await vm.runInContext("restoreTabs(false, true)", context);
+const pending = () => vm.runInContext("explicitLaunchPending", context);
+vm.runInContext("explicitLaunchPending = true", context);
+vm.runInContext("sessionReady = true; persistSoon()", context);
+for (const callback of explicitTimers.values()) await callback();
+assert.equal(context.tabBar.tabs.length, 1, "an explicit-file launch leaves only the start page");
+assert.equal(pending(), true, "the launch target is still unread: persistence stays suspended");
+assert.equal(explicitLaunchSaves.length, 0,
+  "a not-yet-open explicit target must not overwrite the stored session");
+assert.deepEqual(context.settings.open_files, explicitSavedSession.open_files);
+assert.deepEqual(context.settings.open_file_scroll_positions, explicitSavedSession.open_file_scroll_positions);
+assert.equal(context.settings.session_workspace_root, "C:/project");
+
+// Once the target is open (openPath clears the gate) the new single-file session
+// is persisted, replacing the pre-launch one.
+vm.runInContext("explicitLaunchPending = false", context);
+vm.runInContext("persistSoon()", context);
+for (const callback of explicitTimers.values()) await callback();
+assert.equal(explicitLaunchSaves.length, 1);
+assert.deepEqual(explicitLaunchSaves[0].open_files, []);
+assert.deepEqual(explicitLaunchSaves[0].open_file_scroll_positions, []);
+assert.equal(pending(), false);
+console.log("PASS: update feedback/concurrency, save-before-restart, startup ShellNew/slow-read session preservation, default restore, explicit-file/disabled startup and failed/successful explicit read.");

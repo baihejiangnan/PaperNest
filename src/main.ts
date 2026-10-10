@@ -197,6 +197,10 @@ let settings: Settings;
 // Startup integrations can save preferences before any document is restored.
 // Keep the persisted session intact until the initial tab list is complete.
 let sessionReady = false;
+// A command-line / "Open with" launch deliberately opens only the named file.
+// Until that read succeeds, do not persist: an empty or partial tab list would
+// otherwise replace the stored session of the previous launch.
+let explicitLaunchPending = false;
 let openWithStatus: OpenWithStatus = {
   available: false,
   registered: false,
@@ -492,7 +496,7 @@ function snapshotSession(): void {
 }
 
 function persistSoon(): void {
-  if (secondaryWindow || !sessionReady) return;
+  if (secondaryWindow || !sessionReady || explicitLaunchPending) return;
   snapshotSession();
 
   window.clearTimeout(persistTimer);
@@ -1057,6 +1061,8 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
     tab.pinned = inNewTab;
   }
 
+  // The explicit launch target is open: normal session persistence may resume.
+  explicitLaunchPending = false;
   persistSoon();
 }
 
@@ -2167,7 +2173,7 @@ function wireButtons(): void {
 
 /** Immediately write settings, cancelling any pending debounced write. */
 async function flushSettings(strict = false): Promise<void> {
-  if (secondaryWindow) return;
+  if (secondaryWindow || explicitLaunchPending) return;
   window.clearTimeout(persistTimer);
   snapshotSession();
   try {
@@ -2612,13 +2618,22 @@ async function bootstrap(): Promise<void> {
   }
 
   await restoreTabs(payload.resume_after_update, Boolean(payload.open_with));
-  sessionReady = true;
-  persistSoon();
 
   // A file passed on the command line (double-click / "Open with").
+  // Open it before enabling session persistence: this launch deliberately keeps
+  // the tab strip at the empty start page, and while the launch target is not
+  // open yet a failed or slow read must not snapshot that empty strip over the
+  // stored reading session.
   if (secondaryWindow) {
+    explicitLaunchPending = workspaceLaunch?.kind === "workspace_file";
     if (workspaceLaunch?.kind === "workspace_file") await openPath(workspaceLaunch.path);
-  } else if (payload.open_with) await openPath(payload.open_with);
+  } else {
+    explicitLaunchPending = Boolean(payload.open_with);
+    if (payload.open_with) await openPath(payload.open_with);
+  }
+
+  sessionReady = true;
+  persistSoon();
 
   // Further "open with" launches are routed here by the single-instance plugin.
   if (!secondaryWindow) void listen<string>("open-file", async (e) => {

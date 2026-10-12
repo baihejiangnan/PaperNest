@@ -174,7 +174,7 @@ try {
     Write-Host "[release] Cargo build jobs: $env:CARGO_BUILD_JOBS"
 
     Write-Host "[release] Building Tauri MSI..."
-    pnpm tauri build --bundles msi
+    node node_modules/@tauri-apps/cli/tauri.js build --bundles msi -- --locked
     if ($LASTEXITCODE -ne 0) { throw "Tauri MSI build failed." }
 
     $internalExe = Join-Path $TargetRelease "PaperNest.exe"

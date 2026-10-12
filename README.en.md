@@ -122,7 +122,7 @@ The current release targets **Windows x64**. Download it from [Releases](https:/
 <summary><b>Tabs and windows</b></summary>
 
 - The plus button opens a new tab where you can create or open a file. New tabs expand smoothly, with the plus button following the last tab and existing tabs shrinking together when space is limited. The arrow stays beside the window controls and switches, stacks, favorites, and closes tabs.
-- Right-click a tab to close it, other tabs, tabs to its right, or all tabs; lock/unlock it; or move it to a new window. Right-click keeps the current document active. Locks prevent preview replacement for the current run and still allow explicit closure. Moving saves first and retains the source if saving is cancelled or window creation fails. These tab improvements are in local source and have not been released.
+- Right-click a tab to close it, other tabs, tabs to its right, or all tabs; lock/unlock it; or move it to a new window. Right-click keeps the current document active. Locks prevent preview replacement for the current run and still allow explicit closure. Moving saves first and retains the source if saving is cancelled or window creation fails. These tab improvements are included in v0.2.5.
 - Favorites save the list of tabs that have file paths and can be restored from the arrow menu. Unsaved new files are not included.
 - “Open in new tab” shows the tab immediately with “Opening file…” while reading. You can switch or close it during loading.
 - Closing a tab, replacing a preview tab, quitting, or installing an update with unsaved edits offers Save, Don't save, or Cancel (Save all for several documents). If saving fails or Save As is cancelled, nothing is closed.
@@ -183,7 +183,7 @@ macOS uses `Cmd` instead of `Ctrl`. App shortcuts can be rebound in Settings.
 
 **No upload, no sync.** Documents are never synced to a cloud service, so back up your files and settings yourself when moving computers.
 
-Local source now uses consistent grouped settings, dividers, and two-state switches, and suppresses browser-native context menus outside dedicated app menus. Content menus in rich text, source view, and code blocks hide shortcut hints by default. Enable them under General → Behavior (`context_menu_shortcuts = false` by default); showing hints makes menus wider, while hiding them leaves keyboard bindings unchanged. These interface improvements have not been released.
+Local source now uses consistent grouped settings, dividers, and two-state switches, and suppresses browser-native context menus outside dedicated app menus. Content menus in rich text, source view, and code blocks hide shortcut hints by default. Enable them under General → Behavior (`context_menu_shortcuts = false` by default); showing hints makes menus wider, while hiding them leaves keyboard bindings unchanged. These interface improvements are included in v0.2.5.
 
 The first four Behavior preferences—Markdown-only filtering, deletion confirmation, always showing the tab bar, and startup session restore—default to enabled. Existing saved choices are preserved.
 

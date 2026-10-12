@@ -1,6 +1,6 @@
 name: release
 
-# Windows release automation; Linux/macOS builds remain deferred in TODO.md.
+# Windows release automation. RELEASE_PUBLISHER=local selects local signing/publishing.
 #
 # Normal path: push an annotated vX.Y.Z tag. GitHub Actions builds signed
 # Windows portable/MSI artifacts, verifies the exact artifact set,
@@ -15,7 +15,7 @@ name: release
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]*"
   workflow_dispatch:
     inputs:
       tag:
@@ -61,6 +61,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   build-windows:
+    if: vars.RELEASE_PUBLISHER != 'local'
     needs: prepare
     runs-on: windows-latest
     env:

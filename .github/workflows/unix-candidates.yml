@@ -54,7 +54,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential curl wget file libwebkit2gtk-4.1-dev \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            patchelf rpm libfuse2 xdg-utils
+            patchelf rpm libfuse2 xdg-utils xvfb xdotool
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -71,6 +71,29 @@ jobs:
       # generate_context! needs frontendDist, which the build above creates.
       - name: Native Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+
+      - name: Linux desktop startup smoke check
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          xvfb-run -a bash -euo pipefail <<'SMOKE'
+          src-tauri/target/release/PaperNest > linux-startup.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            kill -0 "$app_pid" || { cat linux-startup.log; exit 1; }
+            if xdotool search --onlyvisible --name PaperNest >/dev/null 2>&1; then
+              echo "PASS: Linux packaged binary created a visible desktop window"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat linux-startup.log
+          echo "::error::No visible PaperNest window within 30 seconds"
+          exit 1
+          SMOKE
 
       - name: Verify candidate checksums
         working-directory: release-unix/${{ matrix.output }}

@@ -4,7 +4,7 @@ PaperNest 是以快速阅读为优先的 Tauri v2 桌面文档应用。Markdown 
 
 ## 先读哪里
 
-* [docs/local-migration.md](docs/local-migration.md)：本地独立仓库的迁移来源、验证结果与远端边界。该副本尚未配置远端，不得沿用旧仓库地址推送。
+* [docs/local-migration.md](docs/local-migration.md)：本地独立仓库的迁移来源、验证结果与远端边界。旧仓库已重命名为私人 `PaperNest--old`；独立公开仓库为 `baihejiangnan/PaperNest`，用户已授权推送与发行。
 * [README.md](README.md)：产品定位、用户功能、安装与简短构建说明。
 * [ARCHITECTURE.md](ARCHITECTURE.md)：前后端边界、状态归属、文件和窗口数据流。
 * [docs/development.md](docs/development.md)：本地命令、调试与回归清单。

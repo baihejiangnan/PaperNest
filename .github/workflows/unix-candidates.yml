@@ -9,6 +9,12 @@ on:
         required: false
         default: ""
         type: string
+      platform:
+        description: "Native platform to build"
+        required: true
+        default: all
+        type: choice
+        options: [all, linux, macos]
 
 permissions:
   contents: read
@@ -23,13 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: linux
-            runner: ubuntu-22.04
-            output: linux-x86_64
-          - platform: macos
-            runner: macos-15
-            output: macos-universal
+        include: ${{ fromJSON(inputs.platform == 'macos' && '[{"platform":"macos","runner":"macos-15","output":"macos-universal"}]' || inputs.platform == 'linux' && '[{"platform":"linux","runner":"ubuntu-22.04","output":"linux-x86_64"}]' || '[{"platform":"linux","runner":"ubuntu-22.04","output":"linux-x86_64"},{"platform":"macos","runner":"macos-15","output":"macos-universal"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -119,7 +119,14 @@ jobs:
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/PaperNest.app"
+          version="$(node -p "require('./package.json').version")"
+          mount_root="$(mktemp -d)"
+          trap 'hdiutil detach "$mount_root" >/dev/null 2>&1 || true; rmdir "$mount_root" 2>/dev/null || true' EXIT
+          # Tauri removes the intermediate .app after packaging a DMG. Inspect
+          # the app inside the actual shipped image, mounted read-only.
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_root" \
+            "release-unix/macos-universal/PaperNest-$version-macOS-universal.dmg"
+          app="$mount_root/PaperNest.app"
           lipo "$app/Contents/MacOS/PaperNest" -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 "$app"
 

@@ -501,3 +501,7 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 ## 独立公开仓库 0.2.5 发行准备（2026-10-12）
 
 用户已授权公开新仓库与发行；旧仓库为私人 PaperNest--old。版本从旧 latest 0.2.4 增加到 0.2.5，保持更新 URL／应用标识／更新公钥。Windows 使用现有本机密钥，仓库变量 RELEASE_PUBLISHER=local 使标签工作流跳过云端发布。Windows 构建脚本改为直接调用 Tauri CLI 并传入 Cargo --locked。Linux 原生候选待构建核验后追加全新平台文件；Mac 在独立 prerelease 发布未公证测试 DMG。实际发行结果在本节后续记录。
+
+### 0.2.5 发布前检查
+
+发行源码为 `6459f25057310ea0eff0cac593c41ed9a62d833b`。该源码前端生产构建与全部六组脚本测试通过；Rust `--locked --lib` 为 62 通过、6 显式忽略、0 失败。新公开仓库贡献者 API 仅返回 baihejiangnan，初始两次提交均为本人作者且无共同作者尾注。新 origin/main 与发行分支首次推送均指向该提交。已启用 Actions Pages 部署，保持原项目介绍页 URL；首次新仓库推送未自动运行日常工作流，本记录推送继续触发检查。原生候选构建运行 ID 为 `38200167089`，Windows 本地签名构建进行中，本条不代表发行完成。

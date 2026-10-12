@@ -9,7 +9,7 @@
 
 [![最新版本](https://img.shields.io/github/v/release/baihejiangnan/PaperNest?label=%E7%89%88%E6%9C%AC)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 [![许可证](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
-[![平台](https://img.shields.io/badge/platform-Windows%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
+[![平台](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
 [下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
 
@@ -85,19 +85,21 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 
 ## 下载与安装
 
-当前正式发行 **Windows x64** 版本，在 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载：
+当前正式发行 **Windows x64 与 Linux x86_64** 版本，在 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载：
 
 | 包类型 | 文件 | 适合 |
 | --- | --- | --- |
 | 便携版 | `PaperNest-X.Y.Z.exe` | 免安装，放在任意目录或 U 盘中使用；数据可保存在程序旁的 `data/` 目录。 |
 | 安装版 | `PaperNest_X.Y.Z_x64.msi` | 安装到系统，配合文件关联和右键“新建 MD 文件”使用。 |
+| Linux AppImage | `PaperNest-X.Y.Z-linux-x86_64.AppImage` | Linux x86_64 可执行应用包。 |
+| Linux deb / rpm | `PaperNest-X.Y.Z-linux-x86_64.deb` / `.rpm` | 使用对应的软件包管理器安装；兼容性范围见发行说明。 |
 
-- 运行需要 **WebView2 Runtime**（Windows 10/11 通常已内置）。
+- Windows 运行需要 **WebView2 Runtime**（Windows 10/11 通常已内置）。
 - 每个发行版附带 `.sig` 更新签名和 `SHA256SUMS.txt`，可用来核对文件。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
 - 自动检查更新默认关闭，可在设置中开启；只获取本项目发布并经签名验证的版本，下载和安装前仍需确认。
 - 检查更新直接读取 Release 的公开元数据，无需 GitHub 登录或 Token；连接失败时会显示具体错误，可再次检查。
 - 应用内更新会先保存阅读会话，安装完成后自动启动并恢复文件、当前标签与阅读位置；便携版在旧进程退出后打开新 EXE。更新重启也会恢复会话，不受日常“恢复上次会话”开关影响。安装取消或失败时尝试返回原程序。此修复自 v0.2.2 起发布。
-- Linux 与 macOS 版本暂未发行。
+- Linux 首发包通过 Ubuntu 22.04 原生构建、54 项 Rust 测试和桌面窗口启动检查；实体桌面安装与完整功能验收仍待进行。Linux 暂不支持应用内自动安装更新。macOS 未公证测试版正在准备。
 
 > 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发；原项目的安装包不包含这里的新增功能。
 
@@ -204,7 +206,7 @@ pnpm tauri build      # 本机打包
 
 `pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。调试方法和回归清单见 [开发说明](docs/development.md)，正式发行流程见 [推送与发行规则](docs/release-rules.md)。
 
-macOS／Linux 候选包准备：在对应系统运行 `pnpm release:macos`（Universal DMG）或 `pnpm release:linux`（本机架构的 AppImage、deb、rpm），输出至 `release-unix/` 的独立平台目录，附带构建信息和 SHA-256 清单。也已准备仅手动触发的 [候选包工作流](.github/workflows/unix-candidates.yml)。本地源码已补齐 Finder 打开文件事件和启动期间的文件请求保留，仍待目标系统验收。macOS 当前使用 ad-hoc 签名，未公证；两个平台尚未完成原生构建与桌面验收，未公开发行，应用内自动安装更新也尚未支持。依赖、运行步骤和发行前检查见[跨平台候选包准备](docs/development.md#macoslinux-候选包准备)。
+macOS／Linux 候选包准备：在对应系统运行 `pnpm release:macos`（Universal DMG）或 `pnpm release:linux`（本机架构的 AppImage、deb、rpm），输出至 `release-unix/` 的独立平台目录，附带构建信息和 SHA-256 清单。也已准备仅手动触发的 [候选包工作流](.github/workflows/unix-candidates.yml)。本地源码已补齐 Finder 打开文件事件和启动期间的文件请求保留，仍待目标系统验收。macOS 当前使用 ad-hoc 签名，未公证；Linux 0.2.5 已通过原生构建、测试与窗口启动检查并公开发行；Mac 最终 DMG 核验进行中。两平台完整实机验收及应用内自动安装更新仍未完成。依赖、运行步骤和发行前检查见[跨平台候选包准备](docs/development.md#macoslinux-候选包准备)。
 
 ## 项目结构与文档
 

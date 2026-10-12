@@ -9,7 +9,7 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 
 [![Latest release](https://img.shields.io/github/v/release/baihejiangnan/PaperNest?label=release)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
 [Download](https://github.com/baihejiangnan/PaperNest/releases/latest) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
 
@@ -85,17 +85,19 @@ The project's README opened in PaperNest, with the file-tree section expanded an
 
 ## Download and install
 
-The current release targets **Windows x64**. Download it from [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest):
+The current release targets **Windows x64 and Linux x86_64**. Download it from [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest):
 
 | Package | File | Best for |
 | --- | --- | --- |
 | Portable | `PaperNest-X.Y.Z.exe` | No installation. Run from any folder or USB drive; data can live in a `data/` folder next to the executable. |
 | Installer | `PaperNest_X.Y.Z_x64.msi` | System install with file associations and the Explorer “New → MD File” entry. |
+| Linux AppImage | `PaperNest-X.Y.Z-linux-x86_64.AppImage` | Executable application bundle for Linux x86_64. |
+| Linux deb / rpm | `PaperNest-X.Y.Z-linux-x86_64.deb` / `.rpm` | Install through the corresponding package manager; see release notes for compatibility. |
 
-- **WebView2 Runtime** is required (usually preinstalled on Windows 10/11).
+- Windows requires **WebView2 Runtime** (usually preinstalled on Windows 10/11).
 - Each release includes `.sig` updater signatures and `SHA256SUMS.txt` for verification. Windows Authenticode certificate signing is not configured, so Windows may warn about an unknown publisher on first run.
 - Automatic update checks are off by default. When enabled, the app only accepts this project's signed releases and asks before downloading or installing.
-- Linux and macOS releases are not available yet.
+- Linux packages passed native Ubuntu 22.04 builds, 54 Rust tests and a desktop window startup check. Physical-device installation and full feature checks remain pending. Linux in-app update installation is not supported. An unnotarized macOS preview is being prepared.
 
 > PaperNest is developed on top of [MDmeow](https://github.com/zakee039/MDmeow). Upstream installers do not include this repository's additions.
 
@@ -202,7 +204,7 @@ Update checks read public Release metadata without a GitHub login or token. Conn
 
 `pnpm release:windows` produces the Windows x64 portable EXE, MSI, updater signatures, `latest.json`, and `SHA256SUMS.txt`. See [development notes](docs/development.md) for debugging and regression checks, and [release rules](docs/release-rules.md) for the publishing process.
 
-macOS/Linux candidates: run `pnpm release:macos` on macOS for a Universal DMG, or `pnpm release:linux` on Linux for native-architecture AppImage, deb, and rpm packages. Outputs go to separate platform folders under `release-unix/`, with build provenance and SHA-256 checksums. A manual-only [candidate workflow](.github/workflows/unix-candidates.yml) is also prepared. Local source now handles Finder file-open events and retains requests during startup; on-device verification remains pending. macOS candidates use ad-hoc signing without notarization. Native builds and desktop checks remain pending; neither platform is publicly released or supports automatic update installation yet. See [cross-platform preparation](docs/development.md#macoslinux-候选包准备) for prerequisites and checks.
+macOS/Linux candidates: run `pnpm release:macos` on macOS for a Universal DMG, or `pnpm release:linux` on Linux for native-architecture AppImage, deb, and rpm packages. Outputs go to separate platform folders under `release-unix/`, with build provenance and SHA-256 checksums. A manual-only [candidate workflow](.github/workflows/unix-candidates.yml) is also prepared. Local source now handles Finder file-open events and retains requests during startup; on-device verification remains pending. macOS candidates use ad-hoc signing without notarization. Linux 0.2.5 is publicly available after native builds, tests and a window startup check; final Mac DMG verification is in progress. Full on-device checks and in-app update installation remain pending for both platforms. See [cross-platform preparation](docs/development.md#macoslinux-候选包准备) for prerequisites and checks.
 
 ## Project map and docs
 
@@ -219,7 +221,7 @@ macOS/Linux candidates: run `pnpm release:macos` on macOS for a Universal DMG, o
 
 Stack: Tauri v2 · Rust · TypeScript · Milkdown/Crepe · CodeMirror · KaTeX
 
-> Multiple windows and Explorer location actions passed Windows development-build checks. Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux and macOS build entry points are prepared; native builds and on-device checks remain pending.
+> Multiple windows and Explorer location actions passed Windows development-build checks. Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux native builds, tests and a window startup check passed. Final Mac package verification and full on-device checks remain pending.
 
 ## Acknowledgments and license
 

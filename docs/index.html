@@ -32,14 +32,14 @@
 <main id="main">
   <section class="hero" id="top">
     <div class="container hero-inner">
-      <p class="eyebrow">开源 · 本地优先 · Windows x64</p>
+      <p class="eyebrow">开源 · 本地优先 · 桌面三平台</p>
       <h1>打开文件，<br class="br-sm">就能开始读写。</h1>
       <p class="lead">纸间是一个面向本地文件的轻量桌面应用。Markdown 以所见即所得方式呈现，代码、配置、日志与图片也能直接查看。不需要导入，不需要账号，文件始终留在你的磁盘上。</p>
       <div class="actions">
-        <a class="btn btn-primary" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">下载 Windows 版</a>
+        <a class="btn btn-primary" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">下载 Windows / Linux 版</a>
         <a class="btn btn-ghost" href="https://github.com/baihejiangnan/PaperNest" rel="noopener noreferrer">查看源码</a>
       </div>
-      <p class="fine">便携 EXE 或 MSI 安装包 · 需要 WebView2 Runtime · MIT 许可</p>
+      <p class="fine">Windows 便携 EXE 或 MSI · Linux AppImage / deb / rpm · macOS 测试版 · MIT 许可</p>
     </div>
 
     <div class="container">
@@ -47,9 +47,9 @@
         <div class="shot-frame">
           <picture id="view-render">
             <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/main-dark.png">
-            <img src="assets/screenshots/main-light.png" width="1402" height="902" decoding="async" fetchpriority="high" alt="纸间 PaperNest 主界面：左侧是文件树，右侧是渲染后的 Markdown 文档，包含任务列表、表格、代码块和公式">
+            <img src="assets/screenshots/main-light.png" width="1402" height="952" decoding="async" fetchpriority="high" alt="纸间 PaperNest 主界面：左侧是文件树，右侧是渲染后的 Markdown 文档，包含任务列表、表格、代码块和公式">
           </picture>
-          <img id="view-source" src="assets/screenshots/markdown-source.png" width="1402" height="902" decoding="async" alt="纸间 PaperNest 的 Markdown 源码视图：带行号和语法高亮的原始文本" hidden>
+          <img id="view-source" src="assets/screenshots/markdown-source.png" width="1402" height="952" decoding="async" alt="纸间 PaperNest 的 Markdown 源码视图：带行号和语法高亮的原始文本" hidden>
         </div>
         <div class="view-toggle" role="group" aria-label="切换截图视图" hidden>
           <button type="button" data-view="render" aria-pressed="true">渲染</button>
@@ -96,19 +96,19 @@
   <section class="section section-alt" id="gallery">
     <div class="container">
       <h2>界面一览</h2>
-      <p class="section-lead">以下均为实际运行截图。点击图片可查看原始尺寸。</p>
+      <p class="section-lead">以下均为 v0.2.5 的 Windows 实际运行截图。点击图片可查看原始尺寸。</p>
       <div class="gallery">
         <figure>
-          <a href="assets/screenshots/code-json.png"><img src="assets/screenshots/code-json.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间在 Code 模式中打开 JSON 配置文件，显示行号与语法高亮"></a>
+          <a href="assets/screenshots/code-json.png"><img src="assets/screenshots/code-json.png" width="1402" height="952" loading="lazy" decoding="async" alt="纸间在 Code 模式中打开 JSON 配置文件，显示行号与语法高亮"></a>
           <figcaption>Code 模式：JSON 配置直接打开，带行号与语法高亮。</figcaption>
         </figure>
         <figure>
-          <a href="assets/screenshots/settings-editor.png"><img src="assets/screenshots/settings-editor.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间设置面板的编辑器分类，可调整阅读字体与字号"></a>
+          <a href="assets/screenshots/settings-editor.png"><img src="assets/screenshots/settings-editor.png" width="1402" height="952" loading="lazy" decoding="async" alt="纸间设置面板的编辑器分类，可调整阅读字体与字号"></a>
           <figcaption>设置：按分类调整字体、字号与编辑习惯，支持搜索。</figcaption>
         </figure>
         <figure>
-          <a href="assets/screenshots/readme-details.png"><img src="assets/screenshots/readme-details.png" width="1402" height="902" loading="lazy" decoding="async" alt="纸间打开项目 README，展开其中的文件树折叠区块，其余区块保持收起"></a>
-          <figcaption>折叠区块：支持 GitHub 风格的 &lt;details&gt;，可展开与收起。</figcaption>
+          <a href="assets/screenshots/tabs-menu.png"><img src="assets/screenshots/tabs-menu.png" width="1402" height="952" loading="lazy" decoding="async" alt="纸间标签页右键菜单，可关闭其他标签页、锁定或移动至新窗口"></a>
+          <figcaption>标签页菜单：批量关闭、锁定，或移动至独立窗口。</figcaption>
         </figure>
       </div>
     </div>
@@ -163,20 +163,25 @@
   <section class="section" id="download">
     <div class="container">
       <h2>下载</h2>
-      <p class="section-lead">当前正式发行 Windows x64 版本。两种包功能相同，按使用方式选择。</p>
-      <div class="grid grid-2">
+      <p class="section-lead">当前正式版为 v0.2.5。Windows 与 Linux 包在正式版 Releases，macOS 单独提供未公证测试版。</p>
+      <div class="grid">
         <a class="dl" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">
-          <span class="dl-kind">便携版 · EXE</span>
-          <span class="dl-desc">无需安装，解压即用，适合放在 U 盘或随项目携带。</span>
+          <span class="dl-kind">Windows x64</span>
+          <span class="dl-desc">便携 EXE 直接运行，或安装 MSI 以配置文件关联；支持应用内检查、下载和安装更新。</span>
           <span class="dl-go">前往 Releases →</span>
         </a>
         <a class="dl" href="https://github.com/baihejiangnan/PaperNest/releases/latest" rel="noopener noreferrer">
-          <span class="dl-kind">安装版 · MSI</span>
-          <span class="dl-desc">安装到系统，支持文件关联与右键“新建 MD 文件”。</span>
+          <span class="dl-kind">Linux x86_64</span>
+          <span class="dl-desc">AppImage、deb 或 rpm，按发行版选择；原生构建、测试与窗口启动检查通过。</span>
           <span class="dl-go">前往 Releases →</span>
+        </a>
+        <a class="dl" href="https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1" rel="noopener noreferrer">
+          <span class="dl-kind">macOS Universal</span>
+          <span class="dl-desc">Intel 与 Apple Silicon 共用同一 DMG；临时签名，未经 Apple 公证的测试版。</span>
+          <span class="dl-go">查看测试版 →</span>
         </a>
       </div>
-      <p class="fine">运行需要 WebView2 Runtime（Windows 10/11 通常已内置）。Linux x86_64 的 AppImage、deb、rpm 也已在 Releases 提供，macOS Universal <a href="https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1" rel="noopener noreferrer">未公证测试版</a>已提供，实机完整验收仍待进行。也可以按 README 从源码构建。</p>
+      <p class="fine">Windows 需要 WebView2 Runtime；Windows 包附带应用更新签名，各平台均提供 SHA-256 清单。Linux 与 macOS 暂不支持应用内自动安装更新，完整实机验收仍待进行。也可以按 README 从源码构建。</p>
     </div>
   </section>
 </main>

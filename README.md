@@ -11,13 +11,13 @@
 [![许可证](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
 [![平台](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
+[Windows / Linux 下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
 
 </div>
 
 ![纸间 PaperNest 浅色主界面：展开的文件树与包含任务列表、表格、代码和公式的 Markdown 文档](docs/assets/screenshots/main-light.png)
 
-*Windows 桌面实际运行界面，使用专门准备的演示文档。*
+*PaperNest v0.2.5 的 Windows 实际运行截图，使用演示文档；下方可查看深色主题、源码、JSON、设置和标签页菜单。*
 
 ---
 
@@ -46,7 +46,7 @@
 
 ## 界面预览
 
-浅色主界面见上图。以下截图展示同一份文档的不同视图，以及配置文件、设置和折叠区块。
+浅色主界面见上图。以下截图均来自 v0.2.5，使用同一组演示文件。
 
 <details>
 <summary><b>查看更多界面截图</b></summary>
@@ -75,33 +75,30 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 
 ![PaperNest 设置面板的编辑器分类](docs/assets/screenshots/settings-editor.png)
 
-### README 折叠区块
+### 标签页菜单
 
-用 PaperNest 打开项目 README，展开“文件树”说明，其余区块保持收起。
+右键标签页可批量关闭、锁定，或移动至独立窗口。锁定可防止文件树预览替换该标签。
 
-![PaperNest 打开 README 并展开文件树折叠区块](docs/assets/screenshots/readme-details.png)
+![PaperNest 标签页菜单：关闭、锁定和移动至新窗口](docs/assets/screenshots/tabs-menu.png)
 
 </details>
 
 ## 下载与安装
 
-当前正式发行 **Windows x64 与 Linux x86_64** 版本，在 [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest) 下载：
+当前正式版为 **v0.2.5**。Windows 与 Linux 包在[正式版 Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)，macOS 单独提供[未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1)。
 
-| 包类型 | 文件 | 适合 |
+| 平台 | 下载包 | 选择方式 |
 | --- | --- | --- |
-| 便携版 | `PaperNest-X.Y.Z.exe` | 免安装，放在任意目录或 U 盘中使用；数据可保存在程序旁的 `data/` 目录。 |
-| 安装版 | `PaperNest_X.Y.Z_x64.msi` | 安装到系统，配合文件关联和右键“新建 MD 文件”使用。 |
-| Linux AppImage | `PaperNest-X.Y.Z-linux-x86_64.AppImage` | Linux x86_64 可执行应用包。 |
-| Linux deb / rpm | `PaperNest-X.Y.Z-linux-x86_64.deb` / `.rpm` | 使用对应的软件包管理器安装；兼容性范围见发行说明。 |
+| Windows x64 | [便携 EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5.exe) / [安装 MSI](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest_0.2.5_x64.msi) | EXE 直接运行；MSI 适合安装到系统并配置文件关联。 |
+| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.rpm) | 按发行版选择应用包或软件包；兼容性说明见 Release。 |
+| macOS Intel / Apple Silicon | [Universal DMG 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) | 同一包包含双架构；使用临时签名，**未经过 Apple 公证**。 |
 
-- Windows 运行需要 **WebView2 Runtime**（Windows 10/11 通常已内置）。
-- 每个发行版附带 `.sig` 更新签名和 `SHA256SUMS.txt`，可用来核对文件。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
-- 自动检查更新默认关闭，可在设置中开启；只获取本项目发布并经签名验证的版本，下载和安装前仍需确认。
-- 检查更新直接读取 Release 的公开元数据，无需 GitHub 登录或 Token；连接失败时会显示具体错误，可再次检查。
-- 应用内更新会先保存阅读会话，安装完成后自动启动并恢复文件、当前标签与阅读位置；便携版在旧进程退出后打开新 EXE。更新重启也会恢复会话，不受日常“恢复上次会话”开关影响。安装取消或失败时尝试返回原程序。此修复自 v0.2.2 起发布。
-- Linux 首发包通过 Ubuntu 22.04 原生构建、54 项 Rust 测试和桌面窗口启动检查；实体桌面安装与完整功能验收仍待进行。Linux 暂不支持应用内自动安装更新。macOS Universal [未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) 已提供，实机完整验收待进行。
+- Windows 需要 **WebView2 Runtime**。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
+- 各平台均附带 SHA-256 清单；Windows EXE 与 MSI 另有应用更新签名。更新签名与系统认可的发布者证书是不同的验证方式。
+- Windows 可在“设置 → 更新”检查、下载和安装更新，无需 GitHub 登录或 Token。自动检查默认关闭，下载和安装均需确认；安装前保存阅读会话，更新后恢复。
+- Linux 与 macOS 暂不支持应用内自动安装更新，请从 Releases 手动下载。两者已通过原生构建与测试，Linux 另通过窗口启动检查，macOS 另核验了最终 DMG 的双架构和签名完整性；完整实机功能验收仍待完成。详细范围见[开发记录](docs/development.md)及 [TODO](TODO.md)。
 
-> 本项目基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发；原项目的安装包不包含这里的新增功能。
+> PaperNest 基于 [MDmeow](https://github.com/zakee039/MDmeow) 持续开发；请下载本仓库的发行包以使用这里的功能。
 
 ## 快速上手
 
@@ -125,11 +122,11 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 <details>
 <summary><b>标签页与窗口</b></summary>
 
-- 标题栏加号打开新标签页，可从空白页创建或打开文件；新增标签平滑展开，加号跟随标签末尾，空间不足时标签同步缩窄。箭头固定在窗口按钮旁，可切换、堆叠、收藏及关闭标签页。
-- 右键标签可关闭当前、其他、右侧或全部标签，锁定／取消锁定，以及移动至新窗口；右键不会切换当前文档。锁定防止文件树预览替换该页，当前运行期间有效，仍可手动关闭。移动前先保存，取消保存或创建窗口失败时保留源标签。上述标签改进自 v0.2.5 起提供。
+- 标题栏加号打开新标签页，可创建或打开文件；标签过多时自动缩窄。右侧箭头可切换、堆叠、收藏及关闭标签页。
+- 右键标签可关闭当前、其他、右侧或全部标签，锁定／取消锁定，以及移动至新窗口；右键不会切换当前文档。锁定防止文件树预览替换该页，当前运行期间有效，仍可手动关闭。移动前先保存，取消保存或创建窗口失败时保留源标签。
 - 收藏会保存有文件路径的标签页列表，之后可从箭头菜单恢复；未保存的新文件不会进入收藏。
-- “常规 → 启动时恢复阅读会话”默认开启：没有指定文件时，从快捷方式或 EXE 启动会恢复文件、活动标签、阅读位置、源码视图和项目根目录。关闭后只显示新建标签页，不加载旧文件树；指定文件启动时只打开指定文件。安装版和便携版在同一用户下共享最近会话与此开关，旧版 EXE 不支持新的共享记录。该初始化修复和共享功能随 v0.2.4 发行，v0.2.3 及更早版本不包含。
-- v0.2.5 修复：指定文件读取失败时保留旧会话；之后成功打开其他文件或另存为即可恢复记录新会话。安装器提升权限启动阅读器时，改由桌面 Explorer 以普通权限启动，保证后续双击文件能转交给已有窗口。修复和验收范围见[开发记录](docs/development.md#会话保存门闩与安装后启动权限2026-10-11本地修复)。
+- “常规 → 启动时恢复阅读会话”默认开启：直接启动时恢复文件、活动标签、阅读位置、源码视图和项目根目录。关闭后显示新建标签页；指定文件启动时打开指定文件。Windows 安装版和便携版在同一用户下共享最近会话与此开关。
+- 指定文件读取失败时保留旧会话；成功打开其他文件或另存为后继续记录。Windows 安装后通过桌面 Explorer 以普通权限启动，便于后续双击文件转交已有窗口。
 - 右键打开独立标签页时立即显示标签，读取较慢时显示“正在打开文件…”；加载期间可以切换或关闭标签页。
 - 关闭标签页、替换预览页、退出或安装更新时，如有未保存的修改，可选择“保存”“不保存”或“取消”；多个文档时为“全部保存”。保存失败或取消另存为时不会关闭任何内容。
 - “在新窗口中打开”在同一应用进程中创建只显示单个文档的窗口，不附带文件树、大纲或标签栏。
@@ -183,11 +180,9 @@ macOS 使用 `Cmd` 代替 `Ctrl`。应用级快捷键可在设置中重新绑定
 <img src="./assets/diagram.png" alt="示意图" style="zoom:50%;" data-align="center">
 ```
 
-**设置保存在本地。** 偏好和本地会话保存在 `settings.toml`，修改后即时保存。便携版可使用程序旁的 `data/` 目录，安装版使用系统用户数据目录。上述共享恢复另在用户配置目录 `PaperNest/reading-session.toml` 保存会话和恢复开关；其他外观偏好仍各自保留。滚动位置防抖保存，正常退出立即保存；直接结束进程只能恢复最近已写入的位置。手动编辑 settings.toml 导致无法解析时，启动会提示错误，原文件另存为 `settings.invalid-<时间>.toml`，并以默认设置运行。
+**设置保存在本地。** 偏好和本地会话保存在 `settings.toml`，修改后即时保存。Windows 便携版将 `settings.toml` 放在 EXE 旁，`data/` 保存 WebView2 数据与更新缓存；目录不可写时回退到用户配置目录。安装版使用系统用户配置目录。上述共享恢复另在用户配置目录 `PaperNest/reading-session.toml` 保存会话和恢复开关；其他外观偏好仍各自保留。滚动位置防抖保存，正常退出立即保存；直接结束进程只能恢复最近已写入的位置。手动编辑 settings.toml 导致无法解析时，启动会提示错误，原文件另存为 `settings.invalid-<时间>.toml`，并以默认设置运行。
 
-本地源码中的设置页已统一为分组背景、分割线与双态开关；非专用区域屏蔽浏览器原生右键菜单。正文、源码和代码块右键菜单默认隐藏快捷键，可在“常规 → 行为 → 内容区右键菜单显示快捷键”开启（`context_menu_shortcuts = false` 为默认值）。开启会增加菜单宽度，关闭不影响快捷键使用。上述界面改进自 v0.2.5 起提供。
-
-“行为”顶部四项（仅显示 Markdown、删除前询问、始终显示标签栏、启动时恢复阅读会话）默认开启；已有配置中的手动选择保留。
+**按习惯调整。** 设置按分类分组，修改即时保存。正文、源码和代码块的右键菜单默认隐藏快捷键文字；可在“常规 → 行为 → 内容区右键菜单显示快捷键”开启。
 
 **删除可以撤回。** 文件和文件夹删除会移入系统回收站；移入失败时只提示错误，不会改为永久删除。
 
@@ -206,7 +201,7 @@ pnpm tauri build      # 本机打包
 
 `pnpm release:windows` 生成 Windows x64 便携 EXE、MSI、更新签名、`latest.json` 和 `SHA256SUMS.txt`。调试方法和回归清单见 [开发说明](docs/development.md)，正式发行流程见 [推送与发行规则](docs/release-rules.md)。
 
-macOS／Linux 候选包准备：在对应系统运行 `pnpm release:macos`（Universal DMG）或 `pnpm release:linux`（本机架构的 AppImage、deb、rpm），输出至 `release-unix/` 的独立平台目录，附带构建信息和 SHA-256 清单。也已准备仅手动触发的 [候选包工作流](.github/workflows/unix-candidates.yml)。本地源码已补齐 Finder 打开文件事件和启动期间的文件请求保留，仍待目标系统验收。macOS 当前使用 ad-hoc 签名，未公证；Linux 0.2.5 已通过原生构建、测试与窗口启动检查并公开发行；macOS Universal 未公证测试版已通过最终 DMG 内双架构与签名完整性核验并公开。两平台完整实机验收及应用内自动安装更新仍未完成。依赖、运行步骤和发行前检查见[跨平台候选包准备](docs/development.md#macoslinux-候选包准备)。
+在对应系统运行 `pnpm release:macos`（Universal DMG）或 `pnpm release:linux`（本机架构的 AppImage、deb、rpm），产物写入 `release-unix/`，附带构建信息与 SHA-256 清单。也可使用手动触发的[跨平台构建工作流](.github/workflows/unix-candidates.yml)。依赖、签名和验收步骤见[跨平台开发说明](docs/development.md#macoslinux-候选包准备)。
 
 ## 项目结构与文档
 
@@ -222,8 +217,6 @@ macOS／Linux 候选包准备：在对应系统运行 `pnpm release:macos`（Uni
 | [TODO.md](TODO.md) | 待验证和待完成事项 |
 
 技术栈：Tauri v2 · Rust · TypeScript · Milkdown/Crepe · CodeMirror · KaTeX
-
-> 多窗口和资源管理器定位已在 Windows 开发版完成回归；Windows 候选发行包的剩余检查见 [TODO](TODO.md)。Linux 原生构建、测试与窗口启动检查、macOS 原生构建、测试及双架构／签名核验均通过；完整实机确认仍待执行。
 
 ## 致谢与许可
 

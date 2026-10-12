@@ -11,13 +11,13 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 [![License](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[Download](https://github.com/baihejiangnan/PaperNest/releases/latest) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
+[Windows / Linux downloads](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
 
 </div>
 
 ![PaperNest in light mode, with an expanded file tree and a Markdown document containing tasks, a table, code, and math](docs/assets/screenshots/main-light.png)
 
-*Actual Windows desktop screenshots using prepared demo documents. The interface shown is in Chinese.*
+*Actual PaperNest v0.2.5 screenshots on Windows, using demo documents and a Chinese interface. More views appear below.*
 
 ---
 
@@ -46,7 +46,7 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 
 ## Screenshots
 
-The light-mode workspace is shown above. These screenshots show alternate views of the same document, a configuration file, settings, and collapsible sections.
+The light-mode workspace is shown above. All screenshots below use v0.2.5 and the same set of demo files.
 
 <details>
 <summary><b>See more screenshots</b></summary>
@@ -75,31 +75,30 @@ Adjust reading fonts, text size, and editing preferences, or preview the current
 
 ![PaperNest settings panel showing the editor category](docs/assets/screenshots/settings-editor.png)
 
-### Collapsible README sections
+### Tab menu
 
-The project's README opened in PaperNest, with the file-tree section expanded and the other sections collapsed.
+Right-click a tab to close groups of tabs, lock it against preview replacement, or move it to a separate window.
 
-![PaperNest displaying an expanded collapsible section in the project README](docs/assets/screenshots/readme-details.png)
+![PaperNest tab menu with close, lock, and move-to-window actions](docs/assets/screenshots/tabs-menu.png)
 
 </details>
 
 ## Download and install
 
-The current release targets **Windows x64 and Linux x86_64**. Download it from [Releases](https://github.com/baihejiangnan/PaperNest/releases/latest):
+The current stable release is **v0.2.5**. Windows and Linux packages are in [stable Releases](https://github.com/baihejiangnan/PaperNest/releases/latest); macOS has a separate [unnotarized preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1).
 
-| Package | File | Best for |
+| Platform | Packages | Choose a package |
 | --- | --- | --- |
-| Portable | `PaperNest-X.Y.Z.exe` | No installation. Run from any folder or USB drive; data can live in a `data/` folder next to the executable. |
-| Installer | `PaperNest_X.Y.Z_x64.msi` | System install with file associations and the Explorer “New → MD File” entry. |
-| Linux AppImage | `PaperNest-X.Y.Z-linux-x86_64.AppImage` | Executable application bundle for Linux x86_64. |
-| Linux deb / rpm | `PaperNest-X.Y.Z-linux-x86_64.deb` / `.rpm` | Install through the corresponding package manager; see release notes for compatibility. |
+| Windows x64 | [Portable EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5.exe) / [MSI installer](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest_0.2.5_x64.msi) | Run the EXE directly, or install the MSI and configure file associations. |
+| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.rpm) | Choose for your distribution; see the release notes for compatibility. |
+| macOS Intel / Apple Silicon | [Universal DMG preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) | One package for both architectures; ad-hoc signed and **not notarized by Apple**. |
 
-- Windows requires **WebView2 Runtime** (usually preinstalled on Windows 10/11).
-- Each release includes `.sig` updater signatures and `SHA256SUMS.txt` for verification. Windows Authenticode certificate signing is not configured, so Windows may warn about an unknown publisher on first run.
-- Automatic update checks are off by default. When enabled, the app only accepts this project's signed releases and asks before downloading or installing.
-- Linux packages passed native Ubuntu 22.04 builds, 54 Rust tests and a desktop window startup check. Physical-device installation and full feature checks remain pending. Linux in-app update installation is not supported. A Universal [unnotarized macOS preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) is available; full on-device checks remain pending.
+- Windows requires **WebView2 Runtime**. Windows Authenticode certificate signing is not configured, so Windows may report an unknown publisher on first run.
+- All platforms include SHA-256 manifests. Windows EXE and MSI packages also include updater signatures; these are separate from an OS-trusted publisher certificate.
+- On Windows, use Settings → Updates to check, download, and install without a GitHub login or token. Automatic checks are off by default; downloading and installing require confirmation. The app saves the reading session before updating and restores it afterward.
+- Linux and macOS do not support in-app update installation; download new releases manually. Both passed native builds and tests. Linux also passed a window startup check; macOS passed architecture and signature checks inside the final DMG. Full on-device feature checks remain pending. See [development records](docs/development.md) and [TODO](TODO.md) for the verification scope.
 
-> PaperNest is developed on top of [MDmeow](https://github.com/zakee039/MDmeow). Upstream installers do not include this repository's additions.
+> PaperNest builds on [MDmeow](https://github.com/zakee039/MDmeow). Download this repository's packages to use the features described here.
 
 ## Getting started
 
@@ -123,8 +122,9 @@ The current release targets **Windows x64 and Linux x86_64**. Download it from [
 <details>
 <summary><b>Tabs and windows</b></summary>
 
-- The plus button opens a new tab where you can create or open a file. New tabs expand smoothly, with the plus button following the last tab and existing tabs shrinking together when space is limited. The arrow stays beside the window controls and switches, stacks, favorites, and closes tabs.
-- Right-click a tab to close it, other tabs, tabs to its right, or all tabs; lock/unlock it; or move it to a new window. Right-click keeps the current document active. Locks prevent preview replacement for the current run and still allow explicit closure. Moving saves first and retains the source if saving is cancelled or window creation fails. These tab improvements are included in v0.2.5.
+- The plus button opens a new tab for creating or opening a file. Tabs shrink when space is limited. The arrow beside the window controls switches, stacks, favorites, and closes tabs.
+- Right-click a tab to close it, other tabs, tabs to its right, or all tabs; lock/unlock it; or move it to a new window. Right-click keeps the current document active. Locks prevent preview replacement for the current run and still allow explicit closure. Moving saves first and retains the source if saving is cancelled or window creation fails.
+- Startup session restore is on by default. Launching without a file restores documents, the active tab, reading position, source view, and workspace root. Turn it off to start with a new tab; launching with a file opens that file. Windows installed and portable copies share the latest session and this preference for the same user. A failed file-open request keeps the previous session until another file opens or Save As succeeds.
 - Favorites save the list of tabs that have file paths and can be restored from the arrow menu. Unsaved new files are not included.
 - “Open in new tab” shows the tab immediately with “Opening file…” while reading. You can switch or close it during loading.
 - Closing a tab, replacing a preview tab, quitting, or installing an update with unsaved edits offers Save, Don't save, or Cancel (Save all for several documents). If saving fails or Save As is cancelled, nothing is closed.
@@ -179,15 +179,13 @@ macOS uses `Cmd` instead of `Ctrl`. App shortcuts can be rebound in Settings.
 <img src="./assets/diagram.png" alt="Diagram" style="zoom:50%;" data-align="center">
 ```
 
-**Settings stay local.** Preferences and session state are saved to `settings.toml` as they change. Portable builds can use a `data/` folder next to the executable; installed builds use the system user-data directory. If a hand edit makes the file unreadable, the app reports it at startup, keeps the original as `settings.invalid-<time>.toml`, and runs with defaults.
+**Settings stay local.** Preferences and session state are saved to `settings.toml` as they change. Windows portable builds keep `settings.toml` beside the EXE and WebView2 data and update caches in `data/`; an unwritable folder falls back to the user config directory. Installed builds use the system user config directory. Windows copies share session restore through `PaperNest/reading-session.toml` in the user config directory; other preferences stay separate. If a hand edit makes the file unreadable, the app reports it at startup, keeps the original as `settings.invalid-<time>.toml`, and runs with defaults.
 
 **Deletes can be undone.** Files and folders go to the system recycle bin. If recycling fails, the app reports the error and never falls back to permanent deletion.
 
 **No upload, no sync.** Documents are never synced to a cloud service, so back up your files and settings yourself when moving computers.
 
-Local source now uses consistent grouped settings, dividers, and two-state switches, and suppresses browser-native context menus outside dedicated app menus. Content menus in rich text, source view, and code blocks hide shortcut hints by default. Enable them under General → Behavior (`context_menu_shortcuts = false` by default); showing hints makes menus wider, while hiding them leaves keyboard bindings unchanged. These interface improvements are included in v0.2.5.
-
-The first four Behavior preferences—Markdown-only filtering, deletion confirmation, always showing the tab bar, and startup session restore—default to enabled. Existing saved choices are preserved.
+**Adjust your preferences.** Settings are grouped by category and saved immediately. Rich-text, source, and code-block context menus hide shortcut hints by default; enable them under General → Behavior → Show shortcut hints in content menus.
 
 ## Build from source
 
@@ -200,11 +198,9 @@ pnpm build            # type-check and build the frontend
 pnpm tauri build      # package locally
 ```
 
-Update checks read public Release metadata without a GitHub login or token. Connection failures remain visible so you can retry; downloaded packages still require a valid updater signature.
-
 `pnpm release:windows` produces the Windows x64 portable EXE, MSI, updater signatures, `latest.json`, and `SHA256SUMS.txt`. See [development notes](docs/development.md) for debugging and regression checks, and [release rules](docs/release-rules.md) for the publishing process.
 
-macOS/Linux candidates: run `pnpm release:macos` on macOS for a Universal DMG, or `pnpm release:linux` on Linux for native-architecture AppImage, deb, and rpm packages. Outputs go to separate platform folders under `release-unix/`, with build provenance and SHA-256 checksums. A manual-only [candidate workflow](.github/workflows/unix-candidates.yml) is also prepared. Local source now handles Finder file-open events and retains requests during startup; on-device verification remains pending. macOS candidates use ad-hoc signing without notarization. Linux 0.2.5 is publicly available after native builds, tests and a window startup check; the macOS Universal preview is public after architecture and signature checks inside the final DMG. Full on-device checks and in-app update installation remain pending for both platforms. See [cross-platform preparation](docs/development.md#macoslinux-候选包准备) for prerequisites and checks.
+On the corresponding OS, run `pnpm release:macos` for a Universal DMG or `pnpm release:linux` for native-architecture AppImage, deb, and rpm packages. Outputs go to `release-unix/` with build provenance and SHA-256 manifests. A manual [cross-platform build workflow](.github/workflows/unix-candidates.yml) is also available. See [cross-platform development notes](docs/development.md#macoslinux-候选包准备) for dependencies, signing, and verification.
 
 ## Project map and docs
 
@@ -220,8 +216,6 @@ macOS/Linux candidates: run `pnpm release:macos` on macOS for a Universal DMG, o
 | [TODO.md](TODO.md) | Items awaiting verification |
 
 Stack: Tauri v2 · Rust · TypeScript · Milkdown/Crepe · CodeMirror · KaTeX
-
-> Multiple windows and Explorer location actions passed Windows development-build checks. Remaining Windows release-candidate checks are in [TODO](TODO.md). Linux native builds, tests and a window startup check passed. Mac native builds, tests, dual-architecture and signature verification also passed. Full on-device checks remain pending.
 
 ## Acknowledgments and license
 

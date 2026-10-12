@@ -3,6 +3,12 @@ name: macOS and Linux candidates
 # Manual preparation only. Does not create tags or publish GitHub Releases.
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Committed source tag or SHA to build (empty uses workflow ref)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -31,6 +37,8 @@ jobs:
       APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref != '' && inputs.source_ref || github.ref }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -54,11 +62,12 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential curl wget file libwebkit2gtk-4.1-dev \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            patchelf rpm libfuse2 xdg-utils xvfb xdotool
+            patchelf rpm libfuse2 xdg-utils xvfb xdotool dbus-x11
 
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
 
       - run: pnpm install --frozen-lockfile
 
@@ -77,8 +86,9 @@ jobs:
         shell: bash
         env:
           WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          NO_AT_BRIDGE: "1"
         run: |
-          xvfb-run -a bash -euo pipefail <<'SMOKE'
+          dbus-run-session -- xvfb-run -a bash -euo pipefail <<'SMOKE'
           src-tauri/target/release/PaperNest > linux-startup.log 2>&1 &
           app_pid=$!
           trap 'kill "$app_pid" 2>/dev/null || true' EXIT
@@ -110,7 +120,7 @@ jobs:
         shell: bash
         run: |
           app="src-tauri/target/universal-apple-darwin/release/bundle/macos/PaperNest.app"
-          lipo -verify_arch x86_64 arm64 "$app/Contents/MacOS/PaperNest"
+          lipo "$app/Contents/MacOS/PaperNest" -verify_arch x86_64 arm64
           codesign --verify --deep --strict --verbose=2 "$app"
 
       - uses: actions/upload-artifact@v4

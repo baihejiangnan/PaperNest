@@ -505,3 +505,16 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 ### 0.2.5 发布前检查
 
 发行源码为 `6459f25057310ea0eff0cac593c41ed9a62d833b`。该源码前端生产构建与全部六组脚本测试通过；Rust `--locked --lib` 为 62 通过、6 显式忽略、0 失败。新公开仓库贡献者 API 仅返回 baihejiangnan，初始两次提交均为本人作者且无共同作者尾注。新 origin/main 与发行分支首次推送均指向该提交。已启用 Actions Pages 部署，保持原项目介绍页 URL；首次新仓库推送未自动运行日常工作流，本记录推送继续触发检查。原生候选构建运行 ID 为 `38200167089`，Windows 本地签名构建进行中，本条不代表发行完成。
+
+### Windows 0.2.5 正式发行与桌面核验
+
+[公开 Release](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.5) ID 为 410132948，非草稿、非预发布且为 latest。附注标签 v0.2.5 解引用为发行源码 6459f25057310ea0eff0cac593c41ed9a62d833b；main 和发行分支继续包含该提交，后续提交仅记录证据或修复原生验证工作流，不移动发行标签。
+
+- 本地签名构建退出 0，Result: PASS。MSI 关联动作与顺序、EXE/MSI 内嵌公钥验签与篡改拒绝均通过；没有上传私钥到 GitHub Secrets。Windows EXE SHA-256 为 3e9fabdd5a267bdafa31ca7398679fba233e48f4264f2f50f57da868688cc286；MSI 为 65cd2a6fb7327c3914a67da988fab6ceefd7913eb00685c2e2310c11ab54b693。
+- 草稿六资产的 uploaded 状态、size 和 GitHub digest 一致；公开后匿名下载全部六文件，逐项 SHA-256 一致，SHA256SUMS.txt、两个平台 URL／签名／size 和 latest/download/latest.json 检查通过。公开更新联网测试输出本次 0.2.5 的 installed 与 portable 两个 PASS，包括实际下载、内嵌公钥验签和篡改拒绝。
+- 真实旧 0.2.4 安装版与便携版均发现 0.2.5，分别下载 MSI 与 EXE 并验签，显示“准备安装”／“已下载到当前程序目录”；下载文件哈希与本次资产一致。旧便携 EXE 哈希与私人旧仓库 v0.2.4 资产一致，未把最新源码模拟为旧客户端。
+- 以字节一致的最终便携 EXE 在独立配置目录实测 Markdown 标题／任务／表格／代码渲染、相对图片、源码切换、中文输入与 Ctrl+S 磁盘保存、标签菜单与锁定。正常退出后不传参数重启，恢复测试文档、源码视图、项目根目录和 108 px 阅读位置，中文保存标记仍在；锁定仅当前运行有效。关于页版本为 0.2.5。测试后恢复原安装版运行。
+- [日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/38200319941) 通过；[发行工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/38200967612) 版本检查成功，云端构建与 publish 根据 RELEASE_PUBLISHER=local 跳过；[Pages](https://github.com/baihejiangnan/PaperNest/actions/runs/38200216506) 部署通过，原介绍页匿名可访问。新仓库 push 未自动触发，已提供手动 CI 入口并实际运行。
+- 额外 Explorer 桌面用户启动交接集成测试通过。本次未执行真实 MSI 覆盖安装／卸载、交互 UAC 拒绝或提升权限升级后的文件转发，不能将下载与逻辑测试等同于这些完整链路。
+
+首轮原生任务 38200167089 的两系统打包与 Rust 测试通过，但 Linux 启动检查在共享桌面会话提前退出，macOS lipo 参数顺序错误；因此未发布该轮候选。后续工作流改为独立 DBus/Xvfb 会话并修正 lipo 参数，新增 source_ref 输入，将构建源码固定到 v0.2.5。重跑任务为 38200965427。

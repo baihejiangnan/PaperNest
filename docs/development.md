@@ -21,7 +21,7 @@
 - 公开更新联网集成测试：命令与通过条件见[公开更新入口验证](#公开更新入口验证)；常规 CI 默认跳过，不安装或启动下载程序。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
-- [CI 工作流](../.github/workflows/ci.yml)：push 与 PR 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、六个 `pnpm test:*` 与 `cargo test --locked --lib`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
+- [CI 工作流](../.github/workflows/ci.yml)：push、PR 与 workflow_dispatch 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、六个 `pnpm test:*` 与 `cargo test --locked --lib`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
 - `pnpm release:windows`：Windows x64 EXE/MSI、更新签名、元数据及 SHA-256 清单。脚本检查 MSI 实际关联动作与执行顺序，并通过应用内嵌公钥检查两个产物的有效签名及篡改拒绝；CI 再核对完整六文件集合和校验和。[正式发行工作流](../.github/workflows/release.yml) 仍仅用于 Windows；Linux/macOS 候选包入口见下节。
 
 如果已经有开发实例占用 Vite 端口或单实例锁，先确认该实例及未保存内容，再重启开发命令。不要用旧的 `target/debug` 可执行文件来判断新改动是否生效；Rust 改动需要完成重新编译。
@@ -44,7 +44,7 @@
 
 ## macOS／Linux 候选包准备
 
-当前只准备候选构建，不代表已在目标系统运行成功。Windows 主机不能直接运行两个发行命令；脚本在修改构建输出前检查平台、架构与四处应用版本。当前源码含尚未提交的 Windows 修复，远端旧提交不能替代本地工作区。正式发行另按[发行规则](release-rules.md#7-macoslinux-候选包与正式发行边界)推进。
+Windows/Linux 0.2.5 正式包与 macOS Universal 未公证测试 DMG 已公开，原生构建／测试和资产核验结果见本文末的发行记录；完整实机功能验收仍待进行。Windows 主机不能直接运行两个 Unix 发行命令；脚本在修改构建输出前检查平台、架构与四处应用版本。工作流支持 source_ref 固定发行源码，以及 platform 单独重跑指定平台；构建结果仍先进入 Artifacts，再按[发行规则](release-rules.md#7-macoslinux-候选包与正式发行边界)核验发布。
 
 | 入口 | 构建环境 | 产物目录与包 |
 | --- | --- | --- |
@@ -526,3 +526,11 @@ Windows 上资源管理器与文件关联的结果不能替代 Linux/macOS 检�
 向 v0.2.5 追加三个全新 Linux 包及独立构建信息／校验和，原 Windows 六资产未覆盖。公开下载全部 11 个资产并逐项核对大小、GitHub digest、SHA-256、两份清单及原 Windows 更新入口通过。AppImage 85895672 字节，SHA-256 c72659d7bcace649e12bc32e0ecee8b94196952383f9fd63ddc045eaaeb1d914；deb 为 5370eea6b219246ada66a2085dc5fbdfe22c1c91f9da7bd840aa1357eb282d82；rpm 为 2ee315137d4bdd63613033ea04a0d04cafd12b7e19c0faf17232b6c63ec79876。较大文件首次下载连接重置，启用重试后完整匿名下载核对成功，没有关闭 TLS 校验。
 
 Linux 的实体桌面安装／卸载、完整读写、会话、窗口、回收站及导出仍待验证，其他发行版与 arm64 未验证。macOS 第二轮的打包／原生测试通过，但 Tauri 在生成 DMG 后清理中间 .app，验证路径因而不存在；工作流改为只读挂载最终 DMG，并以任务 38201724900 单独重跑 Mac，源码仍固定为 v0.2.5。
+
+### macOS 0.2.5 未公证测试发行
+
+[macos-v0.2.5-preview.1](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) 已公开为 prerelease（ID 410145973），不会成为 latest。附注标签和 Windows v0.2.5 同样指向发行源码 6459f25057310ea0eff0cac593c41ed9a62d833b。任务 [38201724900](https://github.com/baihejiangnan/PaperNest/actions/runs/38201724900) 成功，直接从固定标签构建；六组脚本测试、前端构建、54 项原生 Rust 测试（2 项忽略）通过。
+
+只读挂载最终 DMG，lipo 确认 x86_64 与 arm64，codesign --verify --deep --strict 返回 valid on disk / satisfies its Designated Requirement。此项验证临时签名完整性，不表示 Developer ID、公证或下载后 Gatekeeper 验收。构建信息明确 signing=ad-hoc、notarized=false、dirty=false。DMG 为 12131882 字节，SHA-256 b65c09b422c8ea19cef15564456b81374cdb5a819b70561cace36a206985f339。
+
+草稿三资产的 uploaded 状态、大小和 GitHub digest 通过；公开后匿名下载 DMG、build-info.json 与 SHA256SUMS.txt，逐项 SHA-256 和清单验证通过。发布后再次确认 latest 仍是非预发布的 v0.2.5，Windows 更新入口不变。Mac 实机安装／卸载、Finder 双击、保存、窗口、拖放、回收站和导出仍未完成；最低系统版本未实机验证。正式 Mac 包仍需 Developer ID／公证。

@@ -1,5 +1,7 @@
 # 当前任务与验证
 
+当前发行：[Windows/Linux 0.2.5](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.5) 与 [macOS 未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1)。Windows 最终 EXE 已实测渲染、中文保存、标签锁定及无参数重启恢复；旧 0.2.4 安装／便携两模式均检查并下载验签通过。本次未执行完整 MSI 覆盖安装／卸载，以下未完成的桌面与平台检查继续保留。
+
 这里记录尚需行动的项目事项，不替代源码或 [README](README.md) 的当前功能说明。完成一项后删除或更新其状态，避免让旧的验证记录看起来仍是新问题。
 
 | 优先级 | 事项 | 当前状态与完成条件 |
@@ -18,7 +20,7 @@
 | 待完成 | 文件命令路径范围 | `read_document`、`write_document`、`read_image_data_url` 与工作区命令仍接受前端传入的任意路径。导出清洗与无脚本打印框架已切断“恶意文档 → 脚本 → IPC”链路，但仍需按已打开文件、工作区与对话框选择维护允许范围，并覆盖拖放、命令行参数、链接跳转与会话恢复入口。 |
 | 待验证 | 导出安全改动的桌面补测 | WebView2 中 CSP、无脚本打印框架、导出清洗、设置损坏提示与围栏保存已实测（见 [开发说明](docs/development.md)）。仍需人工确认系统打印对话框与实际 PDF 外观、深色主题下导出、远程图片代理开关两种情况下的显示。 |
 | 待完成 | Rust 测试使用全局临时目录 | 部分测试（`assets`、`commands`、`delete_info`、`export`、`recycle`、`workspace`）直接写 `std::env::temp_dir()` 根目录；新测试已改用 `tempfile::tempdir()`。受限环境中可设 `TEMP`/`TMP` 到工作区目录运行。 |
-| 待完成 | Linux/macOS 原生候选构建与发行验收 | 已准备手动候选工作流（Ubuntu 22.04 x64、macOS Universal）、独立产物目录、源码状态和 SHA-256 清单；macOS 文件定位已改用 `open -R`／`open`。详见[开发说明](docs/development.md#macoslinux-候选包准备)。当前仅在 Windows 检查脚本与现有功能，尚未执行原生工作流／生成这两种系统包。待在目标系统核对安装／卸载、读写／保存、会话、回收站、窗口、拖放、定位和导出；Mac 双架构与最低版本、Linux 发行版兼容性分别记录。macOS 正式包另需 Developer ID／公证；跨平台自动更新未实现。 |
-| 待验证 | macOS Finder 双击与单实例文件交接 | 本地源码已接入 macOS `RunEvent::Opened`、后端请求队列与主窗口串行消费；补齐前端就绪前请求保留、多文件参数及转发相对路径按发起进程目录解析。前端逻辑测试与 3 项 Rust 文件交接测试通过，详见[开发说明](docs/development.md#原生文件打开交接2026-10-11本地修复)。尚未发行；待 macOS 冷启动／已运行／多文件／中文与空格路径、Linux 双击／跨目录命令行和实际桌面会话恢复验收。仅配置 bundle 文件关联或 Windows 测试不能视为原生功能通过。 |
+| 待验证 | Linux/macOS 实机功能与 Mac 正式签名 | Linux 0.2.5 AppImage／deb／rpm 与 macOS Universal 未公证测试 DMG 已公开；同源原生构建、各 54 项 Rust 测试、SHA-256 与匿名下载核验通过。Linux 可见窗口启动、Mac 最终 DMG 内双架构与 ad-hoc 签名完整性检查通过。详见[发行记录](docs/development.md)。仍待实体系统安装／卸载、读写／保存、会话、回收站、窗口、拖放、定位和导出；Mac 最低系统版本、Linux 其他发行版及 arm64 未验证。Mac 正式包另需 Developer ID／公证；Unix 应用内自动安装更新未实现。 |
+| 待验证 | macOS Finder 双击与单实例文件交接 | 本地源码已接入 macOS `RunEvent::Opened`、后端请求队列与主窗口串行消费；补齐前端就绪前请求保留、多文件参数及转发相对路径按发起进程目录解析。前端逻辑测试与 3 项 Rust 文件交接测试通过，详见[开发说明](docs/development.md#原生文件打开交接2026-10-11本地修复)。已纳入 0.2.5 Mac 测试版；待 macOS 冷启动／已运行／多文件／中文与空格路径、Linux 双击／跨目录命令行和实际桌面会话恢复验收。仅配置 bundle 文件关联或 Windows 测试不能视为原生功能通过。 |
 
-Windows P0/P1 回归及 v0.1.0 正式发行已完成；[v0.2.3 更新检查测试发行](https://github.com/baihejiangnan/PaperNest--old/releases/tag/v0.2.3) 曾公开为 latest，仅把四处应用版本从 0.2.2 递增到 0.2.3，功能与 0.2.2 相同。本次 [v0.2.4 发行](https://github.com/baihejiangnan/PaperNest--old/releases/tag/v0.2.4) 在其之上包含启动会话覆盖修复与跨 EXE 共享阅读记录；旧 v0.2.3 发行与标签保持不动。证据、公开核验与仍未验证的实机链路见 [开发说明](docs/development.md#windows-v024-发行构建2026-10-10)。
+Windows P0/P1 回归及 v0.1.0 正式发行已完成；[v0.2.3 更新检查测试发行](https://github.com/baihejiangnan/PaperNest--old/releases/tag/v0.2.3) 曾公开为 latest，仅把四处应用版本从 0.2.2 递增到 0.2.3，功能与 0.2.2 相同。此前 [v0.2.4 发行](https://github.com/baihejiangnan/PaperNest--old/releases/tag/v0.2.4) 在其之上包含启动会话覆盖修复与跨 EXE 共享阅读记录；旧 v0.2.3 发行与标签保持不动。证据、公开核验与仍未验证的实机链路见 [开发说明](docs/development.md#windows-v024-发行构建2026-10-10)。

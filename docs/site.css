@@ -1,0 +1,149 @@
+/* 纸间 PaperNest 项目介绍页。配色沿用应用的 Obsidian 中性色与紫色强调色（docs/design.md）。 */
+:root{
+  --bg:#ffffff;--bg-alt:#f6f6f6;--surface:#ffffff;--surface-2:#f6f6f6;--hover:#efefef;
+  --fg:#222222;--muted:#5c5c5c;--border:#e4e4e4;
+  --accent:#8a5cf5;--accent-strong:#7247e0;--accent-fg:#ffffff;--accent-soft:#8a5cf51a;
+  --success:#1f9d55;--warning:#b7791f;
+  --shadow:0 1px 2px #0000000d,0 12px 40px #00000014;
+  --radius:12px;--container:1120px;
+  --font:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Code",Consolas,"SFMono-Regular",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1c1c;--bg-alt:#202020;--surface:#282828;--surface-2:#232323;--hover:#333333;
+    --fg:#dadada;--muted:#b3b3b3;--border:#3f3f3f;
+    --accent-strong:#a07cf7;--accent-soft:#8a5cf526;
+    --success:#44c47d;--warning:#e0a84a;
+    --shadow:0 1px 2px #00000040,0 16px 48px #00000059;
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 var(--font);-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+[hidden]{display:none!important}
+a{color:var(--accent-strong);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.01em}
+h2{font-size:clamp(26px,3vw,34px);font-weight:700}
+h3{font-size:17px;font-weight:600}
+p{margin:0}
+code,kbd{font-family:var(--mono);font-size:.88em}
+code{padding:1px 6px;border-radius:4px;background:var(--hover)}
+kbd{display:inline-block;min-width:24px;padding:1px 7px;border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;background:var(--surface);color:var(--fg);text-align:center;line-height:1.6}
+.container{width:min(100% - 32px,var(--container));margin-inline:auto}
+.skip-link{position:absolute;left:16px;top:-48px;padding:8px 12px;border-radius:6px;background:var(--accent);color:var(--accent-fg);z-index:30}
+.skip-link:focus{top:12px}
+
+/* 顶栏 */
+.site-header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:saturate(1.4) blur(12px);border-bottom:1px solid var(--border)}
+.header-inner{height:60px;display:flex;align-items:center;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--fg);font-size:16px}
+.brand:hover{text-decoration:none}
+.brand img{width:28px;height:28px;border-radius:6px}
+.brand b{font-weight:600}
+.nav{display:flex;gap:4px;margin-left:auto}
+.nav a{padding:6px 12px;border-radius:6px;color:var(--muted);font-size:14px}
+.nav a:hover{background:var(--hover);color:var(--fg);text-decoration:none}
+
+/* 按钮 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:8px;border:1px solid transparent;font-size:15px;font-weight:600;transition:background .14s,border-color .14s,color .14s}
+.btn:hover{text-decoration:none}
+.btn-sm{height:34px;padding:0 14px;font-size:14px}
+.btn-primary{background:var(--accent);color:var(--accent-fg)}
+.btn-primary:hover{background:var(--accent-strong)}
+.btn-ghost{border-color:var(--border);color:var(--fg);background:var(--surface)}
+.btn-ghost:hover{background:var(--hover)}
+
+/* 首屏 */
+.hero{padding:80px 0 64px;background:radial-gradient(60% 50% at 50% 0%,var(--accent-soft),transparent 70%)}
+.hero-inner{text-align:center;max-width:780px}
+.eyebrow{display:inline-block;margin-bottom:20px;padding:4px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--muted);font-size:13px}
+.hero h1{font-size:clamp(36px,6vw,60px);font-weight:750;letter-spacing:-.02em}
+.br-sm{display:none}
+.lead{margin:20px auto 0;max-width:640px;color:var(--muted);font-size:clamp(16px,1.6vw,18px)}
+.actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:32px}
+.fine{margin-top:16px;color:var(--muted);font-size:13px}
+
+/* 界面截图 */
+.shot-hero{margin:56px 0 0}
+.shot-frame{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.shot-frame img{width:100%;height:auto}
+.view-toggle{display:flex;width:max-content;margin:20px auto 0;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}
+.view-toggle button{height:34px;min-width:72px;padding:0 16px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+.view-toggle button:hover{color:var(--fg)}
+.view-toggle button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px #0000001f}
+.shot-note{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:40px}
+.gallery figure{margin:0}
+.gallery a{display:block;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;transition:border-color .14s,box-shadow .14s}
+.gallery a:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.gallery img{width:100%;height:auto}
+.gallery figcaption{margin-top:12px;color:var(--muted);font-size:14px}
+
+/* 通用区块 */
+.section{padding:88px 0}
+.section-alt{background:var(--bg-alt);border-block:1px solid var(--border)}
+.section-lead{margin-top:12px;max-width:620px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:40px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{padding:24px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);transition:border-color .14s}
+.card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}
+.card h3::before{content:"";display:block;width:28px;height:4px;margin-bottom:16px;border-radius:2px;background:var(--accent)}
+.card p,.point p{margin-top:8px;color:var(--muted);font-size:15px}
+.point{padding-top:16px;border-top:2px solid var(--accent)}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:start}
+
+/* 文件类型 */
+.filetypes{display:grid;gap:12px;margin:0}
+.filetypes>div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:16px 20px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.filetypes dt{font-weight:600}
+.filetypes dd{margin:0;color:var(--muted);font:14px var(--mono);text-align:right}
+
+/* 快捷键 */
+.keys{width:100%;border-collapse:collapse;font-size:15px}
+.keys th,.keys td{padding:12px 4px;border-bottom:1px solid var(--border);text-align:left}
+.keys th{font-weight:500}
+.keys td{text-align:right;white-space:nowrap}
+.keys tr:first-child th,.keys tr:first-child td{border-top:1px solid var(--border)}
+
+/* 下载 */
+.dl{display:flex;flex-direction:column;gap:8px;padding:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--fg);transition:border-color .14s,box-shadow .14s}
+.dl:hover{text-decoration:none;border-color:var(--accent);box-shadow:var(--shadow)}
+.dl-kind{font-size:20px;font-weight:700}
+.dl-desc{color:var(--muted)}
+.dl-go{margin-top:8px;color:var(--accent-strong);font-weight:600}
+#download .fine{margin-top:24px}
+
+/* 页脚 */
+.site-footer{padding:32px 0;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+.footer-inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px}
+.site-footer a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.site-footer a:hover{color:var(--fg)}
+
+@media (max-width:900px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .split{grid-template-columns:1fr;gap:32px}
+  .gallery{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .nav{display:none}
+  .header-inner .btn{margin-left:auto}
+  .hero{padding:56px 0 48px}
+  .shot-hero{margin-top:40px}
+  .br-sm{display:inline}
+  .actions .btn{flex:1 1 100%}
+  .grid,.grid-2{grid-template-columns:1fr}
+  .section{padding:64px 0}
+  .filetypes>div{flex-direction:column;gap:4px}
+  .filetypes dd{text-align:left}
+  .keys td{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important}
+}

@@ -1,0 +1,53 @@
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules
+dist
+dist-ssr
+/release/
+/release.__staging/
+/release-unix/
+/.playwright-cli/
+/.build-tmp/
+/.pnpm-store/
+coverage/
+output/playwright/
+output/tmp/
+*.local
+
+# Local git backups
+*.bundle
+
+# Temporary / backup files
+*.tmp
+*.temp
+*.bak
+*.orig
+*~
+
+# Portable runtime data (created next to the executable at runtime)
+/settings.toml
+/data/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.workbuddy-ai/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

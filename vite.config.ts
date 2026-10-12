@@ -1,0 +1,38 @@
+import { defineConfig } from "vite";
+
+// @ts-expect-error process is a nodejs global
+const host = process.env.TAURI_DEV_HOST;
+
+// https://vite.dev/config/
+export default defineConfig(async () => ({
+  clearScreen: false,
+  // CodeMirror language packages may pull a second copy of @lezer/highlight
+  // through pnpm. Lezer NodeProp identities must be shared, otherwise parsers
+  // still parse correctly but syntax-highlighting tags become invisible to
+  // @codemirror/language. Force the whole browser bundle onto the root copy.
+  resolve: {
+    dedupe: ["@lezer/highlight"],
+  },
+  // Env vars starting with these prefixes are exposed to the client.
+  envPrefix: ["VITE_", "TAURI_ENV_"],
+  build: {
+    // The bundled system WebViews are all evergreen Chromium / WebKit.
+    target: ["es2022", "chrome110", "safari15"],
+    chunkSizeWarningLimit: 2000,
+  },
+  server: {
+    port: 1420,
+    strictPort: true,
+    // Keep the default on IPv4: Node may bind localhost to ::1 while Tauri's
+    // readiness probe connects to 127.0.0.1, leaving desktop dev startup waiting.
+    host: host || "127.0.0.1",
+    hmr: host
+      ? { protocol: "ws", host, port: 1421 }
+      : undefined,
+    watch: {
+      // Windows build/test scratch files can be locked while created. They are
+      // not frontend sources and must not crash the development watcher.
+      ignored: ["**/src-tauri/**", "**/output/tmp/**", "**/.build-tmp/**"],
+    },
+  },
+}));

@@ -1,0 +1,161 @@
+{
+  "checks": [
+    {
+      "name": "A full UI renders offline",
+      "pass": true
+    },
+    {
+      "name": "rail order and gear entry",
+      "pass": true
+    },
+    {
+      "name": "A font control updates sample",
+      "pass": true
+    },
+    {
+      "name": "A settings search spans categories",
+      "pass": true
+    },
+    {
+      "name": "A dark theme changes surface",
+      "pass": true
+    },
+    {
+      "name": "proxy address enabled after toggle",
+      "pass": true
+    },
+    {
+      "name": "A update layout interacts locally",
+      "pass": true
+    },
+    {
+      "name": "association selection count",
+      "pass": true
+    },
+    {
+      "name": "shortcut recorder",
+      "pass": true
+    },
+    {
+      "name": "close preview panel",
+      "pass": true
+    },
+    {
+      "name": "gear reopens preview",
+      "pass": true
+    },
+    {
+      "name": "b loads offline",
+      "pass": true
+    },
+    {
+      "name": "b general category",
+      "pass": true
+    },
+    {
+      "name": "b editor category",
+      "pass": true
+    },
+    {
+      "name": "b shortcuts category",
+      "pass": true
+    },
+    {
+      "name": "b associations category",
+      "pass": true
+    },
+    {
+      "name": "b updates category",
+      "pass": true
+    },
+    {
+      "name": "b dark theme",
+      "pass": true
+    },
+    {
+      "name": "b escape dismisses",
+      "pass": true
+    },
+    {
+      "name": "c loads offline",
+      "pass": true
+    },
+    {
+      "name": "c general category",
+      "pass": true
+    },
+    {
+      "name": "c editor category",
+      "pass": true
+    },
+    {
+      "name": "c shortcuts category",
+      "pass": true
+    },
+    {
+      "name": "c associations category",
+      "pass": true
+    },
+    {
+      "name": "c updates category",
+      "pass": true
+    },
+    {
+      "name": "c dark theme",
+      "pass": true
+    },
+    {
+      "name": "C document remains visible with font sample",
+      "pass": true
+    },
+    {
+      "name": "c escape dismisses",
+      "pass": true
+    },
+    {
+      "name": "a narrow viewport bounds",
+      "pass": true
+    },
+    {
+      "name": "a narrow main page has no overflow",
+      "pass": true
+    },
+    {
+      "name": "a narrow all editor controls reachable",
+      "pass": true
+    },
+    {
+      "name": "b narrow viewport bounds",
+      "pass": true
+    },
+    {
+      "name": "b narrow main page has no overflow",
+      "pass": true
+    },
+    {
+      "name": "b narrow all editor controls reachable",
+      "pass": true
+    },
+    {
+      "name": "c narrow viewport bounds",
+      "pass": true
+    },
+    {
+      "name": "c narrow main page has no overflow",
+      "pass": true
+    },
+    {
+      "name": "c narrow all editor controls reachable",
+      "pass": true
+    },
+    {
+      "name": "comparison page contains three preview routes",
+      "pass": true
+    },
+    {
+      "name": "comparison thumbnails load",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

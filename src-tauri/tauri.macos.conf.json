@@ -1,0 +1,17 @@
+{
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "targets": ["dmg"],
+    "macOS": {
+      "signingIdentity": "-"
+    },
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "mdx"],
+        "name": "Markdown Document",
+        "description": "Markdown document",
+        "role": "Editor"
+      }
+    ]
+  }
+}

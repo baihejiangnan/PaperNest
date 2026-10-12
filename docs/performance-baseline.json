@@ -1,0 +1,892 @@
+{
+  "date": "2026-10-01",
+  "baselineCommit": "8a5416b493c8ad9306570e0c2fb940b7ea8e380f",
+  "machine": {
+    "cpu": "Intel Core i7-13650HX",
+    "os": "Windows 11 10.0.22631",
+    "visibleMemoryKiB": 33231568,
+    "node": "24.19.0",
+    "milkdown": "7.22.1"
+  },
+  "browserComponents": {
+    "scope": "Chromium frontend components; fixed baseline commit vs working tree; IPC excluded",
+    "samples": 30,
+    "editing": [
+      {
+        "variant": "before",
+        "bytes": 10240,
+        "coldInitMs": 500.80000000447035,
+        "callbackMs": {
+          "n": 30,
+          "median": 1.2000000029802322,
+          "p95": 2.600000001490116,
+          "max": 5.800000004470348
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 213.59999999403954,
+          "p95": 222.60000000149012,
+          "max": 233.89999999850988
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 1.2000000029802322,
+          "p95": 2.4000000059604645,
+          "max": 5.800000004470348
+        },
+        "extraReads": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "peakJsHeapBytes": 32112438
+      },
+      {
+        "variant": "before",
+        "bytes": 512000,
+        "coldInitMs": 984.5,
+        "callbackMs": {
+          "n": 30,
+          "median": 58.29999999701977,
+          "p95": 66.79999999701977,
+          "max": 69.29999999701977
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 295.80000000447035,
+          "p95": 319.8999999985099,
+          "max": 332.20000000298023
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 58.29999999701977,
+          "p95": 66.79999999701977,
+          "max": 69.29999999701977
+        },
+        "extraReads": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "peakJsHeapBytes": 74054269
+      },
+      {
+        "variant": "before",
+        "bytes": 2097152,
+        "coldInitMs": 2603.8000000044703,
+        "callbackMs": {
+          "n": 30,
+          "median": 308.6000000014901,
+          "p95": 353.79999999701977,
+          "max": 401.20000000298023
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 686.6000000014901,
+          "p95": 768.2000000029802,
+          "max": 791.5
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 308.6000000014901,
+          "p95": 353.79999999701977,
+          "max": 401.20000000298023
+        },
+        "extraReads": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "peakJsHeapBytes": 110097756
+      },
+      {
+        "variant": "after",
+        "bytes": 10240,
+        "coldInitMs": 450.5,
+        "callbackMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 211.60000000149012,
+          "p95": 226.19999999552965,
+          "max": 237.79999999701977
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "extraReads": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "peakJsHeapBytes": 42390252
+      },
+      {
+        "variant": "after",
+        "bytes": 512000,
+        "coldInitMs": 1025.3999999985099,
+        "callbackMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0.10000000149011612
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 246.10000000149012,
+          "p95": 259.8999999985099,
+          "max": 261.79999999701977
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "extraReads": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "peakJsHeapBytes": 62820253
+      },
+      {
+        "variant": "after",
+        "bytes": 2097152,
+        "coldInitMs": 2530.1999999955297,
+        "callbackMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "inputToCallbackMs": {
+          "n": 30,
+          "median": 359.40000000596046,
+          "p95": 388.69999999552965,
+          "max": 420.19999999552965
+        },
+        "extraSerializeMs": {
+          "n": 30,
+          "median": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "extraReads": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "peakJsHeapBytes": 131216923
+      }
+    ],
+    "images": [
+      {
+        "variant": "before",
+        "count": 0,
+        "loadScans": 2,
+        "loadScanMs": 0,
+        "selectionMs": {
+          "n": 30,
+          "median": 0.5,
+          "p95": 0.7000000029802322,
+          "max": 0.7000000029802322
+        },
+        "selectionScans": 30,
+        "selectionScanMs": 0.30000000447034836,
+        "properties": false,
+        "peakJsHeapBytes": 56526059
+      },
+      {
+        "variant": "before",
+        "count": 20,
+        "loadScans": 2,
+        "loadScanMs": 0.19999999552965164,
+        "selectionMs": {
+          "n": 30,
+          "median": 0.6999999955296516,
+          "p95": 0.8999999985098839,
+          "max": 0.9000000059604645
+        },
+        "selectionScans": 30,
+        "selectionScanMs": 4.699999995529652,
+        "properties": true,
+        "peakJsHeapBytes": 62139549
+      },
+      {
+        "variant": "before",
+        "count": 200,
+        "loadScans": 2,
+        "loadScanMs": 1.5,
+        "selectionMs": {
+          "n": 30,
+          "median": 1.5,
+          "p95": 2.3000000044703484,
+          "max": 2.399999998509884
+        },
+        "selectionScans": 30,
+        "selectionScanMs": 32.900000013411045,
+        "properties": true,
+        "peakJsHeapBytes": 63503648
+      },
+      {
+        "variant": "after",
+        "count": 0,
+        "loadScans": 2,
+        "loadScanMs": 0,
+        "selectionMs": {
+          "n": 30,
+          "median": 0.3999999985098839,
+          "p95": 0.6000000014901161,
+          "max": 1
+        },
+        "selectionScans": 0,
+        "selectionScanMs": 0,
+        "properties": false,
+        "peakJsHeapBytes": 102340512
+      },
+      {
+        "variant": "after",
+        "count": 20,
+        "loadScans": 2,
+        "loadScanMs": 0.3999999985098839,
+        "selectionMs": {
+          "n": 30,
+          "median": 0.4000000059604645,
+          "p95": 0.6999999955296516,
+          "max": 1.1000000014901161
+        },
+        "selectionScans": 0,
+        "selectionScanMs": 0,
+        "properties": true,
+        "peakJsHeapBytes": 107880804
+      },
+      {
+        "variant": "after",
+        "count": 200,
+        "loadScans": 2,
+        "loadScanMs": 1.6000000014901161,
+        "selectionMs": {
+          "n": 30,
+          "median": 0.5,
+          "p95": 1,
+          "max": 1
+        },
+        "selectionScans": 0,
+        "selectionScanMs": 0,
+        "properties": true,
+        "peakJsHeapBytes": 106074605
+      }
+    ],
+    "restore": [
+      {
+        "variant": "before",
+        "count": 1,
+        "restoreMs": {
+          "n": 30,
+          "median": 0.3999999985098839,
+          "p95": 0.7000000029802322,
+          "max": 1
+        },
+        "contentReads": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "restoredActive": "image-0.png",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 64796544
+      },
+      {
+        "variant": "before",
+        "count": 20,
+        "restoreMs": {
+          "n": 30,
+          "median": 4.799999997019768,
+          "p95": 5.799999997019768,
+          "max": 5.800000004470348
+        },
+        "contentReads": [
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41
+        ],
+        "restoredActive": "file-1.md",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 69009632
+      },
+      {
+        "variant": "before",
+        "count": 50,
+        "restoreMs": {
+          "n": 30,
+          "median": 24.80000000447035,
+          "p95": 27.69999999552965,
+          "max": 80.60000000149012
+        },
+        "contentReads": [
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101,
+          101
+        ],
+        "restoredActive": "file-1.md",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 84996100
+      },
+      {
+        "variant": "after",
+        "count": 1,
+        "restoreMs": {
+          "n": 30,
+          "median": 0.30000000447034836,
+          "p95": 0.5,
+          "max": 0.6000000014901161
+        },
+        "contentReads": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "restoredActive": "image-0.png",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 107679504
+      },
+      {
+        "variant": "after",
+        "count": 20,
+        "restoreMs": {
+          "n": 30,
+          "median": 4.200000002980232,
+          "p95": 4.899999998509884,
+          "max": 5.200000002980232
+        },
+        "contentReads": [
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21,
+          21
+        ],
+        "restoredActive": "image-0.png",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 110673376
+      },
+      {
+        "variant": "after",
+        "count": 50,
+        "restoreMs": {
+          "n": 30,
+          "median": 20.100000001490116,
+          "p95": 25.399999998509884,
+          "max": 59.900000005960464
+        },
+        "contentReads": [
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51,
+          51
+        ],
+        "restoredActive": "image-0.png",
+        "expectedActive": "image-0.png",
+        "peakJsHeapBytes": 120454716
+      }
+    ],
+    "save": [
+      {
+        "variant": "before",
+        "dirty": false,
+        "tabContent": "before write",
+        "editorContent": "continued edit"
+      },
+      {
+        "variant": "after",
+        "dirty": true,
+        "tabContent": "continued edit",
+        "editorContent": "continued edit"
+      }
+    ]
+  },
+  "searchBackend": [
+    {
+      "variant": "before",
+      "scenario": "normal",
+      "samples": 30,
+      "firstRunMs": 0.2807,
+      "medianMs": 0.2112,
+      "p95Ms": 0.2759,
+      "found": 1,
+      "directories": 1,
+      "entries": 100,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 4182016,
+      "processWorkingSetPeakBytes": 4190208
+    },
+    {
+      "variant": "before",
+      "scenario": "generated",
+      "samples": 30,
+      "firstRunMs": 7.5896,
+      "medianMs": 5.6711,
+      "p95Ms": 6.0802,
+      "found": 50,
+      "directories": 51,
+      "entries": 5050,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 4349952,
+      "processWorkingSetPeakBytes": 4349952
+    },
+    {
+      "variant": "before",
+      "scenario": "huge",
+      "samples": 30,
+      "firstRunMs": 7.755,
+      "medianMs": 7.2084,
+      "p95Ms": 7.5987,
+      "found": 1,
+      "directories": 1,
+      "entries": 10000,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 4354048,
+      "processWorkingSetPeakBytes": 4354048
+    },
+    {
+      "variant": "after",
+      "scenario": "normal",
+      "samples": 30,
+      "firstRunMs": 0.2277,
+      "medianMs": 0.1242,
+      "p95Ms": 0.15,
+      "found": 1,
+      "directories": 1,
+      "entries": 100,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 3915776,
+      "processWorkingSetPeakBytes": 3923968
+    },
+    {
+      "variant": "after",
+      "scenario": "generated",
+      "samples": 30,
+      "firstRunMs": 5.8056,
+      "medianMs": 6.0069,
+      "p95Ms": 7.0032000000000005,
+      "found": 50,
+      "directories": 51,
+      "entries": 5050,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 4190208,
+      "processWorkingSetPeakBytes": 4190208
+    },
+    {
+      "variant": "after",
+      "scenario": "huge",
+      "samples": 30,
+      "firstRunMs": 7.6363,
+      "medianMs": 7.5829,
+      "p95Ms": 8.4523,
+      "found": 1,
+      "directories": 1,
+      "entries": 10000,
+      "maxRunningSequential": 1,
+      "sampledWorkingSetPeakBytes": 4091904,
+      "processWorkingSetPeakBytes": 4190208
+    }
+  ],
+  "searchRaces": {
+    "variant": "after",
+    "search": [
+      {
+        "kind": "change",
+        "samples": 30,
+        "stalePresentations": 0,
+        "staleErrors": 0
+      },
+      {
+        "kind": "clear",
+        "samples": 30,
+        "stalePresentations": 0,
+        "staleErrors": 0
+      },
+      {
+        "kind": "root",
+        "samples": 30,
+        "stalePresentations": 0,
+        "staleErrors": 0
+      },
+      {
+        "kind": "close",
+        "samples": 30,
+        "stalePresentations": 0,
+        "staleErrors": 0
+      },
+      {
+        "kind": "error",
+        "samples": 30,
+        "stalePresentations": 0,
+        "staleErrors": 0
+      }
+    ],
+    "ownership": [
+      "old callback rejected after setContent",
+      "heading edit accepted after generated ID update",
+      "old callback rejected after rebuild"
+    ],
+    "asyncImages": null,
+    "overlap": {
+      "peakRunningMockedRequests": 2,
+      "remainingRequests": 0
+    }
+  },
+  "editorRegressions": {
+    "variant": "after",
+    "search": [],
+    "ownership": [
+      "old callback rejected after setContent",
+      "heading edit accepted after generated ID update",
+      "old callback rejected after rebuild"
+    ],
+    "asyncImages": {
+      "requested": 21,
+      "loaded": 21,
+      "scans": 3,
+      "scanMs": 0.6000000014901161
+    }
+  },
+  "directoryVisibilityRegression": {
+    "date": "2026-10-02",
+    "scope": "actual WorkspaceSidebar component, mocked IPC and visibilitychange; not native Windows minimization",
+    "initial": 2,
+    "visiblePolling": 1,
+    "hiddenMs": 5500,
+    "hiddenReads": 0,
+    "resumeReads": 1
+  }
+}

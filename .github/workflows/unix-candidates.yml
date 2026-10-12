@@ -1,0 +1,98 @@
+name: macOS and Linux candidates
+
+# Manual preparation only. Does not create tags or publish GitHub Releases.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unix-candidates-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.platform }} candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-22.04
+            output: linux-x86_64
+          - platform: macos
+            runner: macos-15
+            output: macos-universal
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: macOS Universal Rust targets
+        if: matrix.platform == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Linux build and packaging dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential curl wget file libwebkit2gtk-4.1-dev \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf rpm libfuse2 xdg-utils
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Script and frontend logic tests
+        run: pnpm run '/^test:/'
+
+      - name: Build candidate (includes frontend type check and build)
+        run: pnpm release:${{ matrix.platform }}
+
+      # generate_context! needs frontendDist, which the build above creates.
+      - name: Native Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+
+      - name: Verify candidate checksums
+        working-directory: release-unix/${{ matrix.output }}
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            shasum -a 256 -c SHA256SUMS.txt
+          else
+            sha256sum --check SHA256SUMS.txt
+          fi
+
+      - name: Verify macOS architectures and ad-hoc signature
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/PaperNest.app"
+          lipo -verify_arch x86_64 arm64 "$app/Contents/MacOS/PaperNest"
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PaperNest-${{ matrix.output }}-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-unix/${{ matrix.output }}/*
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>{{KATEX_CSS}}</style>
+<style>{{HLJS_CSS}}</style>
+<style>{{DOC_CSS}}</style>
+</head>
+<body>
+<article class="markdown-body">
+{{BODY}}
+</article>
+<script>{{KATEX_JS}}</script>
+<script>{{AUTO_RENDER_JS}}</script>
+<script>{{HLJS_JS}}</script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // comrak emits $...$ / $$...$$ as spans without the delimiters.
+    if (window.katex) {
+      document.querySelectorAll("[data-math-style]").forEach(function (el) {
+        window.katex.render(el.textContent, el, {
+          displayMode: el.getAttribute("data-math-style") === "display",
+          throwOnError: false
+        });
+      });
+    }
+    if (window.renderMathInElement) {
+      window.renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+          { left: "\\[", right: "\\]", display: true }
+        ],
+        throwOnError: false
+      });
+    }
+    if (window.hljs) window.hljs.highlightAll();
+  });
+</script>
+</body>
+</html>

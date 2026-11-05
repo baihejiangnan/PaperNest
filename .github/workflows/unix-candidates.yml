@@ -93,7 +93,13 @@ jobs:
           app_pid=$!
           trap 'kill "$app_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
-            kill -0 "$app_pid" || { cat linux-startup.log; exit 1; }
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              app_exit=0
+              wait "$app_pid" || app_exit=$?
+              cat linux-startup.log
+              echo "::error::PaperNest exited before showing a window (exit $app_exit)"
+              exit 1
+            fi
             if xdotool search --onlyvisible --name PaperNest >/dev/null 2>&1; then
               echo "PASS: Linux packaged binary created a visible desktop window"
               exit 0

@@ -11,6 +11,11 @@ on:
       - "**"
   pull_request:
   workflow_dispatch:
+    inputs:
+      verify_public_updater:
+        description: "Download and verify the published Windows update packages"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,3 +62,16 @@ jobs:
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+
+      - name: Verify published updater downloads
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_public_updater
+        shell: pwsh
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --locked --lib update::tests::public_metadata_downloads_and_verifies_both_windows_packages -- --ignored --nocapture 2>&1 | Tee-Object -FilePath public-updater.log
+          if ($LASTEXITCODE -ne 0) { throw 'Public updater verification failed.' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          foreach ($mode in @('installed', 'portable')) {
+            if (-not (Select-String -LiteralPath public-updater.log -SimpleMatch "PASS: $version $mode public metadata, download, signature and tamper rejection")) {
+              throw "Missing verification result for $version $mode"
+            }
+          }

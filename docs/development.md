@@ -128,6 +128,8 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --lib update::tests::pu
 if ($LASTEXITCODE -ne 0) { throw 'Public updater metadata/download/signature verification failed.' }
 ```
 
+本机直连受限时，可手动运行 CI 的 `verify_public_updater=true` 检查，由原生 Windows runner 编译应用并执行同一个忽略的联网测试；不修改客户端代理、TLS 或签名校验。
+
 检查输出必须同时包含本次 `X.Y.Z` 的 `installed` 和 `portable` 两个 PASS；测试若连接到旧 latest 并通过，不能算本次发行通过。该测试不校验所有元数据 size／独立 `.sig` 的逐项一致性，不替代[发行规则](release-rules.md#6-公开核验与收尾)中的六文件与两个平台键检查。记录运行所用源码提交，不能把最新源码测试记成旧客户端兼容验证。
 
 随后在保留的较低版本客户端中分别检查安装／便携模式：点击“检查更新”后显示本次新版，下载对应程序并验签，不出现“已是最新版本”或无反馈；开启自动检查时，确认本次检查完成后关于入口出现更新提示点。自动检查默认关闭且有时间间隔，先核对偏好和检查时间，不把“刚发布但尚未触发检查”误判为故障。关于页提示点的颜色取自主题强调色，不要求固定红色。

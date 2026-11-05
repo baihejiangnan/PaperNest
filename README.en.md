@@ -11,13 +11,13 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 [![License](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[Windows / Linux downloads](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
+[Windows / Linux downloads](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1) · [Website](https://baihejiangnan.github.io/PaperNest/) · [简体中文](README.md)
 
 </div>
 
 ![PaperNest in light mode, with an expanded file tree and a Markdown document containing tasks, a table, code, and math](docs/assets/screenshots/main-light.png)
 
-*Actual PaperNest v0.2.5 screenshots on Windows, using demo documents and a Chinese interface. More views appear below.*
+*Actual PaperNest v0.2.6 screenshots on Windows, using demo documents and a Chinese interface. More views appear below.*
 
 ---
 
@@ -46,7 +46,7 @@ Open Markdown to read or edit it, and quickly inspect code, configuration, logs,
 
 ## Screenshots
 
-The light-mode workspace is shown above. All screenshots below use v0.2.5 and the same set of demo files.
+The light-mode workspace is shown above. All screenshots below use v0.2.6 and the same set of demo files.
 
 <details>
 <summary><b>See more screenshots</b></summary>
@@ -85,13 +85,13 @@ Right-click a tab to close groups of tabs, lock it against preview replacement, 
 
 ## Download and install
 
-The current stable release is **v0.2.5**. Windows and Linux packages are in [stable Releases](https://github.com/baihejiangnan/PaperNest/releases/latest); macOS has a separate [unnotarized preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1).
+The current stable release is **v0.2.6**. Windows and Linux packages are in [stable Releases](https://github.com/baihejiangnan/PaperNest/releases/latest); macOS has a separate [unnotarized preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1).
 
 | Platform | Packages | Choose a package |
 | --- | --- | --- |
-| Windows x64 | [Portable EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5.exe) / [MSI installer](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest_0.2.5_x64.msi) | Run the EXE directly, or install the MSI and configure file associations. |
-| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.rpm) | Choose for your distribution; see the release notes for compatibility. |
-| macOS Intel / Apple Silicon | [Universal DMG preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) | One package for both architectures; ad-hoc signed and **not notarized by Apple**. |
+| Windows x64 | [Portable EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6.exe) / [MSI installer](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest_0.2.6_x64.msi) | Run the EXE directly, or install the MSI and configure file associations. |
+| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.rpm) | Choose for your distribution; see the release notes for compatibility. |
+| macOS Intel / Apple Silicon | [Universal DMG preview](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1) | One package for both architectures; ad-hoc signed and **not notarized by Apple**. |
 
 - Windows requires **WebView2 Runtime**. Windows Authenticode certificate signing is not configured, so Windows may report an unknown publisher on first run.
 - All platforms include SHA-256 manifests. Windows EXE and MSI packages also include updater signatures; these are separate from an OS-trusted publisher certificate.
@@ -140,6 +140,7 @@ The current stable release is **v0.2.5**. Windows and Linux packages are in [sta
 - Click an image to enlarge it, and adjust its alignment and size. Relative images and local links resolve from the current document's folder.
 - Binary files are never opened as text. Unsupported formats or encodings show a short notice at the top of the window that disappears after four seconds.
 - “Editor → Auto-save edited files” is off by default. When on, documents that already have a file are saved about 1.5 s after you stop typing, when you switch tabs, when the window loses focus, and on close. Untitled documents still ask. Opening a file never writes it.
+- Open documents refresh after external changes (about one second, with immediate checks on return/open), keeping the reading position. Local unsaved edits are preserved, marked ⚠, and auto-save pauses. Save offers explicit overwrite or reload; Save As keeps both versions. Local images also refresh. Deleted or unreadable files retain the current content.
 - Saved Markdown uses `-` for bullet lists by default; switch to `*` or `+` under Editor (a choice already stored in `settings.toml` is kept). Underscores inside words, such as `CODE_MODE_PLAN`, are no longer backslash-escaped.
 
 </details>

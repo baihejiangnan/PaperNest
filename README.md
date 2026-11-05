@@ -11,13 +11,13 @@
 [![许可证](https://img.shields.io/badge/license-MIT-8a5cf5)](LICENSE.md)
 [![平台](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-555)](https://github.com/baihejiangnan/PaperNest/releases/latest)
 
-[Windows / Linux 下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
+[Windows / Linux 下载](https://github.com/baihejiangnan/PaperNest/releases/latest) · [macOS 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1) · [项目介绍页](https://baihejiangnan.github.io/PaperNest/) · [English](README.en.md)
 
 </div>
 
 ![纸间 PaperNest 浅色主界面：展开的文件树与包含任务列表、表格、代码和公式的 Markdown 文档](docs/assets/screenshots/main-light.png)
 
-*PaperNest v0.2.5 的 Windows 实际运行截图，使用演示文档；下方可查看深色主题、源码、JSON、设置和标签页菜单。*
+*PaperNest v0.2.6 的 Windows 实际运行截图，使用演示文档；下方可查看深色主题、源码、JSON、设置和标签页菜单。*
 
 ---
 
@@ -46,7 +46,7 @@
 
 ## 界面预览
 
-浅色主界面见上图。以下截图均来自 v0.2.5，使用同一组演示文件。
+浅色主界面见上图。以下截图均来自 v0.2.6，使用同一组演示文件。
 
 <details>
 <summary><b>查看更多界面截图</b></summary>
@@ -85,13 +85,13 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 
 ## 下载与安装
 
-当前正式版为 **v0.2.5**。Windows 与 Linux 包在[正式版 Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)，macOS 单独提供[未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1)。
+当前正式版为 **v0.2.6**。Windows 与 Linux 包在[正式版 Releases](https://github.com/baihejiangnan/PaperNest/releases/latest)，macOS 单独提供[未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1)。
 
 | 平台 | 下载包 | 选择方式 |
 | --- | --- | --- |
-| Windows x64 | [便携 EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5.exe) / [安装 MSI](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest_0.2.5_x64.msi) | EXE 直接运行；MSI 适合安装到系统并配置文件关联。 |
-| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.5/PaperNest-0.2.5-linux-x86_64.rpm) | 按发行版选择应用包或软件包；兼容性说明见 Release。 |
-| macOS Intel / Apple Silicon | [Universal DMG 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.5-preview.1) | 同一包包含双架构；使用临时签名，**未经过 Apple 公证**。 |
+| Windows x64 | [便携 EXE](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6.exe) / [安装 MSI](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest_0.2.6_x64.msi) | EXE 直接运行；MSI 适合安装到系统并配置文件关联。 |
+| Linux x86_64 | [AppImage](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.AppImage) / [deb](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.deb) / [rpm](https://github.com/baihejiangnan/PaperNest/releases/download/v0.2.6/PaperNest-0.2.6-linux-x86_64.rpm) | 按发行版选择应用包或软件包；兼容性说明见 Release。 |
+| macOS Intel / Apple Silicon | [Universal DMG 测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1) | 同一包包含双架构；使用临时签名，**未经过 Apple 公证**。 |
 
 - Windows 需要 **WebView2 Runtime**。当前没有 Windows Authenticode 证书签名，首次运行时系统可能提示来源未知。
 - 各平台均附带 SHA-256 清单；Windows EXE 与 MSI 另有应用更新签名。更新签名与系统认可的发布者证书是不同的验证方式。
@@ -141,6 +141,7 @@ JSON 配置文件直接进入 Code 模式，无须转换为 Markdown。
 - 点击图片可放大预览，并调整对齐和缩放。相对图片与本地链接以当前文档所在目录解析。
 - 二进制文件不会按文本打开；不支持的格式或编码会在窗口顶部显示一条 4 秒后消失的提示，不打断阅读。
 - “编辑器 → 自动保存已编辑的文件”默认关闭。开启后，已有文件路径的文档在停止输入约 1.5 秒后、切换标签页和窗口失去焦点时保存，关闭时也直接保存；未命名文档仍会询问。只打开文件不会写入。
+- 已打开文件在外部更改后会自动刷新（约 1 秒，返回窗口或再次打开时立即检查），保留阅读位置；独立图片和 Markdown 内本地图片也会更新。如有本地未保存修改，则保留内容、显示 ⚠ 并暂停自动保存。点击保存可明确选择覆盖或加载磁盘版本；另存为可保留两份。文件删除或读取失败时也会保留当前内容。
 - 保存 Markdown 时列表符号默认写为 `-`，可在“编辑器”中改为 `*` 或 `+`（已有 `settings.toml` 中的选择会保留）；单词内部的下划线（如 `CODE_MODE_PLAN`）不再加反斜杠。
 
 </details>

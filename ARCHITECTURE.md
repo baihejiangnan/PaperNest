@@ -69,6 +69,7 @@ portable native shell using the OS WebView instead of bundling Chromium.
 | `src-tauri/src/lib.rs` | Tauri builder: single-instance plugin first, shared state, IPC command registry, settings watcher and macOS `RunEvent::Opened` handling. |
 | `src-tauri/src/file_open.rs` | Native file-open queue, CLI paths resolved against the sender's directory, and local file URL decoding. Only the main window can consume requests. |
 | `src-tauri/src/commands.rs` | Settings, document read/write/rename, export and image-loading commands. `get_settings` also returns version and update-restart information. |
+| `src-tauri/src/document_sync.rs` | Raw disk snapshots, batched metadata checks and version-checked atomic document saves shared by all windows. |
 | `src-tauri/src/reading_session.rs` | User-wide reading session and restore preference shared by installed and portable executables; newer local settings take precedence for legacy compatibility. |
 | `src-tauri/src/windows_launch.rs` | Elevated automatic reader launches hand off to the desktop Explorer before settings or the single-instance plugin initialize; installer registration commands keep their required privileges. |
 | `src-tauri/src/workspace.rs` | Directory listing/search, local-link resolution, file actions and same-process secondary windows. Locations use Explorer on Windows, `open -R` / `open` on macOS, and `xdg-open` on Linux. |
@@ -222,17 +223,43 @@ a read-only portable directory falls back there and shows a hint.
   be verified at the app's normal desktop integrity level; a low-integrity
   development executable cannot call the normal desktop Shell successfully.
 
+### External document changes
+Each tab keeps a `disk` identity (`version` from raw bytes, `stamp` from size and
+mtime), separately from Crepe's normalized `saved` baseline. All windows batch
+`get_document_stamps` once a second while visible. Returning to the window,
+switching tabs or reopening an existing path forces a content check even when
+metadata is preserved. Unchanged content does not rebuild the editor. Clean
+changes replace only the owning tab, preserve its scroll position and update the
+outline/statistics without focusing it. Reads are discarded after close, path
+replacement, a newer save, composition or a modal; live editor contents are read
+before deciding whether the tab is dirty.
+
+Dirty external changes and read/deletion errors set `externalChange`, show a
+warning and remove the tab from auto-save. A manual Save offers explicit overwrite,
+reload or cancel; Save As writes another destination without changing the source
+identity on failure. Reload is applied only if no newer edits arrived during its
+read. Local edits remain in memory until saved or explicitly discarded; this is
+not crash recovery. `Editor.refreshLocalImages` checks the currently rendered
+block, inline and raw-HTML local images and updates their DOM/cache without
+changing the document, selection or undo history. Resource failures display a
+broken image with the error in its title instead of stale bytes.
+
 ### Save
-`saveDoc` → `invoke("write_document", …)`. Rust pretty‑prints GFM tables
+`saveDoc` → `invoke("write_document_checked", …)`. Rust pretty‑prints GFM tables
 (`mdfmt`, which leaves lines inside ``` / ~~~ code fences untouched), writes
-through `fs_util::write_atomic` so a failed save never truncates the file, and
-**returns the text it actually wrote**; the frontend resyncs the
+through `fs_util::write_atomic_checked`. After staging/fsync, it compares the
+current raw-byte version with the expected version immediately before replacement;
+a mismatch returns `PAPERNEST_DOCUMENT_CONFLICT` without committing. A process-wide
+mutex serializes this check/replace across windows. The check is optimistic: it
+is not an OS transaction with arbitrary external writers after that last check.
+The backend returns the written text, version and staged file metadata; the frontend resyncs the
 view if it changed in Code mode. In preview mode, Crepe's serialization remains
 the clean baseline so replacing the view does not erase undo history. When
 editing continues during the asynchronous write, the completed save updates
 the baseline without overwriting the newer view and leaves the tab dirty.
 Writes of one tab are serialized (`queueTabSave`), so manual and automatic
-saves never call `write_document` concurrently for the same tab.
+saves never call `write_document_checked` concurrently for the same tab.
+The original `write_document` remains for explicit HTML export, not document saves.
 
 **Closing with unsaved edits.** Closing a tab, replacing a preview, quitting
 and starting an update all go through `settleUnsaved`: with `auto_save` on,

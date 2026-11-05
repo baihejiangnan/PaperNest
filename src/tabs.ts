@@ -5,11 +5,17 @@
 import { t } from "./i18n";
 import { tabPathKey } from "./tab-path";
 
+export interface DiskState { version: string | null; stamp: string }
+
 export interface Tab {
   id: string;
   path: string | null;
   /** Content as last saved or loaded. */
   saved: string;
+  /** Raw disk identity, independent of Crepe's normalized saved text. */
+  disk: DiskState | null;
+  /** External changes/errors block automatic writes until explicitly resolved. */
+  externalChange: boolean;
   /** Current editor content for this tab. */
   content: string;
   dirty: boolean;
@@ -105,6 +111,8 @@ export class TabBar {
       id: nextId(),
       path,
       saved: content,
+      disk: null,
+      externalChange: false,
       content,
       dirty: false,
       scrollTop: 0,
@@ -266,9 +274,10 @@ export class TabBar {
   }
 
   private label(tab: Tab): string {
-    return tab.startPage ? t("tab.new") : tab.imageUrl
+    const name = tab.startPage ? t("tab.new") : tab.imageUrl
       ? baseName(tab.path).replace(/\.[^.]+$/, "")
       : baseName(tab.path);
+    return (tab.externalChange ? "⚠ " : "") + name;
   }
 
   private handleClick(e: Event): void {

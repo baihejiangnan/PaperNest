@@ -8,7 +8,7 @@ import {
 } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { ask, askSaveChanges, message } from "./dialogs";
+import { ask, askSaveChanges, confirmDialog, message } from "./dialogs";
 import { dismissPreviewNotice, showUnsupportedPreviewNotice } from "./preview-notice";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -16,7 +16,7 @@ import { Editor } from "./editor";
 import { IMAGE_SOURCE_EVENT } from "./image-preview";
 import { CodeEditor } from "./code-editor";
 import { WorkspaceSidebar } from "./workspace-sidebar";
-import { TabBar, baseName, type Tab } from "./tabs";
+import { TabBar, baseName, type Tab, type DiskState } from "./tabs";
 import { isImagePath, isMarkdownPath, knownExtensions } from "./file-types";
 import { installEditorRendering } from "./editor-theme";
 import { FindBar, type FindTarget } from "./find-bar";
@@ -401,7 +401,7 @@ function stem(path: string | null): string {
 
 function updateTitle(): void {
   const tab = tabBar.active;
-  const mark = tab?.dirty ? "• " : "";
+  const mark = (tab?.externalChange ? "⚠ " : "") + (tab?.dirty ? "• " : "");
   const name = tab?.startPage ? t("tab.new") : baseName(tab?.path ?? null);
   const imageFolder = tab?.imageUrl && tab.path ? parentOfWorkspacePath(tab.path).split(/[\\/]/).filter(Boolean).pop() : null;
   const shown = settings?.show_path && tab?.path ? tab.path : imageFolder ? `${imageFolder} / ${stem(tab?.path ?? null)}` : name;
@@ -678,6 +678,7 @@ tabBar.onActivate = (next: Tab, prev: Tab | null) => {
     if (prev !== next) void autoSaveTab(prev);
   }
   showTab(next);
+  void syncDocuments(true);
 };
 
 workspace.onOpen = openPreviewPath;
@@ -956,13 +957,24 @@ function createDocumentFromStartPage(): void {
 
 let previewOpenSequence = 0;
 
-async function readPath(path: string, isRelevant = () => true): Promise<{ content: string; imageUrl: string | null } | null> {
-  try {
-    if (isImagePath(path)) {
-      return { content: "", imageUrl: await invoke<string>("read_image_data_url", { docPath: null, src: path }) };
-    }
-    return { content: await invoke<string>("read_document", { path }), imageUrl: null };
-  } catch (error) {
+interface DocumentState { content: string; version: string; stamp: string }
+interface LoadedDocument { content: string; imageUrl: string | null; disk: DiskState }
+interface DocumentStamp { path: string; stamp: { Ok: string } | { Err: string } }
+
+async function loadPath(path: string): Promise<LoadedDocument> {
+  if (isImagePath(path)) {
+    const [entry] = await invoke<DocumentStamp[]>("get_document_stamps", { paths: [path] });
+    if ("Err" in entry.stamp) throw new Error(entry.stamp.Err);
+    return { content: "", imageUrl: await invoke<string>("read_image_data_url", { docPath: null, src: path }),
+      disk: { version: null, stamp: entry.stamp.Ok } };
+  }
+  const state = await invoke<DocumentState>("read_document_state", { path });
+  return { content: state.content, imageUrl: null, disk: { version: state.version, stamp: state.stamp } };
+}
+
+async function readPath(path: string, isRelevant = () => true): Promise<LoadedDocument | null> {
+  try { return await loadPath(path); }
+  catch (error) {
     if (isRelevant() && !showUnsupportedPreviewNotice(path, error)) {
       await message(String(error), { title: "PaperNest", kind: "error" });
     }
@@ -970,12 +982,137 @@ async function readPath(path: string, isRelevant = () => true): Promise<{ conten
   }
 }
 
+let documentSyncBusy = false;
+let documentComposing = false;
+const documentSyncErrors = new WeakMap<Tab, string>();
+
+function flagExternalChange(tab: Tab, error?: string): void {
+  const first = !tab.externalChange;
+  tab.externalChange = true;
+  autoSavePending.delete(tab);
+  tabBar.refreshDirty();
+  if (tab === tabBar.active) { markDirtyFromView(); updateTitle(); }
+  if (first || (error && documentSyncErrors.get(tab) !== error)) {
+    if (error) documentSyncErrors.set(tab, error);
+    void message(t(error ? "dialog.externalReadFailed" : "dialog.externalChanged", {
+      name: baseName(tab.path), error: error ?? "",
+    }), { title: "PaperNest", kind: "warning" });
+  }
+}
+
+/** Replace only this tab's view; background refresh must not activate or focus it. */
+function applyDiskDocument(tab: Tab, loaded: LoadedDocument): void {
+  const active = tab === tabBar.active;
+  const scrollTop = active ? viewScrollTop() : tab.scrollTop;
+  tab.disk = loaded.disk;
+  tab.content = tab.saved = loaded.content;
+  tab.imageUrl = loaded.imageUrl;
+  tab.dirty = false;
+  tab.externalChange = false;
+  documentSyncErrors.delete(tab);
+  autoSavePending.delete(tab);
+  if (active) {
+    setViewVisibility(tab);
+    if (!tab.imageUrl) {
+      writeView(tab.content, scrollTop);
+      adoptNormalized(tab);
+    } else {
+      imageElement.onload = () => { if (tab === tabBar.active) imageDocument.scrollTop = scrollTop; };
+    }
+    void workspace.setDocument(tab.path, tab.content);
+    scheduleTextStats(true);
+    updateTitle();
+  }
+  tabBar.refreshDirty();
+}
+
+async function syncDocuments(force = false): Promise<void> {
+  if (!sessionReady || document.hidden || switching || documentComposing || hasActiveModal() || documentSyncBusy) return;
+  documentSyncBusy = true;
+  const pending = tabBar.tabs.filter(tab => tab.path && tab.disk && !tab.loading && !savingTabs.has(tab))
+    .map(tab => ({ tab, path: tab.path!, disk: tab.disk! }));
+  try {
+    const entries = await invoke<DocumentStamp[]>("get_document_stamps", { paths: pending.map(item => item.path) });
+    for (const { tab, path, disk } of pending) {
+      const current = () => tabBar.tabs.includes(tab) && tab.path === path && tab.disk === disk && !savingTabs.has(tab);
+      if (!current()) continue;
+      const entry = entries.find(item => item.path === path)!;
+      if ("Err" in entry.stamp) { flagExternalChange(tab, entry.stamp.Err); continue; }
+      if (entry.stamp.Ok === disk.stamp && !tab.externalChange && !force) continue;
+      try {
+        const loaded = await loadPath(path);
+        if (!current() || documentComposing || switching || hasActiveModal()) continue;
+        if (tab === tabBar.active) markDirtyFromView();
+        if (!tab.imageUrl && loaded.disk.version === disk.version) {
+          tab.disk = loaded.disk;
+          const resume = tab.externalChange;
+          tab.externalChange = false;
+          documentSyncErrors.delete(tab);
+          if (resume && tab.dirty) noteUserEdit(tab);
+          if (resume) { tabBar.refreshDirty(); if (tab === tabBar.active) updateTitle(); }
+        } else if (tab.dirty) {
+          flagExternalChange(tab);
+        } else {
+          applyDiskDocument(tab, loaded);
+        }
+      } catch (error) { if (current()) flagExternalChange(tab, String(error)); }
+    }
+    if (!codeViewVisible && !documentComposing && !switching && !hasActiveModal()) {
+      try { await editor.refreshLocalImages(force); }
+      catch (error) { console.error("Cannot refresh document images:", error); }
+    }
+  } catch (error) {
+    for (const { tab, path, disk } of pending) {
+      if (tabBar.tabs.includes(tab) && tab.path === path && tab.disk === disk) flagExternalChange(tab, String(error));
+    }
+  } finally { documentSyncBusy = false; }
+}
+
+function startDocumentSync(): void {
+  const tick = async () => {
+    await syncDocuments();
+    window.setTimeout(tick, 1000);
+  };
+  window.addEventListener("focus", () => { void syncDocuments(true); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void syncDocuments(true); });
+  document.addEventListener("compositionstart", () => { documentComposing = true; });
+  document.addEventListener("compositionend", () => { documentComposing = false; });
+  void tick();
+}
+
+async function resolveDocumentConflict(tab: Tab): Promise<{ version: string | null } | null> {
+  const path = tab.path!;
+  let version: string | null;
+  try { version = await invoke<string | null>("get_document_version", { path }); }
+  catch (error) {
+    await message(String(error), { title: "PaperNest", kind: "error" });
+    return null;
+  }
+  const result = await confirmDialog(t("dialog.externalConflict", { name: baseName(path) }), {
+    kind: "warning", confirmLabel: t("dialog.overwriteExternal"), danger: true,
+    alternateLabel: t("dialog.reloadExternal"), alternateDanger: true,
+  });
+  if (!tabBar.tabs.includes(tab) || tab.path !== path) return null;
+  if (result.choice === "confirm") return { version };
+  if (result.choice === "alternate") {
+    if (tab === tabBar.active) markDirtyFromView();
+    const before = tab.content;
+    const disk = tab.disk;
+    const loaded = await readPath(path, () => tabBar.tabs.includes(tab) && tab.path === path);
+    if (tab === tabBar.active) markDirtyFromView();
+    if (loaded && tabBar.tabs.includes(tab) && tab.path === path && tab.disk === disk && tab.content === before) {
+      applyDiskDocument(tab, loaded);
+    }
+  }
+  return null;
+}
+
 async function openPreviewPath(path: string): Promise<void> {
   const request = ++previewOpenSequence;
   const existing = tabBar.findByPath(path);
   if (existing) {
     tabBar.activate(existing.id);
-    if (!existing.loading) persistDocumentSession();
+    if (!existing.loading) { persistDocumentSession(); void syncDocuments(true); }
     return;
   }
 
@@ -995,6 +1132,8 @@ async function openPreviewPath(path: string): Promise<void> {
     // preview slot is already the selected tab.
     if (slot === tabBar.active) tabBar.activeId = "";
     slot.path = path;
+    slot.disk = loaded.disk;
+    slot.externalChange = false;
     slot.saved = loaded.content;
     slot.content = loaded.content;
     slot.dirty = false;
@@ -1005,6 +1144,7 @@ async function openPreviewPath(path: string): Promise<void> {
     tabBar.activate(slot.id);
   } else {
     const tab = tabBar.add(path, loaded.content, true, loaded.imageUrl);
+    tab.disk = loaded.disk;
     tab.preview = true;
   }
   persistDocumentSession();
@@ -1021,7 +1161,7 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
     }
     tabBar.activate(existing.id);
     void workspace.setDocument(existing.path, existing.content);
-    if (!existing.loading) persistDocumentSession();
+    if (!existing.loading) { persistDocumentSession(); void syncDocuments(true); }
     return;
   }
 
@@ -1036,6 +1176,7 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
       tabBar.remove(loadingTab.id);
       return;
     }
+    loadingTab.disk = loaded.disk;
     loadingTab.saved = loaded.content;
     loadingTab.content = loaded.content;
     loadingTab.imageUrl = loaded.imageUrl;
@@ -1053,6 +1194,7 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
   if (!inNewTab && cur && !cur.locked && !cur.path && !cur.dirty && cur.content === "") {
     cur.startPage = false;
     cur.path = path;
+    cur.disk = loaded.disk;
     cur.saved = text;
     cur.content = text;
     cur.dirty = false;
@@ -1073,6 +1215,7 @@ async function openPath(path: string, inNewTab = false): Promise<void> {
     rememberNavigation(path);
   } else {
     const tab = tabBar.add(path, text, true, imageUrl); // triggers onActivate
+    tab.disk = loaded.disk;
     tab.pinned = inNewTab;
   }
 
@@ -1122,6 +1265,8 @@ interface SaveOptions {
   keepView?: boolean;
   /** Auto-save: skip unchanged text and report failures once, without waiting. */
   quiet?: boolean;
+  destination?: string;
+  expectedVersion?: string | null;
 }
 
 const AUTO_SAVE_DELAY_MS = 1500;
@@ -1130,6 +1275,7 @@ const saveChains = new WeakMap<Tab, Promise<unknown>>();
 /** Tabs edited by the user since their last auto-save attempt. Only these are
  *  auto-saved, so merely opening (or re-normalizing) a file never writes it. */
 const autoSavePending = new Set<Tab>();
+const savingTabs = new Set<Tab>();
 let autoSaveTimer: number | undefined;
 let autoSaveError: { path: string; error: string } | null = null;
 
@@ -1149,36 +1295,69 @@ async function saveDoc(tab: Tab | undefined = tabBar.active, options: SaveOption
 async function writeTab(tab: Tab, options: SaveOptions): Promise<boolean> {
   // A tab closed while its save was queued has nothing left to write.
   if (!tabBar.tabs.includes(tab)) return true;
-  if (!tab.path || tab.imageUrl || tab.loading || tab.startPage) return false;
-  const path = tab.path;
+  if ((!tab.path && !options.destination) || tab.imageUrl || tab.loading || tab.startPage) return false;
+  if (options.quiet && tab.externalChange) return false;
+  const originalPath = tab.path;
+  const path = options.destination ?? tab.path!;
   const md = tab === tabBar.active ? readView() : tab.content;
   if (options.quiet && md === tab.saved) {
     updateTabContent(tab, md);
     return true;
   }
-  let written: string;
+  let expectedVersion = options.destination ? options.expectedVersion! : tab.disk!.version;
+  if (tab.externalChange && !options.destination) {
+    if (options.quiet) return false;
+    const resolution = await resolveDocumentConflict(tab);
+    if (!resolution) return false;
+    expectedVersion = resolution.version;
+  }
+  if (!tabBar.tabs.includes(tab) || tab.path !== originalPath) return false;
+  // Read again after a conflict dialog: input may have arrived while it was queued.
+  const submitted = tab === tabBar.active ? readView() : tab.content;
+  let state: DocumentState;
+  savingTabs.add(tab);
   try {
-    // The backend beautifies GFM tables and returns the text it wrote.
-    written = await invoke<string>("write_document", {
-      path,
-      contents: md,
+    state = await invoke<DocumentState>("write_document_checked", {
+      path, contents: submitted, expectedVersion,
     });
   } catch (e) {
+    if (String(e) === "PAPERNEST_DOCUMENT_CONFLICT") {
+      if (options.destination) {
+        await message(t("dialog.destinationChanged", { name: baseName(path) }), { title: "PaperNest", kind: "warning" });
+      } else if (tabBar.tabs.includes(tab) && tab.path === originalPath) flagExternalChange(tab);
+      return false;
+    }
     if (options.quiet) reportAutoSaveError(path, e);
     else await message(String(e), { title: "PaperNest", kind: "error" });
     return false;
-  }
+  } finally { savingTabs.delete(tab); }
   if (autoSaveError?.path === path) autoSaveError = null;
-  if (!tabBar.tabs.includes(tab) || tab.path !== path) return true;
+  if (!tabBar.tabs.includes(tab) || tab.path !== originalPath) return true;
+  const written = state.content;
+  tab.disk = { version: state.version, stamp: state.stamp };
+  tab.externalChange = false;
   const active = tab === tabBar.active;
   const latest = active ? readView() : tab.content;
   const preview = active && !codeViewVisible;
+  if (options.destination) {
+    const scrollTop = active ? viewScrollTop() : tab.scrollTop;
+    tab.path = path;
+    if (active) {
+      editor.setDocPath(path);
+      setViewVisibility(tab);
+      writeView(latest, scrollTop);
+    }
+    tabBar.render();
+    if (active) void workspace.setDocument(path, latest);
+    updateSourceButton();
+    void workspace.refresh();
+  }
   // In preview, keep Crepe's serialization as the baseline: table formatting
   // changes only the Markdown source and replacing the view would erase undo.
   // keepView does the same in Code mode: the submitted text is the baseline,
   // so the tab does not flip back to dirty because disk has formatted tables.
-  tab.saved = preview || options.keepView ? md : written;
-  if (!options.keepView && latest === md && written !== md && !preview) {
+  tab.saved = preview || options.keepView ? submitted : written;
+  if (!options.keepView && latest === submitted && written !== submitted && !preview) {
     if (active) writeView(written, viewScrollTop());
     tab.content = written;
   } else {
@@ -1188,7 +1367,7 @@ async function writeTab(tab: Tab, options: SaveOptions): Promise<boolean> {
   tab.dirty = tab.content !== tab.saved;
   tabBar.refreshDirty();
   updateTitle();
-  if (explicitLaunchPending) persistDocumentSession();
+  if (explicitLaunchPending || options.destination) persistDocumentSession();
   else if (!options.quiet) persistSoon();
   return true;
 }
@@ -1203,7 +1382,7 @@ function reportAutoSaveError(path: string, error: unknown): void {
 
 /** A user edit: (re)start the auto-save debounce for this tab. */
 function noteUserEdit(tab: Tab): void {
-  if (!settings?.auto_save || !tab.path) return;
+  if (!settings?.auto_save || !tab.path || tab.externalChange) return;
   autoSavePending.add(tab);
   window.clearTimeout(autoSaveTimer);
   autoSaveTimer = window.setTimeout(() => { void flushAutoSave(); }, AUTO_SAVE_DELAY_MS);
@@ -1227,7 +1406,7 @@ async function autoSaveTab(tab: Tab): Promise<void> {
   if (!tab.path || tab.imageUrl || tab.startPage || tab.loading) return;
   const ok = await queueTabSave(tab, () => writeTab(tab, { keepView: true, quiet: true }));
   // Failed: retry on the next switch, focus loss or edit; the notice is not repeated.
-  if (!ok && tabBar.tabs.includes(tab) && tab.dirty) autoSavePending.add(tab);
+  if (!ok && tabBar.tabs.includes(tab) && tab.dirty && !tab.externalChange) autoSavePending.add(tab);
 }
 
 /**
@@ -1282,31 +1461,14 @@ async function saveAs(): Promise<boolean> {
   if (!dest) return false;
   if (tabBar.active !== tab || !tabBar.tabs.includes(tab)) return false;
 
-  const content = readView();
-  const scrollTop = viewScrollTop();
-  const wasCodeView = codeViewVisible;
-  tab.path = dest;
-  editor.setDocPath(dest);
-  setViewVisibility(tab);
-  if (wasCodeView !== codeViewVisible) {
-    if (codeViewVisible) {
-      void codeEditor.setDocument(content, dest, scrollTop);
-    } else {
-      writeView(content, scrollTop);
-    }
-  } else if (codeViewVisible) {
-    void codeEditor.setLanguageForPath(dest);
+  try {
+    const expectedVersion = await invoke<string | null>("get_document_version", { path: dest });
+    if (tabBar.active !== tab || !tabBar.tabs.includes(tab)) return false;
+    return await queueTabSave(tab, () => writeTab(tab, { destination: dest, expectedVersion }));
+  } catch (error) {
+    await message(String(error), { title: "PaperNest", kind: "error" });
+    return false;
   }
-  const ok = await saveDoc(tab);
-  if (ok && tabBar.tabs.includes(tab) && tab.path === dest) {
-    tabBar.render();
-    updateSourceButton();
-    updateTitle();
-    persistDocumentSession();
-    if (tab === tabBar.active) void workspace.setDocument(dest, tab.content);
-    void workspace.refresh();
-  }
-  return ok;
 }
 
 async function closeActiveTab(): Promise<void> {
@@ -2645,9 +2807,10 @@ async function restoreTabs(resumeAfterUpdate = false, explicitFile = false): Pro
   for (const [sourceIndex, path] of files.entries()) {
     if (!path) continue;
     try {
-      const tab = isImagePath(path)
-        ? tabBar.add(path, "", false, await invoke<string>("read_image_data_url", { docPath: null, src: path }))
-        : tabBar.add(path, await invoke<string>("read_document", { path }), false);
+      const loaded = await readPath(path, () => false);
+      if (!loaded) continue;
+      const tab = tabBar.add(path, loaded.content, false, loaded.imageUrl);
+      tab.disk = loaded.disk;
       const offset = savedPositions[sourceIndex];
       tab.scrollTop = Number.isFinite(offset) ? Math.max(0, offset) : 0;
       restored.push({ sourceIndex, tabId: tab.id });
@@ -2831,6 +2994,7 @@ async function bootstrap(): Promise<void> {
   updateShortcutTitles();
   wireShortcuts();
   await wireWindowState();
+  startDocumentSync();
 
   // Do not block first paint on registry inspection. The lightweight Windows
   // Open With check runs only after the main window and editor are ready.

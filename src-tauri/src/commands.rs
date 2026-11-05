@@ -86,6 +86,10 @@ pub async fn read_document(path: String) -> Result<String, String> {
 
 fn read_document_text(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("Cannot read {path}: {e}"))?;
+    document_text(path, bytes)
+}
+
+pub(crate) fn document_text(path: &str, bytes: Vec<u8>) -> Result<String, String> {
     let sample = &bytes[..bytes.len().min(8192)];
     if looks_like_binary(sample) {
         return Err(format!("Cannot open {path}: the file appears to be binary."));
@@ -157,20 +161,24 @@ mod document_tests {
 /// Returns the text that was actually written so the UI can resync.
 #[tauri::command]
 pub fn write_document(path: String, contents: String) -> Result<String, String> {
+    let formatted = format_document(&path, contents);
+    crate::fs_util::write_atomic(std::path::Path::new(&path), formatted.as_bytes())
+        .map_err(|e| format!("Cannot write {path}: {e}"))?;
+    Ok(formatted)
+}
+
+pub(crate) fn format_document(path: &str, contents: String) -> String {
     let is_markdown = matches!(
         std::path::Path::new(&path)
             .extension()
             .and_then(|e| e.to_str()),
         Some("md") | Some("markdown") | Some("mdx") | None
     );
-    let formatted = if is_markdown {
+    if is_markdown {
         mdfmt::format_tables(&contents)
     } else {
         contents
-    };
-    crate::fs_util::write_atomic(std::path::Path::new(&path), formatted.as_bytes())
-        .map_err(|e| format!("Cannot write {path}: {e}"))?;
-    Ok(formatted)
+    }
 }
 
 /// Rename an existing document within its current directory.

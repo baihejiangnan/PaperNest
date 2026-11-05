@@ -71,6 +71,8 @@ export class Editor {
   private proxyUrl = "";
   /** Resolved `data:` URLs, keyed by `docPath \0 src`. */
   private readonly imageCache = new Map<string, string>();
+  private readonly imageStamps = new Map<string, string>();
+  private imageCacheGeneration = 0;
 
   /** Fires with Milkdown's already serialized Markdown after a content change. */
   onChange: (markdown: string) => void = () => {};
@@ -324,12 +326,73 @@ export class Editor {
     this.docPath = path;
   }
 
+  /** Update local image DOM only: document text, selection and undo stay intact. */
+  async refreshLocalImages(force = false): Promise<void> {
+    if (this.host.hidden || !this.docPath) return;
+    const view = this.view();
+    if (!view) return;
+    const docPath = this.docPath;
+    const generation = this.documentGeneration;
+    const doc = view.state.doc;
+    const targets = new Map<string, HTMLImageElement[]>();
+    const add = (src: string, img: HTMLImageElement) => {
+      if (!src || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(src) && !/^[a-z]:[\\/]/i.test(src)) return;
+      const images = targets.get(src) ?? [];
+      images.push(img);
+      targets.set(src, images);
+    };
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name !== "image" && node.type.name !== "image-block") return;
+      const dom = view.nodeDOM(pos);
+      const img = dom instanceof HTMLImageElement ? dom : dom instanceof Element ? dom.querySelector("img") : null;
+      if (img) add(node.attrs.src, img);
+    });
+    for (const img of this.host.querySelectorAll<HTMLImageElement>('img[data-mdmeow-html-img="true"]')) {
+      add(img.dataset.mdmeowSrc ?? "", img);
+    }
+    if (!targets.size) return;
+    const current = () => this.docPath === docPath && this.documentGeneration === generation
+      && view.state.doc === doc && !this.host.hidden;
+    const entries = await invoke<Array<{ path: string; stamp: { Ok: string } | { Err: string } }>>(
+      "get_document_stamps", { paths: [...targets.keys()], docPath },
+    );
+    for (const entry of entries) {
+      if (!current()) return;
+      const key = `${docPath}\u0000${entry.path}`;
+      const signature = "Ok" in entry.stamp ? entry.stamp.Ok : entry.stamp.Err;
+      if (force || this.imageStamps.get(key) !== signature) {
+        this.imageCacheGeneration++;
+        this.imageCache.delete(key);
+        try {
+          if ("Err" in entry.stamp) throw new Error(entry.stamp.Err);
+          const url = await invoke<string>("read_image_data_url", { docPath, src: entry.path });
+          if (!current()) return;
+          this.imageCache.set(key, url);
+          this.imageStamps.set(key, signature);
+        } catch (error) {
+          if (!current()) return;
+          // A removed/invalid resource must not continue displaying stale bytes.
+          for (const img of targets.get(entry.path)!) {
+            if (this.host.contains(img)) { img.src = entry.path; img.title = String(error); }
+          }
+          continue;
+        }
+      }
+      const url = this.imageCache.get(key);
+      if (url) for (const img of targets.get(entry.path)!) {
+        if (this.host.contains(img) && img.getAttribute("src") !== url) { img.src = url; img.removeAttribute("title"); }
+      }
+    }
+  }
+
   setProxyConfig(enabled: boolean, url: string): void {
     const nextUrl = url.trim();
     if (this.proxyEnabled === enabled && this.proxyUrl === nextUrl) return;
     this.proxyEnabled = enabled;
     this.proxyUrl = nextUrl;
     this.imageCache.clear();
+    this.imageStamps.clear();
+    this.imageCacheGeneration++;
   }
 
   /** `proxyDomURL` hook: map a Markdown image target to something the WebView
@@ -364,11 +427,12 @@ export class Editor {
       return src;
     }
     const key = `${this.docPath ?? ""}\u0000${raw}`;
+    const generation = this.imageCacheGeneration;
     const cached = this.imageCache.get(key);
     if (cached) return cached;
     return invoke<string>("read_image_data_url", { docPath: this.docPath, src: raw })
       .then((url) => {
-        this.imageCache.set(key, url);
+        if (generation === this.imageCacheGeneration) this.imageCache.set(key, url);
         return url;
       })
       .catch(() => src);

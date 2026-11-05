@@ -52,6 +52,7 @@ jobs:
           pnpm test:details-html
           pnpm test:markdown-serializer
           pnpm test:update-ui
+          pnpm test:document-sync
           pnpm test:release-unix
 
       - name: Rust tests

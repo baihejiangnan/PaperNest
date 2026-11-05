@@ -139,6 +139,6 @@ gh release edit $releaseTag --repo baihejiangnan/PaperNest --draft=false --prere
 - 以后公开跨平台发行仍从最终已提交源码构建，版本和标签按第 2、4 节选择新的版本；不追加或覆盖已公开的 v0.2.4 资产。当前 `release.yml` 的 Windows 六文件校验不兼容直接混入 Unix 包，正式整合时先调整资产契约和发布者，避免多个任务并发上传。
 - 两个平台的清单与构建信息同名，不能直接平铺上传到一个 Release。正式整合时制定唯一名称或合并总清单，重新生成并核对哈希，确保各自元数据和 Windows 更新元数据都指向正确资产。公开后逐项匿名下载核对，再记录对应平台的真实安装与打开结果。
 
-## 8. 0.2.5 分平台发布约定
+## 8. 0.2.5 起沿用的分平台发布约定
 
-Windows 先按六文件契约公开为 latest。随后从同一发行源码构建 Linux，将三个全新包和 `build-info-linux-x86_64.json`、`SHA256SUMS-linux-x86_64.txt` 追加到该版本；原有六文件、标签和更新元数据不覆盖。Unix 清单重命名时同步清单中的构建信息文件名，再验证全部哈希。macOS 使用独立标签 `macos-v0.2.5-preview.1` 发布为 prerelease，说明 ad-hoc 签名、未公证及实机验收范围，不改变 Windows latest。两平台均不宣称应用内自动安装更新。所有包逐项匿名下载核对；原生编译、Rust 测试和签名／架构检查与实机功能测试分别记录。
+Windows 先按六文件契约公开为 latest。随后从同一发行源码构建 Linux，将三个全新包和 `build-info-linux-x86_64.json`、`SHA256SUMS-linux-x86_64.txt` 追加到该版本；原有六文件、标签和更新元数据不覆盖。Unix 清单重命名时同步清单中的构建信息文件名，再验证全部哈希。macOS 使用对应版本的独立标签 `macos-vX.Y.Z-preview.1` 发布为 prerelease，说明 ad-hoc 签名、未公证及实机验收范围，不改变 Windows latest。两平台均不宣称应用内自动安装更新。所有包逐项匿名下载核对；原生编译、Rust 测试和签名／架构检查与实机功能测试分别记录。

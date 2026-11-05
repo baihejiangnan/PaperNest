@@ -1,6 +1,7 @@
 mod assets;
 mod commands;
 mod delete_info;
+mod document_sync;
 mod export;
 mod fs_util;
 mod file_open;
@@ -127,6 +128,10 @@ pub fn run() {
             new_md::get_new_md_menu_status,
             new_md::set_new_md_menu,
             commands::read_document,
+            document_sync::read_document_state,
+            document_sync::get_document_stamps,
+            document_sync::get_document_version,
+            document_sync::write_document_checked,
             commands::write_document,
             commands::rename_document,
             workspace::list_workspace_dir,

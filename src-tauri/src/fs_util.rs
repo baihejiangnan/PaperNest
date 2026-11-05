@@ -9,6 +9,14 @@ use std::path::Path;
 /// and the temporary file is then renamed over the target. If any step fails the
 /// previous contents of `path` stay untouched and the temporary file is removed.
 pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    write_atomic_checked(path, data, || Ok(())).map(|_| ())
+}
+
+pub fn write_atomic_checked(
+    path: &Path,
+    data: &[u8],
+    check: impl FnOnce() -> std::io::Result<()>,
+) -> std::io::Result<std::fs::Metadata> {
     // Write through a symlink to its target instead of replacing the link.
     let resolved;
     let path = match std::fs::symlink_metadata(path) {
@@ -28,13 +36,32 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
         .tempfile_in(dir)?;
     temp.write_all(data)?;
     temp.as_file().sync_all()?;
+    let metadata = temp.as_file().metadata()?;
+    check()?;
     temp.persist(path).map_err(|e| e.error)?;
-    Ok(())
+    Ok(metadata)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::write_atomic;
+    use super::{write_atomic, write_atomic_checked};
+
+    #[test]
+    fn final_check_rejects_changes_made_while_staging_the_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("doc.md");
+        std::fs::write(&path, "original").unwrap();
+        let result = write_atomic_checked(&path, b"local edit", || {
+            std::fs::write(&path, "external edit")?;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "changed",
+            ))
+        });
+        assert!(result.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "external edit");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn creates_and_replaces_without_leaving_temporary_files() {

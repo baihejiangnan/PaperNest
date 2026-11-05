@@ -17,16 +17,29 @@
 - `pnpm test:markdown-serializer`：用 Milkdown 自带的 remark 包与默认处理器，加上 `src/markdown-serializer.ts` 的配置，往返序列化样例 Markdown：单词内下划线不加转义、列表符号、链接／图片／邮件地址写法，以及保存后重新解析得到相同文档树。ProseMirror 与 mdast 之间的转换需要 DOM，不在此测试内。
 - `cargo check --manifest-path src-tauri/Cargo.toml`：快速检查 Rust。
 - `pnpm test:update-ui`：运行实际更新协调与渲染函数，验证错误在 finally／重新打开后仍显示、设置页保留原因、失败重试、后台检查释放按钮、手动检查复用请求，以及更新前严格保存会话、保存／交接失败和取消不关闭、更新重启强制恢复文件与阅读位置；还覆盖真实打开分支的锁定标签保护、批量关闭取消不部分移除、移动标签先保存及创建失败／后续修改保留源标签。文件读取、保存和窗口创建使用边界模拟，不代表桌面链路已实测。
+- `pnpm test:document-sync`：运行实际刷新／保存函数，检查外部更新、本地修改与自动保存冲突、覆盖／加载／取消／另存为、迟到读取、删除恢复、格式化基线、图片标签与输入法保护；仅模拟编辑器和 IPC 边界。Rust 的 `document_sync::tests`、`fs_util::tests` 使用真实临时文件核对冲突拒绝、多窗口竞争、格式化基线和最终提交前检查。
 - `pnpm test:release-unix`：以隔离目录和模拟构建器检查原生平台限制、四处版本一致、旧包保留、缺失／歧义产物拒绝、分平台资产与校验和。不会编译或运行 Linux/macOS 应用。
 - 公开更新联网集成测试：命令与通过条件见[公开更新入口验证](#公开更新入口验证)；常规 CI 默认跳过，不安装或启动下载程序。
 - `cargo test --manifest-path src-tauri/Cargo.toml`：运行现有 Rust 测试。
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib recycle::tests::windows_ -- --ignored --test-threads=1`：Windows 回收站集成测试，创建独立测试文件与文件夹，检查实际回收站条目后恢复；同时检查锁定文件失败时保留原文件。不会清空回收站。默认用系统临时目录，可通过 `PAPERNEST_TEST_RECYCLE_ROOT` 指定可回收且可写的测试目录。
-- [CI 工作流](../.github/workflows/ci.yml)：push、PR 与 workflow_dispatch 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、六个 `pnpm test:*` 与 `cargo test --locked --lib`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
+- [CI 工作流](../.github/workflows/ci.yml)：push、PR 与 workflow_dispatch 在 Windows 上依次运行 `pnpm install --frozen-lockfile`、`pnpm build`、七个 `pnpm test:*` 与 `cargo test --locked --lib`，不需要签名密钥，也不生成发行产物。本地提交前运行同一组命令即可对齐。
 - `pnpm release:windows`：Windows x64 EXE/MSI、更新签名、元数据及 SHA-256 清单。脚本检查 MSI 实际关联动作与执行顺序，并通过应用内嵌公钥检查两个产物的有效签名及篡改拒绝；CI 再核对完整六文件集合和校验和。[正式发行工作流](../.github/workflows/release.yml) 仍仅用于 Windows；Linux/macOS 候选包入口见下节。
 
 如果已经有开发实例占用 Vite 端口或单实例锁，先确认该实例及未保存内容，再重启开发命令。不要用旧的 `target/debug` 可执行文件来判断新改动是否生效；Rust 改动需要完成重新编译。
 
 在受限执行环境中，工作区生成的 EXE 可能继承低完整性标记，即使窗口能正常显示，也无法调用正常桌面权限下的资源管理器；目录打开会返回错误码 5，文件定位会返回 `0x80070005`。这时先核对应用与 Explorer 的完整性等级。桌面验证应将最新已编译程序复制到独立的普通临时目录，在该目录使用测试配置启动；不修改工作区或系统目录的权限。已有下载版、安装版或开发版可能占用同一应用标识的单实例锁，检查进程时也应包括版本化的 EXE 名称，不能只检查 `PaperNest.exe`。
+
+## 外部文件变更的 WebView2 实测（2026-11-05，本地源码）
+
+使用当前源码与生产前端资源执行 `tauri build --debug --no-bundle`，以独立应用标识、临时文档、APPDATA／LOCALAPPDATA 和便携 WebView2 数据目录运行。实际进程为 `PaperNestSyncTest.exe`，WebView2 为 156.0.4314.58；已安装的 PaperNest 实例保持运行。构建配置、EXE／源码哈希、逐阶段磁盘核对记录位于本地忽略目录 `output/tmp/desktop-sync-webview2/`。界面操作使用真实桌面窗口，没有模拟 IPC 或注入应用脚本。
+
+- 窗口保持前台、不重新聚焦时，Markdown 渲染正文和 CodeMirror 纯文本均自动显示外部改写的新标记，没有产生未保存状态。本轮没有滚动，不将此项计为阅读位置实测。
+- 自动保存关闭时，在 Markdown 源码视图输入本地未保存标记，再从外部改写同一文件：警告、未保存圆点与 ⚠ 出现，本地文本仍保留。Ctrl+S 的冲突对话框取消后，界面内容和磁盘外部版本均不变。
+- 从实际设置界面开启自动保存，先输入正向对照标记，等待超过 2.5 秒，确认磁盘确实已自动保存。再次输入本地标记，在输入结束后约 0.493 秒外部改写文件，同时保持原有 21 字节长度和修改时间。超过自动保存防抖时间后，界面仍保留本地文本并显示圆点／⚠，提示自动保存暂停；磁盘 SHA-256 与外部写入字节完全一致，说明内容版本校验在元数据未变时仍拒绝覆盖。
+- 冲突后继续输入、切换标签、最小化失焦并恢复，再等待超过 2.5 秒：两份本地未保存内容均保留，自动保存仍开启，两份磁盘文件均保持外部版本。
+- 收尾时通过实际设置关闭自动保存，再用原生另存为将两份本地编辑保存到全新测试副本。核对副本包含完整本地标记、原文件仍为外部版本，两个标签清除未保存／冲突标记后正常退出；没有丢弃本地测试内容或强制结束进程。
+
+本轮没有修改产品代码、打包安装器或发布新版。多窗口间交互、桌面图片刷新／磁盘删除、阅读位置及 Linux/macOS 行为仍按 [TODO](../TODO.md) 保留待验证。
 
 ## 右键菜单与设置样式（2026-10-12，本地源码）
 

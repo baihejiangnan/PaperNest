@@ -1,7 +1,7 @@
 {
   "name": "papernest",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "test:details-html": "node scripts/test-details-html.mjs",
     "test:markdown-serializer": "node scripts/test-markdown-serializer.mjs",
     "test:update-ui": "node scripts/test-update-ui.mjs",
+    "test:document-sync": "node scripts/test-document-sync.mjs",
     "test:release-unix": "node --test scripts/test-release-unix.mjs",
     "preview": "vite preview",
     "tauri": "tauri",

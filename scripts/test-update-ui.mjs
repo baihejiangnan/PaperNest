@@ -8,7 +8,7 @@ import ts from "typescript";
 const source = await readFile(new URL("../src/main.ts", import.meta.url), "utf8");
 const ast = ts.createSourceFile("main.ts", source, ts.ScriptTarget.Latest, true);
 const names = new Set(["setUpdateActions", "setUpdateProgress", "renderVersionInfo", "checkVersion", "runVersionCheck",
-  "snapshotSession", "persistSoon", "persistDocumentSession", "flushSettings", "restoreTabs", "usePreparedVersion", "applyNewMdMenu"]);
+  "snapshotSession", "persistSoon", "persistDocumentSession", "flushSettings", "restoreTabs", "loadPath", "readPath", "usePreparedVersion", "applyNewMdMenu"]);
 const functions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text));
 assert.equal(functions.length, names.size);
 const settingsHandler = ast.statements.find(node => ts.isExpressionStatement(node)
@@ -142,7 +142,7 @@ context.tabBar = {
 context.isImagePath = () => false;
 context.invoke = async (_command, { path }) => {
   if (path === "missing.md") throw new Error("missing file");
-  return `text for ${path}`;
+  return { content: `text for ${path}`, version: `v-${path}`, stamp: `s-${path}` };
 };
 context.settings = { open_last_session: false, open_files: ["a.md", "missing.md", "b.md"],
   open_file_scroll_positions: [120, 300, 876.5], active_tab: 2, session_source_mode: true };
@@ -195,9 +195,9 @@ context.tabBar.add = function(path, content) {
 };
 context.tabBar.activate = function(id) { this.active = this.tabs.find(tab => tab.id === id); };
 context.invoke = async (command, args) => {
-  if (command === "read_document") {
+  if (command === "read_document_state") {
     if (args.path === "b.md") await new Promise(resolve => { finishSecondRead = resolve; });
-    return `text for ${args.path}`;
+    return { content: `text for ${args.path}`, version: `v-${args.path}`, stamp: `s-${args.path}` };
   }
   if (command === "save_settings") startupSaves.push(structuredClone(context.settings));
 };
@@ -219,7 +219,7 @@ assert.equal(startupSaves.at(-1).open_last_session, false);
 context.settings.open_last_session = true;
 context.tabBar.tabs = [];
 context.tabBar.active = null;
-context.invoke = async (_command, { path }) => `text for ${path}`;
+context.invoke = async (_command, { path }) => ({ content: `text for ${path}`, version: `v-${path}`, stamp: `s-${path}` });
 vm.runInContext("sessionReady = false", context);
 await vm.runInContext("restoreTabs(false)", context);
 assert.deepEqual(context.tabBar.tabs.map(tab => tab.path), ["a.md", "b.md"]);
@@ -269,13 +269,13 @@ assert.equal(context.settings.session_workspace_root, "C:/project");
 // Drive the actual open/save branches after a failed explicit-file launch.
 // Only filesystem/dialog/rendering boundaries are stubbed; never clear the gate
 // manually to simulate success.
-const documentNames = new Set(["openPath", "openPreviewPath", "readPath", "saveAs", "saveDoc", "queueTabSave", "writeTab",
+const documentNames = new Set(["openPath", "openPreviewPath", "loadPath", "readPath", "saveAs", "saveDoc", "queueTabSave", "writeTab",
   "persistDocumentSession", "persistSoon", "snapshotSession", "flushSettings"]);
 const documentFunctions = ast.statements.filter(node => ts.isFunctionDeclaration(node) && documentNames.has(node.name?.text));
 assert.equal(documentFunctions.length, documentNames.size);
 const documentScript = ts.transpileModule([
   "let sessionReady = true, explicitLaunchPending = true, previewOpenSequence = 0, persistTimer, geometryCaptureTimer;",
-  "const saveChains = new WeakMap(); let autoSaveError = null;",
+  "const saveChains = new WeakMap(), savingTabs = new Set(); let autoSaveError = null;",
   ...documentFunctions.map(node => node.getText(ast)),
 ].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
 
@@ -301,12 +301,15 @@ function documentHarness() {
     window: { setTimeout(fn) { const id = Symbol(); timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); } },
     async invoke(command, args) {
       if (command === "save_settings") { writes.push(structuredClone(args.settings)); return; }
-      if (command === "write_document") return args.contents;
+      if (command === "write_document_checked") return { content: args.contents, version: "saved", stamp: "saved-stamp" };
+      if (command === "get_document_version") return null;
+      if (command === "get_document_stamps") return args.paths.map(path => ({ path, stamp: { Ok: "image-stamp" } }));
       if (args.path === "broken.md" || args.src === "broken.png") throw Error("read failed");
-      return command === "read_image_data_url" ? "data:image/png;base64,AA==" : "file content";
+      return command === "read_image_data_url" ? "data:image/png;base64,AA==" : { content: "file content", version: "v1", stamp: "s1" };
     },
     isImagePath: path => path.endsWith(".png"), showUnsupportedPreviewNotice: () => false, async message() {},
     editor: { setDocPath() {}, setSpellcheck() {}, focus() {} },
+    syncDocuments() {}, resolveDocumentConflict() {}, flagExternalChange() {},
     showTab() {}, setViewVisibility() {}, writeView() {}, adoptNormalized() {}, updateSourceButton() {}, updateTitle() {}, rememberNavigation() {},
     readView: () => "new content", viewScrollTop: () => 740, stem: () => "Untitled", knownExtensions: () => [],
     async save() { return "new.md"; }, updateTabContent() {}, reportAutoSaveError() {},
@@ -329,7 +332,7 @@ for (const scenario of ["new tab", "ordinary", "existing", "preview", "preview e
     if (scenario.endsWith("save retry")) {
       const invoke = h.ctx.invoke;
       h.ctx.invoke = async (command, args) => {
-        if (command === "write_document") throw Error("write failed");
+        if (command === "write_document_checked") throw Error("write failed");
         return invoke(command, args);
       };
       assert.equal(await h.run("saveAs()"), false);
@@ -377,7 +380,7 @@ for (const scenario of ["failed new tab", "failed image", "save cancel", "save f
     const opening = h.run(scenario === "closed read" ? 'openPath("slow.md", true)' : 'openPreviewPath("slow.md")');
     if (scenario === "closed read") h.tabs.remove(h.tabs.active.id);
     else h.run("++previewOpenSequence");
-    finishRead("file content");
+    finishRead({ content: "file content", version: "v1", stamp: "s1" });
     await opening;
   }
   if (scenario.endsWith("existing loading")) {
@@ -387,11 +390,11 @@ for (const scenario of ["failed new tab", "failed image", "save cancel", "save f
   if (scenario === "closed save") {
     h.tabs.add(null, "");
     let finishWrite;
-    h.ctx.invoke = () => new Promise(resolve => { finishWrite = resolve; });
+    h.ctx.invoke = command => command === "get_document_version" ? Promise.resolve(null) : new Promise(resolve => { finishWrite = resolve; });
     const saving = h.run("saveAs()");
     await new Promise(resolve => setImmediate(resolve));
     h.tabs.remove(h.tabs.active.id);
-    finishWrite("new content");
+    finishWrite({ content: "new content", version: "saved", stamp: "saved-stamp" });
     await saving;
   }
   await h.run("flushSettings(true)");

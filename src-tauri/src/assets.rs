@@ -28,18 +28,7 @@ pub fn is_external(src: &str) -> bool {
 /// image are accepted, so a document cannot inline (and leak into an export)
 /// an arbitrary local file such as a key or a config file.
 pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> {
-    let decoded = percent_decode(src.trim().trim_start_matches("./"));
-    let target = PathBuf::from(&decoded);
-
-    let resolved = if target.is_absolute() {
-        target
-    } else {
-        let base = doc_path
-            .map(Path::new)
-            .and_then(Path::parent)
-            .ok_or("relative image path, but this document has not been saved yet")?;
-        base.join(target)
-    };
+    let resolved = resolve_local_path(doc_path, src)?;
 
     let Some(mime) = image_mime(&resolved) else {
         return Err(format!("{} is not a supported image type", resolved.display()));
@@ -75,6 +64,23 @@ pub fn to_data_url(doc_path: Option<&str>, src: &str) -> Result<String, String> 
     }
 
     Ok(format!("data:{mime};base64,{}", base64_encode(&bytes)))
+}
+
+pub(crate) fn resolve_local_path(doc_path: Option<&str>, src: &str) -> Result<PathBuf, String> {
+    let decoded = percent_decode(src.trim().trim_start_matches("./"));
+    let target = PathBuf::from(&decoded);
+
+    let resolved = if target.is_absolute() {
+        target
+    } else {
+        let base = doc_path
+            .map(Path::new)
+            .and_then(Path::parent)
+            .ok_or("relative image path, but this document has not been saved yet")?;
+        base.join(target)
+    };
+
+    Ok(resolved)
 }
 
 fn image_mime(path: &Path) -> Option<&'static str> {

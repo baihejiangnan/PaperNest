@@ -549,3 +549,20 @@ Linux 的实体桌面安装／卸载、完整读写、会话、窗口、回收�
 只读挂载最终 DMG，lipo 确认 x86_64 与 arm64，codesign --verify --deep --strict 返回 valid on disk / satisfies its Designated Requirement。此项验证临时签名完整性，不表示 Developer ID、公证或下载后 Gatekeeper 验收。构建信息明确 signing=ad-hoc、notarized=false、dirty=false。DMG 为 12131882 字节，SHA-256 b65c09b422c8ea19cef15564456b81374cdb5a819b70561cace36a206985f339。
 
 草稿三资产的 uploaded 状态、大小和 GitHub digest 通过；公开后匿名下载 DMG、build-info.json 与 SHA256SUMS.txt，逐项 SHA-256 和清单验证通过。发布后再次确认 latest 仍是非预发布的 v0.2.5，Windows 更新入口不变。Mac 实机安装／卸载、Finder 双击、保存、窗口、拖放、回收站和导出仍未完成；最低系统版本未实机验证。正式 Mac 包仍需 Developer ID／公证。
+
+## 0.2.6 外部文件同步修复发行（2026-11-05）
+
+发行源码为 `f005d6fae7643a19457dc84d5dbe0883a0610f9e`，版本四处统一为 0.2.6；未包含原本地 Actions 触发探测提交。Windows 与 macOS 附注标签均解引用到该提交。后续 `1a6696f`／`e33b1f1` 仅增加 CI 公开客户端检查、Linux 显示连通性与有界启动诊断及说明，没有改动应用源码或移动标签。
+
+- [Windows v0.2.6](https://github.com/baihejiangnan/PaperNest/releases/tag/v0.2.6) 已公开为 latest，Release ID 为 435699735。本地签名构建退出 0、Result: PASS；MSI 关联动作、EXE/MSI 内嵌公钥验签和篡改拒绝均通过。六项资产的 GitHub digest、大小、匿名下载 SHA-256、校验清单、两个更新平台入口／签名／size 和匿名 latest/download/latest.json 已核对通过。
+- Windows EXE SHA-256：`af8b716aa5a282c844cf52fbe5e0154761dc80614a03cd754cd99a73be230ffd`；MSI：`6c85596648da68f9f735bf5aa483d45a48b947922264db2466f3ef43a27b66b4`。签名密钥保持原值，没有上传私钥到 Secrets；仍无 Windows Authenticode 证书签名。
+- [原始日常 CI](https://github.com/baihejiangnan/PaperNest/actions/runs/42104787266) 通过；[发行工作流](https://github.com/baihejiangnan/PaperNest/actions/runs/42104794043) 版本检查通过，build-windows／publish 按 RELEASE_PUBLISHER=local 跳过。七组前端检查通过；本地 Rust 65 项通过后，唯一受 HKCU 低完整性权限影响的注册表测试以同哈希 EXE 在普通目录定向通过，另 6 项为约定的显式忽略，未改权限。核心行为的真实 WebView2 实测见本文前节。
+- [公开客户端检查](https://github.com/baihejiangnan/PaperNest/actions/runs/42108976718) 在原生 Windows runner 上通过：66 项 Rust 测试通过、6 项显式忽略，随后同一客户端联网测试输出本次 `0.2.6 installed` 与 `0.2.6 portable` 两项元数据／真实下载／内嵌公钥验签／篡改拒绝 PASS。本机直连及现有代理的试验曾遇到 TLS EOF；正式判据采用未修改应用代码的云端运行结果，本地匿名下载结果独立保留。
+- [macOS 0.2.6 未公证测试版](https://github.com/baihejiangnan/PaperNest/releases/tag/macos-v0.2.6-preview.1) 已公开为 prerelease（ID 435737596），没有改变 Windows latest。原生候选来自任务 42104782148 的成功 macOS job：源码 f005d6f、dirty=false，原生编译／测试、最终 DMG 的 x86_64／arm64 双架构和 ad-hoc 签名检查通过。三项公开资产的大小、GitHub digest、清单及匿名下载字节一致性均通过。DMG 为 12178704 字节，SHA-256 为 `1a86d13303856064e59bc4a8e5fd82c62369cfcfa5d485456f161df6f5ffd237`。
+
+
+- [Linux 最终原生任务](https://github.com/baihejiangnan/PaperNest/actions/runs/42153603598) 通过：Ubuntu 22.04 x86_64 打包、58 项 Rust 测试（2 项显式忽略）、Xvfb 中真实可见窗口启动及包清单核验。build-info 明确 version=0.2.6、commit=f005d6f、dirty=false。前两轮启动检查曾无日志提前退出 1；工作流增加显示连通性检查和有界失败诊断后，新任务的原始窗口检查通过，未改动应用源码。
+- 向 v0.2.6 追加 Linux 的三个包、独立 build-info 与清单共五项新资产；原有六项 Windows 资产保持不变。最终 11 项正式版资产及 3 项 Mac 资产逐项核对 GitHub uploaded 状态、大小、digest、匿名下载 SHA-256 和三份清单通过；匿名 latest/download/latest.json 与本次构建文件字节一致，latest 仍为非预发布 v0.2.6。AppImage 整段下载链路停滞后，使用同一公开 HTTPS URL 的 206 Range 分段下载并拼合，完整大小与 SHA-256 一致。
+- Linux AppImage 为 85928440 字节，SHA-256 `8ec0b83c5ed0ac0eb745f0a0aeb1395a3b52a6f3d8f18b7290d838b854229d05`；deb 为 `87912f1502438ee43c6f758009e869253aea92ba7428e53f809d7720fad8ec97`；rpm 为 `6a2d27fa4a6d046a0855160dff5ee73a0d962cdf82561b7b10a6c057c15758f7`。
+
+本地证据位于忽略目录 `output/tmp/release-0.2.6/`。本轮未升级正在使用的安装版，真实 MSI 覆盖升级／卸载、低版本客户端完整使用新版与会话恢复、Unix 实体桌面及 Mac Developer ID／公证仍按 TODO 保留，不能用签名／下载或构建检查替代。

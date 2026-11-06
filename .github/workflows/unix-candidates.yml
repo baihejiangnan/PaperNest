@@ -62,7 +62,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential curl wget file libwebkit2gtk-4.1-dev \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            patchelf rpm libfuse2 xdg-utils xvfb xdotool dbus-x11
+            patchelf rpm libfuse2 xdg-utils xvfb xdotool dbus-x11 strace
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -87,8 +87,11 @@ jobs:
         env:
           WEBKIT_DISABLE_DMABUF_RENDERER: "1"
           NO_AT_BRIDGE: "1"
+          G_MESSAGES_DEBUG: all
         run: |
           dbus-run-session -- xvfb-run -a bash -euo pipefail <<'SMOKE'
+          xdotool getdisplaygeometry
+          file src-tauri/target/release/PaperNest
           src-tauri/target/release/PaperNest > linux-startup.log 2>&1 &
           app_pid=$!
           trap 'kill "$app_pid" 2>/dev/null || true' EXIT
@@ -98,6 +101,9 @@ jobs:
               wait "$app_pid" || app_exit=$?
               cat linux-startup.log
               echo "::error::PaperNest exited before showing a window (exit $app_exit)"
+              timeout 10s strace -f -o linux-startup.trace src-tauri/target/release/PaperNest > linux-strace-startup.log 2>&1 || true
+              cat linux-strace-startup.log
+              tail -n 120 linux-startup.trace
               exit 1
             fi
             if xdotool search --onlyvisible --name PaperNest >/dev/null 2>&1; then
